@@ -1,0 +1,121 @@
+/**
+ @file
+ @brief
+    Various constants and options that only affect very little code.
+ @note
+    @GENERATED_FILE_COMMENT@
+ */
+
+#ifndef _VChargeConfig_H__
+#define _VChargeConfig_H__
+
+/*---------------------------------
+ * Platform and compiler related options
+ *-------------------------------*/
+#cmakedefine VCHARGE_PLATFORM_WINDOWS
+#cmakedefine VCHARGE_PLATFORM_LINUX
+#cmakedefine VCHARGE_PLATFORM_APPLE
+#cmakedefine VCHARGE_PLATFORM_UNIX /* Apple and Linux */
+
+/* Determine compiler and set VCHARGE_COMP_VER */
+#if defined( _MSC_VER )
+#  define VCHARGE_COMPILER_MSVC
+#  define VCHARGE_COMP_VER _MSC_VER
+
+#elif defined( __GNUC__ )
+#  define VCHARGE_COMPILER_GCC
+#  define VCHARGE_COMP_VER (((__GNUC__)*100) + \
+        (__GNUC_MINOR__*10) + \
+        __GNUC_PATCHLEVEL__)
+#  if defined(__MINGW32__)
+#    define VCHARGE_COMPILER_MINGW
+#  endif
+
+#elif defined( __BORLANDC__ )
+#  define VCHARGE_COMPILER_BORLAND
+#  define VCHARGE_COMP_VER __BCPLUSPLUS__
+
+#else
+#  pragma error "No known compiler. Abort!"
+
+#endif
+
+/* Endianness */
+#cmakedefine VCHARGE_BIG_ENDIAN
+#cmakedefine VCHARGE_LITTLE_ENDIAN
+
+/* Architecture */
+#cmakedefine VCHARGE_ARCH_32
+#cmakedefine VCHARGE_ARCH_64
+
+/* See if we can use __forceinline or if we need to use __inline instead */
+#cmakedefine HAVE_FORCEINLINE
+#ifndef FORCEINLINE
+#  ifdef HAVE_FORCEINLINE
+#    define FORCEINLINE __forceinline
+#  else
+#    define FORCEINLINE __inline
+#  endif
+#endif
+
+/* Try to define function information */
+#ifndef __FUNCTIONNAME__
+#  ifdef VCHARGE_COMPILER_BORLAND
+#    define __FUNCTIONNAME__ __FUNC__
+#  elif defined(VCHARGE_COMPILER_GCC)
+#    define __FUNCTIONNAME__ __PRETTY_FUNCTION__
+#  elif defined(VCHARGE_COMPILER_MSVC)
+#    define __FUNCTIONNAME__ __FUNCTION__
+#  else
+#    define __FUNCTIONNAME__
+#  endif
+#endif
+
+
+/*---------------------------------
+ * Special Macros
+ *-------------------------------*/
+#define MACRO_CONCATENATE_AUX(a, b) a##b
+#define MACRO_CONCATENATE(a, b) MACRO_CONCATENATE_AUX(a, b)
+#define MACRO_QUOTEME_AUX(x) #x
+#define MACRO_QUOTEME(x) MACRO_QUOTEME_AUX(x)
+
+
+/*---------------------------------
+ * Includes
+ *-------------------------------*/
+/* Define the english written operators like and, or, xor
+ * This is C++ standard, but the Microsoft compiler doesn't define them. */
+#cmakedefine HAVE_ISO646_H
+#ifdef HAVE_ISO646_H
+#  include <iso646.h>
+#endif
+
+#cmakedefine HAVE_STDINT_H
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#elif defined(VCHARGE_COMPILER_MSVC)
+typedef __int8            int8_t;
+typedef __int16           int16_t;
+typedef __int32           int32_t;
+typedef __int64           int64_t;
+typedef unsigned __int8   uint8_t;
+typedef unsigned __int16  uint16_t;
+typedef unsigned __int32  uint32_t;
+typedef unsigned __int64  uint64_t;
+#endif
+
+#cmakedefine HAVE_STDDEF_H
+/* Quite large, do not include unless necessary
+#ifdef HAVE_STDDEF_H
+#  include <stddef.h>
+#endif
+*/
+
+/* Visual Leak Detector looks for memory leaks */
+#cmakedefine VISUAL_LEAK_DETECTOR_ENABLE
+#ifdef VISUAL_LEAK_DETECTOR_ENABLE
+#  include <vld.h>
+#endif
+
+#endif /* _VChargeConfig_H__ */

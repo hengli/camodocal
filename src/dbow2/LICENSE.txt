@@ -1,0 +1,28 @@
+DBoW2: bag-of-words library for C++ with generic descriptors
+Copyright (c) 2013 Dorian Galvez-Lopez
+
+This software is licensed under CC-BY-NC-SA. For more information, visit
+http://creativecommons.org/licenses/by-nc-sa/3.0/
+
+To obtain a commercial license, contact the author.
+
+To use this software for non-commercial purposes, please attibute the work
+to the original author:
+Dorian Galvez-Lopez. University of Zaragoza.
+http://webdiis.unizar.es/~dorian
+
+If you use it in an academic work, please cite:
+
+  @ARTICLE{GalvezTRO12,
+    author={G\'alvez-L\'opez, Dorian and Tard\'os, J. D.}, 
+    journal={IEEE Transactions on Robotics},
+    title={Bags of Binary Words for Fast Place Recognition in Image Sequences},
+    year={2012},
+    month={October},
+    volume={28},
+    number={5},
+    pages={1188--1197},
+    doi={10.1109/TRO.2012.2197158},
+    ISSN={1552-3098}
+  }
+

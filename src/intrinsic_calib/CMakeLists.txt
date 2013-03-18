@@ -1,0 +1,20 @@
+camodocal_executable(intrinsic_calib
+  intrinsic_calib.cc
+  Chessboard.cc
+)
+
+camodocal_link_libraries(intrinsic_calib
+  ${Boost_FILESYSTEM_LIBRARY}
+  ${Boost_PROGRAM_OPTIONS_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY}
+  ${GLIBMM2_LIBRARY}
+  ${SIGC++_LIBRARY}
+  ${GLIB2_LIBRARY}
+  ${GTHREAD2_LIBRARY}
+  ${OPENCV_CORE_LIBRARY}
+  ${OPENCV_CALIB3D_LIBRARY}
+  ${OPENCV_HIGHGUI_LIBRARY}
+  ${OPENCV_IMGPROC_LIBRARY}
+  catacamera
+  gpl
+)
