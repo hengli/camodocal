@@ -19,103 +19,6 @@ endmacro(print)
 # Last but not least: Try to make doxygen target
 add_subdirectory(cmake/doc)
 
-# Output
-set(_output_blanks "                              ")
-
-print("")
-print("---------------------------------------------------")
-print("DEPENDENCY:                 Required:    Found:")
-print("---------------------------------------------------")
-foreach(_name ${__required_dependencies})
-  string(TOUPPER ${_name} _name_upper)
-  string(LENGTH ${_name} _name_length)
-  math(EXPR _name_length "30 - ${_name_length}")
-  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
-  if(${_name_upper}_FOUND OR
-     ${_name_upper}_INCLUDE_DIR OR
-     ${_name_upper}_INCLUDE_DIRS OR
-     ${_name_upper}_LIBRARY OR
-     ${_name_upper}_LIBRARY_OPTIMIZED OR
-     ${_name_upper}_LIBRARIES OR
-     ${_name_upper}_LIBRARIES_OPTIMIZED)
-    set(_found " yes")
-  else()
-    set(_found " no")
-  endif()
-  print("${_name}${_blanks} yes        ${_found}")
-endforeach(_name)
-foreach(_name ${__optional_dependencies})
-  string(TOUPPER ${_name} _name_upper)
-  string(LENGTH ${_name} _name_length)
-  math(EXPR _name_length "30 - ${_name_length}")
-  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
-  if(${_name_upper}_FOUND OR
-     ${_name_upper}_INCLUDE_DIR OR
-     ${_name_upper}_INCLUDE_DIRS OR
-     ${_name_upper}_LIBRARY OR
-     ${_name_upper}_LIBRARY_OPTIMIZED OR
-     ${_name_upper}_LIBRARIES OR
-     ${_name_upper}_LIBRARIES_OPTIMIZED)
-    set(_found " yes")
-  else()
-    set(_found " no")
-  endif()
-  print("${_name}${_blanks} no         ${_found}")
-endforeach(_name)
-
-print("")
-print("---------------------------------------------------")
-print("Library:                      Build:    Condition:")
-print("---------------------------------------------------")
-foreach(_name ${__libraries})
-  string(TOUPPER ${_name} _name_upper)
-  string(LENGTH ${_name} _name_length)
-  math(EXPR _name_length "30 - ${_name_length}")
-  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
-  if(NOT ${_name_upper}_BUILD)
-    set(_condition ${${_name_upper}_CONDITION})
-  else()
-    set(_condition " (satisfied)")
-  endif()
-  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
-endforeach(_name)
-
-print("")
-print("---------------------------------------------------")
-print("Executable:                   Build:    Condition:")
-print("---------------------------------------------------")
-foreach(_name ${__executables})
-  string(TOUPPER ${_name} _name_upper)
-  string(LENGTH ${_name} _name_length)
-  math(EXPR _name_length "30 - ${_name_length}")
-  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
-  if(NOT ${_name_upper}_BUILD)
-    set(_condition ${${_name_upper}_CONDITION})
-  else()
-    set(_condition " (satisfied)")
-  endif()
-  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
-endforeach(_name)
-
-print("")
-print("---------------------------------------------------")
-print("Test:                         Build:    Condition:")
-print("---------------------------------------------------")
-foreach(_name ${__tests})
-  string(TOUPPER ${_name} _name_upper)
-  string(LENGTH ${_name} _name_length)
-  math(EXPR _name_length "30 - ${_name_length}")
-  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
-  if(NOT ${_name_upper}_BUILD)
-    set(_condition ${${_name_upper}_CONDITION})
-  else()
-    set(_condition " (satisfied)")
-  endif()
-  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
-endforeach(_name)
-
-print("")
-
 ################ Various Options ################
 
 # various macro includes
@@ -256,5 +159,101 @@ include_directories(
   include
 )
 
-# CamOdoCal code
 add_subdirectory(src)
+
+# Output
+set(_output_blanks "                              ")
+
+print("")
+print("---------------------------------------------------")
+print("DEPENDENCY:                 Required:    Found:")
+print("---------------------------------------------------")
+foreach(_name ${__required_dependencies})
+  string(TOUPPER ${_name} _name_upper)
+  string(LENGTH ${_name} _name_length)
+  math(EXPR _name_length "30 - ${_name_length}")
+  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
+  if(${_name_upper}_FOUND OR
+     ${_name_upper}_INCLUDE_DIR OR
+     ${_name_upper}_INCLUDE_DIRS OR
+     ${_name_upper}_LIBRARY OR
+     ${_name_upper}_LIBRARY_OPTIMIZED OR
+     ${_name_upper}_LIBRARIES OR
+     ${_name_upper}_LIBRARIES_OPTIMIZED)
+    set(_found " yes")
+  else()
+    set(_found " no")
+  endif()
+  print("${_name}${_blanks} yes        ${_found}")
+endforeach(_name)
+foreach(_name ${__optional_dependencies})
+  string(TOUPPER ${_name} _name_upper)
+  string(LENGTH ${_name} _name_length)
+  math(EXPR _name_length "30 - ${_name_length}")
+  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
+  if(${_name_upper}_FOUND OR
+     ${_name_upper}_INCLUDE_DIR OR
+     ${_name_upper}_INCLUDE_DIRS OR
+     ${_name_upper}_LIBRARY OR
+     ${_name_upper}_LIBRARY_OPTIMIZED OR
+     ${_name_upper}_LIBRARIES OR
+     ${_name_upper}_LIBRARIES_OPTIMIZED)
+    set(_found " yes")
+  else()
+    set(_found " no")
+  endif()
+  print("${_name}${_blanks} no         ${_found}")
+endforeach(_name)
+
+print("")
+print("---------------------------------------------------")
+print("Library:                      Build:    Condition:")
+print("---------------------------------------------------")
+foreach(_name ${__libraries})
+  string(TOUPPER ${_name} _name_upper)
+  string(LENGTH ${_name} _name_length)
+  math(EXPR _name_length "30 - ${_name_length}")
+  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
+  if(NOT ${_name_upper}_BUILD)
+    set(_condition ${${_name_upper}_CONDITION})
+  else()
+    set(_condition " (satisfied)")
+  endif()
+  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
+endforeach(_name)
+
+print("")
+print("---------------------------------------------------")
+print("Executable:                   Build:    Condition:")
+print("---------------------------------------------------")
+foreach(_name ${__executables})
+  string(TOUPPER ${_name} _name_upper)
+  string(LENGTH ${_name} _name_length)
+  math(EXPR _name_length "30 - ${_name_length}")
+  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
+  if(NOT ${_name_upper}_BUILD)
+    set(_condition ${${_name_upper}_CONDITION})
+  else()
+    set(_condition " (satisfied)")
+  endif()
+  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
+endforeach(_name)
+
+print("")
+print("---------------------------------------------------")
+print("Test:                         Build:    Condition:")
+print("---------------------------------------------------")
+foreach(_name ${__tests})
+  string(TOUPPER ${_name} _name_upper)
+  string(LENGTH ${_name} _name_length)
+  math(EXPR _name_length "30 - ${_name_length}")
+  string(SUBSTRING ${_output_blanks} 0 ${_name_length} _blanks)
+  if(NOT ${_name_upper}_BUILD)
+    set(_condition ${${_name_upper}_CONDITION})
+  else()
+    set(_condition " (satisfied)")
+  endif()
+  print("${_name}${_blanks}${${_name_upper}_BUILD}     ${_condition}")
+endforeach(_name)
+
+print("")

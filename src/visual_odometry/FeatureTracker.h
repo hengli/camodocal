@@ -4,8 +4,9 @@
 #include <Eigen/Dense>
 #include <opencv2/features2d/features2d.hpp>
 
-#include "../catacamera/CataCamera.h"
-#include "../sparse_graph/SparseGraph.h"
+#include "camodocal/CataCamera.h"
+#include "camodocal/SparseGraph.h"
+
 #include "ORBGPU.h"
 #include "SlidingWindowBA.h"
 #include "SurfGPU.h"

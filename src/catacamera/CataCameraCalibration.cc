@@ -1,21 +1,20 @@
-#include "CataCameraCalibration.h"
-
+#include <cstdio>
 #include <Eigen/Eigen>
+#include <iomanip>
+#include <iostream>
+#include <algorithm>
+#include <fstream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
+#include "camodocal/CataCamera.h"
+#include "camodocal/CataCameraCalibration.h"
+
 #include "../ceres-solver/include/ceres/ceres.h"
 #include "../gpl/EigenUtils.h"
-#include "CataCamera.h"
 #include "CataReprojectionError.h"
-
-#include <cstdio>
-#include <iomanip>
-#include <iostream>
-#include <algorithm>
-#include <fstream>
 
 namespace camodocal
 {

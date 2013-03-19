@@ -1,5 +1,5 @@
-#ifndef CAMERAODOMETERCALIBRATION_H
-#define CAMERAODOMETERCALIBRATION_H
+#ifndef CAMODOCALIBRATION_H
+#define CAMODOCALIBRATION_H
 
 #include <Eigen/Eigen>
 #include <opencv2/core/core.hpp>
@@ -7,10 +7,10 @@
 namespace camodocal
 {
 
-class CameraOdometerCalibration
+class CamOdoCalibration
 {
 public:
-    CameraOdometerCalibration();
+    CamOdoCalibration();
 
     bool addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
                           const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_odo);

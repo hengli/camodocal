@@ -1,4 +1,3 @@
-if(CATACAMERA_FOUND)
 if(EXISTS ${OPENCV_GPU_LIBRARY})
 
 include_directories(
@@ -31,4 +30,3 @@ camodocal_link_libraries(visual_odometry
 )
 
 endif(EXISTS ${OPENCV_GPU_LIBRARY})
-endif(CATACAMERA_FOUND)

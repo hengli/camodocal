@@ -4,8 +4,8 @@
 #include <Eigen/Dense>
 #include <list>
 
-#include "../catacamera/CataCamera.h"
-#include "../sparse_graph/SparseGraph.h"
+#include "camodocal/CataCamera.h"
+#include "camodocal/SparseGraph.h"
 
 namespace camodocal
 {

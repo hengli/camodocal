@@ -1,23 +1,20 @@
-#include "CameraRigCalibration.h"
+#include "CamRigOdoCalibration.h"
 
 #include <iomanip>
 #include <iostream>
 
-#include "../../library/bundle_adj/ReprojectionError.h"
-#include "../../library/gpl/CameraEnums.h"
-#include "../../library/gpl/EigenUtils.h"
-#include "../../mapping/feature_tracker/FeatureTracker.h"
-#include "../../visualization/overlay/GLOverlayExtended.h"
+#include "../gpl/EigenUtils.h"
+#include "../visual_odometry/FeatureTracker.h"
+#include "../visual_odometry/ReprojectionError.h"
 
-#include "CalibrationWindow.h"
 #include "CameraRigBA.h"
 
 namespace camodocal
 {
 
-bool CameraRigCalibration::mStop = false;
+bool CamRigOdoCalibration::mStop = false;
 
-OdoCamThread::OdoCamThread(int nMotions, int cameraIdx,
+CamOdoThread::CamOdoThread(int nMotions, int cameraIdx,
                            AtomicData<cv::Mat>* image,
                            const CataCameraCalibration* cameraCalib,
                            SensorDataBuffer<OdometerPtr>& odometerBuffer,
@@ -50,35 +47,35 @@ OdoCamThread::OdoCamThread(int nMotions, int cameraIdx,
  , mStop(stop)
  , mSaveImages(saveImages)
 {
-    mOdoCamCalib.setVerbose(verbose);
-    mOdoCamCalib.setMotionCount(nMotions);
+    mCamOdoCalib.setVerbose(verbose);
+    mCamOdoCalib.setMotionCount(nMotions);
 }
 
-OdoCamThread::~OdoCamThread()
+CamOdoThread::~CamOdoThread()
 {
     g_return_if_fail(mThread == 0);
 }
 
 int
-OdoCamThread::cameraIdx(void) const
+CamOdoThread::cameraIdx(void) const
 {
     return mCameraIdx;
 }
 
 const Eigen::Matrix4d&
-OdoCamThread::camOdoTransform(void) const
+CamOdoThread::camOdoTransform(void) const
 {
     return mCamOdoTransform;
 }
 
 const std::vector<FrameSegment>&
-OdoCamThread::frameSegments(void) const
+CamOdoThread::frameSegments(void) const
 {
     return mFrameSegments;
 }
 
 void
-OdoCamThread::reprojectionError(double& minError, double& maxError, double& avgError) const
+CamOdoThread::reprojectionError(double& minError, double& maxError, double& avgError) const
 {
     minError = std::numeric_limits<double>::max();
     maxError = std::numeric_limits<double>::min();
@@ -141,13 +138,13 @@ OdoCamThread::reprojectionError(double& minError, double& maxError, double& avgE
 }
 
 void
-OdoCamThread::launch(void)
+CamOdoThread::launch(void)
 {
-    mThread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &OdoCamThread::threadFunction));
+    mThread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &CamOdoThread::threadFunction));
 }
 
 void
-OdoCamThread::join(void)
+CamOdoThread::join(void)
 {
     if (mRunning)
     {
@@ -157,25 +154,25 @@ OdoCamThread::join(void)
 }
 
 bool
-OdoCamThread::running(void) const
+CamOdoThread::running(void) const
 {
     return mRunning;
 }
 
 sigc::signal<void>&
-OdoCamThread::signalFinished(void)
+CamOdoThread::signalFinished(void)
 {
     return mSignalFinished;
 }
 
 void
-OdoCamThread::threadFunction(void)
+CamOdoThread::threadFunction(void)
 {
     mRunning = true;
 
     TemporalFeatureTracker tracker(mCameraCalib->cameraParameters(),
                                    SURF_DETECTOR, SURF_DESCRIPTOR, RATIO, false);
-    tracker.setVerbose(OdometerCameraCalibration::getVerbose());
+    tracker.setVerbose(mCamOdoCalib.getVerbose());
 
     uint64_t prevTimeStamp = 0;
     Eigen::Vector2d prevPos(0.0, 0.0);
@@ -186,17 +183,11 @@ OdoCamThread::threadFunction(void)
 
     int trackBreaks = 0;
 
-    const cv::Mat& imageMask = mCameraCalib->cameraMask();
-
     std::vector<OdometerPtr> odometerPoses;
-
-    std::ostringstream oss;
-    oss << "swba" << mCameraIdx + 1;
-    GLOverlayExtended overlay(oss.str(), VCharge::COORDINATE_FRAME_GLOBAL);
 
     bool halt = false;
 
-    while (!halt && !mOdoCamCalib.motionsEnough())
+    while (!halt && !mCamOdoCalib.motionsEnough())
     {
         usleep(1000);
 
@@ -254,7 +245,7 @@ OdoCamThread::threadFunction(void)
 
             Eigen::Matrix3d R;
             Eigen::Vector3d t;
-            bool camValid = tracker.addFrame(frame, imageMask, R, t);
+            bool camValid = tracker.addFrame(frame, cv::Mat(), R, t);
 
             mOdometerBufferMutex.lock();
 
@@ -322,9 +313,9 @@ OdoCamThread::threadFunction(void)
 
             if (mStop || !camValid ||
                 (odometerPoses.size() >= kMinTrackLength &&
-                 mOdoCamCalib.getCurrentMotionCount() + odometerPoses.size() > mOdoCamCalib.getMotionCount()))
+                 mCamOdoCalib.getCurrentMotionCount() + odometerPoses.size() > mCamOdoCalib.getMotionCount()))
             {
-                addOdoCamCalibData(odometerPoses, tracker.getPoses(), tracker.getFrames());
+                addCamOdoCalibData(tracker.getPoses(), odometerPoses, tracker.getFrames());
 
                 if (!odometerPoses.empty())
                 {
@@ -338,108 +329,6 @@ OdoCamThread::threadFunction(void)
                     halt = true;
                 }
             }
-            else
-            {
-                // visualize camera poses and 3D scene points
-                const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& poses = tracker.getPoses();
-
-                overlay.clear();
-                overlay.pointSize(2.0f);
-                overlay.lineWidth(1.0f);
-
-                // draw 3D scene points
-//                switch (cameraIdx)
-//                {
-//                case CAMERA_FRONT:
-//                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-//                    break;
-//                case CAMERA_LEFT:
-//                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-//                    break;
-//                case CAMERA_REAR:
-//                    overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
-//                    break;
-//                case CAMERA_RIGHT:
-//                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-//                    break;
-//                default:
-//                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-//                }
-//
-//                overlay.begin(VCharge::POINTS);
-//
-//                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > scenePoints = tracker.getScenePoints();
-//                for (size_t j = 0; j < scenePoints.size(); ++j)
-//                {
-//                    Eigen::Vector3d& p = scenePoints.at(j);
-//
-//                    overlay.vertex3f(p(2), -p(0), -p(1));
-//                }
-//
-//                overlay.end();
-
-                // draw cameras
-                for (size_t j = 0; j < poses.size(); ++j)
-                {
-                    Eigen::Matrix4d H = poses.at(j).inverse();
-
-                    double xBound = 0.1;
-                    double yBound = 0.1;
-                    double zFar = 0.2;
-
-                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-                    frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-                    frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-                    for (size_t k = 0; k < frustum.size(); ++k)
-                    {
-                        frustum.at(k) = H.block<3,3>(0,0) * frustum.at(k) + H.block<3,1>(0,3);
-                    }
-
-                    overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-                    overlay.begin(VCharge::LINES);
-
-                    for (int k = 1; k < 5; ++k)
-                    {
-                        overlay.vertex3f(frustum.at(0)(2), -frustum.at(0)(0), -frustum.at(0)(1));
-                        overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                    }
-
-                    overlay.end();
-
-                    switch (mCameraIdx)
-                    {
-                    case CAMERA_FRONT:
-                        overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-                        break;
-                    case CAMERA_LEFT:
-                        overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-                        break;
-                    case CAMERA_REAR:
-                        overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
-                        break;
-                    case CAMERA_RIGHT:
-                        overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-                        break;
-                    default:
-                        overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-                    }
-
-                    overlay.begin(VCharge::POLYGON);
-
-                    for (int k = 1; k < 5; ++k)
-                    {
-                        overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                    }
-
-                    overlay.end();
-                }
-
-                overlay.publish();
-            }
 
             prevTimeStamp = timeStamp;
         }
@@ -450,14 +339,6 @@ OdoCamThread::threadFunction(void)
             currentMotionCount = odometerPoses.size() - 1;
         }
 
-        std::ostringstream oss;
-        oss << "# motions: " << mOdoCamCalib.getCurrentMotionCount() + currentMotionCount << " | "
-            << "# track breaks: " << trackBreaks;
-
-        CalibrationWindow::instance()->dataMutex().lock();
-
-        mStatus.assign(oss.str());
-
         if (!tracker.getSketch().empty())
         {
             tracker.getSketch().copyTo(mSketch);
@@ -466,40 +347,16 @@ OdoCamThread::threadFunction(void)
         {
             colorImage.copyTo(mSketch);
         }
-
-        CalibrationWindow::instance()->dataMutex().unlock();
     }
 
-    std::string buffer;
-    std::string filename;
-    switch (mCameraIdx)
-    {
-    case CAMERA_FRONT:
-        buffer.assign("front ");
-        filename.assign("odo_front_cam.txt");
-        break;
-    case CAMERA_LEFT:
-        buffer.assign("left ");
-        filename.assign("odo_left_cam.txt");
-        break;
-    case CAMERA_REAR:
-        buffer.assign("rear ");
-        filename.assign("odo_rear_cam.txt");
-        break;
-    case CAMERA_RIGHT:
-        buffer.assign("right ");
-        filename.assign("odo_right_cam.txt");
-        break;
-    }
+    std::cout << "# INFO: Calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
 
-    std::cout << "# INFO: Calibrating odometer - " + buffer + "camera..." << std::endl;
-
-//    mOdoCamCalib.writeMotionSegmentsToFile(filename);
+//    mCamOdoCalib.writeMotionSegmentsToFile(filename);
 
     Eigen::Matrix4d H_cam_odo;
-    mOdoCamCalib.calibrate(H_cam_odo);
+    mCamOdoCalib.calibrate(H_cam_odo);
 
-    std::cout << "# INFO: Finished calibrating odometer - " + buffer + "camera." << std::endl;
+    std::cout << "# INFO: Finished calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
     std::cout << "Rotation: " << std::endl << H_cam_odo.block<3,3>(0,0) << std::endl;
     std::cout << "Translation: " << std::endl << H_cam_odo.block<3,1>(0,3).transpose() << std::endl;
 
@@ -511,8 +368,8 @@ OdoCamThread::threadFunction(void)
 }
 
 void
-OdoCamThread::addOdoCamCalibData(const std::vector<OdometerPtr>& odoPoses,
-                                 const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
+CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
+                                 const std::vector<OdometerPtr>& odoPoses,
                                  FrameSegment& frameSegment)
 {
     if (odoPoses.size() != camPoses.size())
@@ -542,7 +399,7 @@ OdoCamThread::addOdoCamCalibData(const std::vector<OdometerPtr>& odoPoses,
         camMotions.push_back(relativeCameraPose);
     }
 
-    if (!mOdoCamCalib.addMotionSegment(camMotions, odoMotions))
+    if (!mCamOdoCalib.addMotionSegment(camMotions, odoMotions))
     {
         std::cout << "# ERROR: Numbers of camera and odometry motions do not match." << std::endl;
         exit(0);
@@ -611,7 +468,7 @@ CamRigThread::threadFunction(void)
 {
     mRunning = true;
 
-    std::vector<CataCameraParameters> cameraParameters;
+    std::vector<CataCamera::Parameters> cameraParameters;
     for (size_t i = 0; i < mCameraCalib.size(); ++i)
     {
         cameraParameters.push_back(mCameraCalib.at(i)->cameraParameters());
@@ -626,35 +483,32 @@ CamRigThread::threadFunction(void)
     mSignalFinished();
 }
 
-CameraRigCalibration::CameraRigCalibration(std::vector<AtomicData<cv::Mat>* >& images,
-                                           std::vector<CataCameraCalibration*>& cameraCalib,
-                                           SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                                           SensorDataBuffer<PosePtr>& gpsInsBuffer,
+CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CataCameraCalibration*>& cameraCalib,
                                            const Options& options)
  : mMainLoop(Glib::MainLoop::create())
- , mOdoCamThreads(CAMERA_COUNT)
- , mImages(images)
+ , mCamOdoThreads(cameraCalib.size())
+ , mImages(cameraCalib.size())
  , mCameraCalib(cameraCalib)
- , mOdometerBuffer(odometerBuffer)
- , mGpsInsBuffer(gpsInsBuffer)
- , mExtrinsics(CAMERA_COUNT)
- , mStatuses(CAMERA_COUNT)
- , mSketches(CAMERA_COUNT)
+ , mOdometerBuffer(1000)
+ , mGpsInsBuffer(1000)
+ , mExtrinsics(cameraCalib.size())
+ , mStatuses(cameraCalib.size())
+ , mSketches(cameraCalib.size())
  , mOptions(options)
 {
-    for (size_t i = 0; i < mOdoCamThreads.size(); ++i)
+    for (size_t i = 0; i < mCamOdoThreads.size(); ++i)
     {
-        OdoCamThread* thread = new OdoCamThread(options.nMotions, i, mImages.at(i), mCameraCalib.at(i),
+        CamOdoThread* thread = new CamOdoThread(options.nMotions, i, mImages.at(i), mCameraCalib.at(i),
                                                 mOdometerBuffer, mInterpOdometerBuffer, mOdometerBufferMutex,
                                                 mGpsInsBuffer, mInterpGpsInsBuffer, mGpsInsBufferMutex,
                                                 mStatuses.at(i), mSketches.at(i), mStop,
                                                 options.saveImages, options.verbose);
-        mOdoCamThreads.at(i) = thread;
-        thread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CameraRigCalibration::onOdoCamThreadFinished), thread));
+        mCamOdoThreads.at(i) = thread;
+        thread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamOdoThreadFinished), thread));
     }
 
     mCamRigThread = new CamRigThread(mCameraCalib, mExtrinsics, mGraph, options.beginStage, options.findLoopClosures, options.saveWorkingData, options.dataDir, options.verbose);
-    mCamRigThread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CameraRigCalibration::onCamRigThreadFinished), mCamRigThread));
+    mCamRigThread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamRigThreadFinished), mCamRigThread));
 
     for (size_t i = 0; i < mSketches.size(); ++i)
     {
@@ -663,24 +517,70 @@ CameraRigCalibration::CameraRigCalibration(std::vector<AtomicData<cv::Mat>* >& i
     }
 }
 
-CameraRigCalibration::~CameraRigCalibration()
+CamRigOdoCalibration::~CamRigOdoCalibration()
 {
 
 }
 
 void
-CameraRigCalibration::run(void)
+CamRigOdoCalibration::addFrame(int cameraIdx, const cv::Mat& image,
+                               uint64_t timestamp)
+{
+    AtomicData<cv::Mat>* frame = mImages.at(cameraIdx);
+
+    frame->lockData();
+
+    image.copyTo(frame->data());
+
+    frame->timeStamp() = timestamp;
+    frame->available() = true;
+
+    frame->unlockData();
+}
+
+void
+CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
+                                  uint64_t timestamp)
+{
+    OdometerPtr odometer(new Odometer);
+    odometer->x() = x;
+    odometer->y() = y;
+    odometer->yaw() = yaw;
+    odometer->timeStamp() = timestamp;
+
+    mOdometerBuffer.push(timestamp, odometer);
+}
+
+void
+CamRigOdoCalibration::addGpsIns(double lat, double lon,
+                                double roll, double pitch, double yaw,
+                                uint64_t timestamp)
+{
+   // convert latitude/longitude to UTM coordinates
+    double utmX, utmY;
+    std::string utmZone;
+    LLtoUTM(lat, lon, utmX, utmY, utmZone);
+
+    PosePtr pose(new Pose);
+    pose->rotation() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
+                       * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
+                       * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+    pose->translation() = Eigen::Vector3d(utmX, utmY, 0.0);
+
+    pose->timeStamp() = timestamp;
+
+    mGpsInsBuffer.push(timestamp, pose);
+}
+
+void
+CamRigOdoCalibration::run(void)
 {
     if (mOptions.beginStage == 0)
     {
-        CalibrationWindow::instance()->setKeyboardHandler(&CameraRigCalibration::keyboardHandler);
-
-        Glib::signal_timeout().connect(sigc::mem_fun(*this, &CameraRigCalibration::displayHandler), 100);
-
-        std::cout << "# INFO: Running odometer-camera calibration for each of the " << CAMERA_COUNT << " cameras." << std::endl;
+        std::cout << "# INFO: Running odometer-camera calibration for each of the " << mCameraCalib.size() << " cameras." << std::endl;
 
         // run odometer-camera calibration for each camera
-        Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CameraRigCalibration::launchOdoCamThreads));
+        Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreads));
         mMainLoop->run();
 
         std::cout << "# INFO: Completed odometer-camera calibration for all cameras." << std::endl;
@@ -756,19 +656,19 @@ CameraRigCalibration::run(void)
 }
 
 const CameraRigExtrinsics&
-CameraRigCalibration::extrinsics(void) const
+CamRigOdoCalibration::extrinsics(void) const
 {
     return mExtrinsics;
 }
 
 void
-CameraRigCalibration::launchOdoCamThreads(void)
+CamRigOdoCalibration::launchCamOdoThreads(void)
 {
-    std::for_each(mOdoCamThreads.begin(), mOdoCamThreads.end(), std::mem_fun(&OdoCamThread::launch));
+    std::for_each(mCamOdoThreads.begin(), mCamOdoThreads.end(), std::mem_fun(&CamOdoThread::launch));
 }
 
 void
-CameraRigCalibration::onOdoCamThreadFinished(OdoCamThread* odoCamThread)
+CamRigOdoCalibration::onCamOdoThreadFinished(CamOdoThread* odoCamThread)
 {
     odoCamThread->join();
     mExtrinsics.setGlobalCameraPose(odoCamThread->cameraIdx(), odoCamThread->camOdoTransform());
@@ -784,52 +684,18 @@ CameraRigCalibration::onOdoCamThreadFinished(OdoCamThread* odoCamThread)
                   << " px | max = " << maxError << " px" << std::endl;
     }
 
-    if (std::find_if(mOdoCamThreads.begin(), mOdoCamThreads.end(), std::mem_fun(&OdoCamThread::running)) == mOdoCamThreads.end())
+    if (std::find_if(mCamOdoThreads.begin(), mCamOdoThreads.end(), std::mem_fun(&CamOdoThread::running)) == mCamOdoThreads.end())
     {
         mMainLoop->quit();
     }
 }
 
 void
-CameraRigCalibration::onCamRigThreadFinished(CamRigThread* camRigThread)
+CamRigOdoCalibration::onCamRigThreadFinished(CamRigThread* camRigThread)
 {
     camRigThread->join();
 
     mMainLoop->quit();
-}
-
-bool
-CameraRigCalibration::displayHandler(void)
-{
-    CalibrationWindow::instance()->dataMutex().lock();
-
-    CalibrationWindow::instance()->frontText().assign(mStatuses.at(0));
-    CalibrationWindow::instance()->leftText().assign(mStatuses.at(1));
-    CalibrationWindow::instance()->rearText().assign(mStatuses.at(2));
-    CalibrationWindow::instance()->rightText().assign(mStatuses.at(3));
-
-    mSketches.at(0).copyTo(CalibrationWindow::instance()->frontView());
-    mSketches.at(1).copyTo(CalibrationWindow::instance()->leftView());
-    mSketches.at(2).copyTo(CalibrationWindow::instance()->rearView());
-    mSketches.at(3).copyTo(CalibrationWindow::instance()->rightView());
-
-    CalibrationWindow::instance()->dataMutex().unlock();
-
-    return true;
-}
-
-void
-CameraRigCalibration::keyboardHandler(unsigned char key, int x, int y)
-{
-    switch(key)
-    {
-    case 's':
-        mStop = true;
-        break;
-
-    default:
-        break;
-    }
 }
 
 }

@@ -1,4 +1,4 @@
-#include "CataCamera.h"
+#include "camodocal/CataCamera.h"
 
 #include <cmath>
 #include <cstdio>

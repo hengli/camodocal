@@ -1,4 +1,4 @@
-#include "SparseGraph.h"
+#include "camodocal/SparseGraph.h"
 
 #include <opencv2/highgui/highgui.hpp>
 #include <cstdio>

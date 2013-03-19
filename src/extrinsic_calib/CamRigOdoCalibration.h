@@ -1,24 +1,24 @@
-#ifndef CAMERARIGCALIBRATION_H
-#define CAMERARIGCALIBRATION_H
+#ifndef CAMRIGODOCALIBRATION_H
+#define CAMRIGODOCALIBRATION_H
 
 #include <glibmm.h>
 
-#include "camodocal/CameraOdometerCalibration.h"
+#include "camodocal/CameraRigExtrinsics.h"
+#include "camodocal/CamOdoCalibration.h"
+#include "camodocal/CataCamera.h"
+#include "camodocal/CataCameraCalibration.h"
+#include "camodocal/SparseGraph.h"
 
-#include "../catacamera/CameraRigExtrinsics.h"
-#include "../catacamera/CataCamera.h"
-#include "../catacamera/CataCameraCalibration.h"
-#include "../sparse_graph/SparseGraph.h"
 #include "AtomicData.h"
 #include "utils.h"
 
 namespace camodocal
 {
 
-class OdoCamThread
+class CamOdoThread
 {
 public:
-    explicit OdoCamThread(int nMotions, int cameraIdx,
+    explicit CamOdoThread(int nMotions, int cameraIdx,
                           AtomicData<cv::Mat>* image,
                           const CataCameraCalibration* const cameraCalib,
                           SensorDataBuffer<OdometerPtr>& odometerBuffer,
@@ -32,7 +32,7 @@ public:
                           bool& stop,
                           bool saveImages = false,
                           bool verbose = false);
-    virtual ~OdoCamThread();
+    virtual ~CamOdoThread();
 
     int cameraIdx(void) const;
     const Eigen::Matrix4d& camOdoTransform(void) const;
@@ -48,8 +48,8 @@ public:
 private:
     void threadFunction(void);
 
-    void addOdoCamCalibData(const std::vector<OdometerPtr>& odoPoses,
-                            const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
+    void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
+                            const std::vector<OdometerPtr>& odoPoses,
                             FrameSegment& frameSegment);
 
     Glib::Threads::Thread* mThread;
@@ -57,7 +57,7 @@ private:
     bool mRunning;
     sigc::signal<void> mSignalFinished;
 
-    OdometerCameraCalibration mOdoCamCalib;
+    CamOdoCalibration mCamOdoCalib;
     std::vector<FrameSegment> mFrameSegments;
 
     AtomicData<cv::Mat>* mImage;
@@ -116,7 +116,7 @@ private:
     bool mVerbose;
 };
 
-class CameraRigCalibration: public sigc::trackable
+class CamRigOdoCalibration: public sigc::trackable
 {
 public:
     class Options
@@ -134,39 +134,41 @@ public:
         bool verbose;
     };
 
-    CameraRigCalibration(std::vector<AtomicData<cv::Mat>* >& images,
-                         std::vector<CataCameraCalibration*>& cameraCalib,
-                         SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                         SensorDataBuffer<PosePtr>& gpsInsBuffer,
+    CamRigOdoCalibration(std::vector<CataCameraCalibration*>& cameraCalib,
                          const Options& options);
-    virtual ~CameraRigCalibration();
+    virtual ~CamRigOdoCalibration();
+
+    void addFrame(int cameraIdx, const cv::Mat& image, uint64_t timestamp);
+
+    void addOdometry(double x, double y, double yaw, uint64_t timestamp);
+
+    void addGpsIns(double lat, double lon,
+                   double roll, double pitch, double yaw,
+                   uint64_t timestamp);
 
     void run(void);
 
     const CameraRigExtrinsics& extrinsics(void) const;
 
 private:
-    void launchOdoCamThreads(void);
+    void launchCamOdoThreads(void);
 
-    void onOdoCamThreadFinished(OdoCamThread* odoCamThread);
+    void onCamOdoThreadFinished(CamOdoThread* odoCamThread);
     void onCamRigThreadFinished(CamRigThread* camRigThread);
 
-    bool displayHandler(void);
-    static void keyboardHandler(unsigned char key, int x, int y);
-
     Glib::RefPtr<Glib::MainLoop> mMainLoop;
-    std::vector<OdoCamThread*> mOdoCamThreads;
+    std::vector<CamOdoThread*> mCamOdoThreads;
     CamRigThread* mCamRigThread;
 
     CameraRigExtrinsics mExtrinsics;
     SparseGraph mGraph;
 
-    std::vector<AtomicData<cv::Mat>* >& mImages;
-    std::vector<CataCameraCalibration*>& mCameraCalib;
-    SensorDataBuffer<OdometerPtr>& mOdometerBuffer;
+    std::vector<AtomicData<cv::Mat>* > mImages;
+    std::vector<CataCameraCalibration*> mCameraCalib;
+    SensorDataBuffer<OdometerPtr> mOdometerBuffer;
     SensorDataBuffer<OdometerPtr> mInterpOdometerBuffer;
     boost::mutex mOdometerBufferMutex;
-    SensorDataBuffer<PosePtr>& mGpsInsBuffer;
+    SensorDataBuffer<PosePtr> mGpsInsBuffer;
     SensorDataBuffer<PosePtr> mInterpGpsInsBuffer;
     boost::mutex mGpsInsBufferMutex;
 

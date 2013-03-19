@@ -1,6 +1,6 @@
 #include "utils.h"
 
-#include "../../library/gpl/gpl.h"
+#include "../gpl/gpl.h"
 
 namespace camodocal
 {
@@ -9,7 +9,7 @@ bool
 interpolateOdometer(SensorDataBuffer<OdometerPtr>& odometerBuffer,
                     uint64_t timestamp, OdometerPtr& interpOdo)
 {
-    vcharge::OdometerPtr prev, next;
+    OdometerPtr prev, next;
 
     if (!odometerBuffer.nearest(timestamp, prev, next))
     {
@@ -44,7 +44,7 @@ bool
 interpolatePose(SensorDataBuffer<PosePtr>& poseBuffer,
                 uint64_t timestamp, PosePtr& interpPose)
 {
-    vcharge::PosePtr prev, next;
+    PosePtr prev, next;
 
     if (!poseBuffer.nearest(timestamp, prev, next))
     {

@@ -3,10 +3,9 @@
 #include <iostream>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <sys/time.h>
-#include <tr1/memory>
 
-#include "../catacamera/CataCameraCalibration.h"
+#include "camodocal/CataCameraCalibration.h"
+
 #include "../gpl/gpl.h"
 #include "Chessboard.h"
 

@@ -1,5 +1,3 @@
-if(CERES_FOUND)
-
 include_directories(
   ../ceres-solver/include
 )
@@ -17,5 +15,3 @@ camodocal_link_libraries(catacamera
   ceres
   gpl
 )
-
-endif(CERES_FOUND)

@@ -5,7 +5,7 @@
 #include <boost/thread/mutex.hpp>
 #include <opencv2/core/core.hpp>
 
-namespace vcharge
+namespace camodocal
 {
 
 template<class T>

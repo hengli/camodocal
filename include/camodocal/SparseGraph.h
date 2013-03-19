@@ -7,7 +7,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
-#include "../sparse_graph/Odometer.h"
+#include "camodocal/Odometer.h"
 
 // forward declarations
 namespace pugi

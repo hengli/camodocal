@@ -1,4 +1,4 @@
-#include "CameraRigExtrinsics.h"
+#include "camodocal/CameraRigExtrinsics.h"
 
 #include <fstream>
 #include <iomanip>

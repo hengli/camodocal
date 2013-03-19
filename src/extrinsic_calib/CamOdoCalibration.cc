@@ -1,4 +1,4 @@
-#include "camodocal/CameraOdometerCalibration.h"
+#include "camodocal/CamOdoCalibration.h"
 
 #include <cstdio>
 #include <cstring>
@@ -55,7 +55,7 @@ private:
     Eigen::Vector3d m_rvec1, m_rvec2, m_tvec1, m_tvec2;
 };
 
-CameraOdometerCalibration::CameraOdometerCalibration()
+CamOdoCalibration::CamOdoCalibration()
  : mMinMotions(200)
  , mVerbose(false)
 {
@@ -63,7 +63,7 @@ CameraOdometerCalibration::CameraOdometerCalibration()
 }
 
 bool
-CameraOdometerCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
+CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
                                             const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_odo)
 {
     if (H_odo.size() != H_cam.size())
@@ -104,7 +104,7 @@ CameraOdometerCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, E
 }
 
 void
-CameraOdometerCalibration::getCurrentCameraMotion(Eigen::Vector3d& rotation, Eigen::Vector3d& translation) const
+CamOdoCalibration::getCurrentCameraMotion(Eigen::Vector3d& rotation, Eigen::Vector3d& translation) const
 {
     if (mSegments.empty())
     {
@@ -121,7 +121,7 @@ CameraOdometerCalibration::getCurrentCameraMotion(Eigen::Vector3d& rotation, Eig
 }
 
 size_t
-CameraOdometerCalibration::getCurrentMotionCount(void) const
+CamOdoCalibration::getCurrentMotionCount(void) const
 {
     size_t motionCount = 0;
 
@@ -134,25 +134,25 @@ CameraOdometerCalibration::getCurrentMotionCount(void) const
 }
 
 size_t
-CameraOdometerCalibration::getMotionCount(void) const
+CamOdoCalibration::getMotionCount(void) const
 {
     return mMinMotions;
 }
 
 void
-CameraOdometerCalibration::setMotionCount(size_t count)
+CamOdoCalibration::setMotionCount(size_t count)
 {
     mMinMotions = count;
 }
 
 bool
-CameraOdometerCalibration::motionsEnough(void) const
+CamOdoCalibration::motionsEnough(void) const
 {
     return getCurrentMotionCount() >= getMotionCount();
 }
 
 bool
-CameraOdometerCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
+CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
 {
     std::vector<double> scales;
 
@@ -180,7 +180,7 @@ CameraOdometerCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
 }
 
 bool
-CameraOdometerCalibration::readMotionSegmentsFromFile(const std::string& filename)
+CamOdoCalibration::readMotionSegmentsFromFile(const std::string& filename)
 {
     std::ifstream ifs(filename.c_str());
     if (!ifs.is_open())
@@ -232,7 +232,7 @@ CameraOdometerCalibration::readMotionSegmentsFromFile(const std::string& filenam
 }
 
 bool
-CameraOdometerCalibration::writeMotionSegmentsToFile(const std::string& filename) const
+CamOdoCalibration::writeMotionSegmentsToFile(const std::string& filename) const
 {
     std::ofstream ofs(filename.c_str());
     if (!ofs.is_open())
@@ -279,19 +279,19 @@ CameraOdometerCalibration::writeMotionSegmentsToFile(const std::string& filename
 }
 
 bool
-CameraOdometerCalibration::getVerbose(void)
+CamOdoCalibration::getVerbose(void)
 {
     return mVerbose;
 }
 
 void 
-CameraOdometerCalibration::setVerbose(bool on)
+CamOdoCalibration::setVerbose(bool on)
 {
     mVerbose = on; 
 }
 
 bool 
-CameraOdometerCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
+CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                     const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                                     const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
                                     const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs2,
@@ -449,7 +449,7 @@ CameraOdometerCalibration::estimate(const std::vector<std::vector<Eigen::Vector3
 }
 
 bool
-CameraOdometerCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
+CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                        const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                                        const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
                                        const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs2,
@@ -538,7 +538,7 @@ CameraOdometerCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vect
 }
 
 void 
-CameraOdometerCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double>& scales,
+CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double>& scales,
                                           const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                           const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                                           const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
@@ -587,7 +587,7 @@ CameraOdometerCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vecto
 }
 
 bool
-CameraOdometerCalibration::solveQuadraticEquation(double a, double b, double c, double& x1, double& x2)
+CamOdoCalibration::solveQuadraticEquation(double a, double b, double c, double& x1, double& x2)
 {
     if (fabs(a) < 1e-12) 
     {

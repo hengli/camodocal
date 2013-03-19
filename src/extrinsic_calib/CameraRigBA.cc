@@ -6,19 +6,17 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "../../external/ceres-solver/include/ceres/ceres.h"
-#include "../../library/bundle_adj/ReprojectionError.h"
-#include "../../library/bundle_adj/SlidingWindowBA.h"
-#include "../../library/gpl/CameraEnums.h"
-#include "../../library/gpl/EigenUtils.h"
-#include "../../library/npoint/five-point/five-point.hpp"
-#include "../../mapping/feature_tracker/SurfGPU.h"
-#include "../../visualization/overlay/GLOverlayExtended.h"
+#include "../ceres-solver/include/ceres/ceres.h"
+#include "../gpl/EigenUtils.h"
+#include "../npoint/five-point/five-point.hpp"
+#include "../visual_odometry/ReprojectionError.h"
+#include "../visual_odometry/SlidingWindowBA.h"
+#include "../visual_odometry/SurfGPU.h"
 
 namespace camodocal
 {
 
-CameraRigBA::CameraRigBA(const std::vector<CataCameraParameters>& cameraParameters,
+CameraRigBA::CameraRigBA(const std::vector<CataCamera::Parameters>& cameraParameters,
                          SparseGraph& graph,
                          CameraRigExtrinsics& extrinsics)
  : mExtrinsics(extrinsics)
@@ -37,9 +35,8 @@ CameraRigBA::CameraRigBA(const std::vector<CataCameraParameters>& cameraParamete
     {
         mCameras.push_back(new CataCamera(cameraParameters.at(i)));
         mCameraCalibs.push_back(new CataCameraCalibration("", cv::Size(cameraParameters.at(i).imageWidth(), cameraParameters.at(i).imageHeight())));
-        mCameraParameters.push_back(cameraParameters.at(i));
 
-        mCameraCalibs.back()->cameraParameters() = mCameraParameters.back();
+        mCameraCalibs.back()->cameraParameters() = mCameras.back()->parameters();
     }
 }
 
@@ -79,31 +76,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             }
         }
     }
-
-    // visualize graph produced by previous stage
-    if (beginStage == 1)
-    {
-        visualize("unopt-", ODOMETER);
-        visualizeExtrinsics("unopt-extrinsics");
-    }
-    if (beginStage == 2)
-    {
-        visualize("opt1-BA-", ODOMETER);
-        visualizeExtrinsics("opt1-extrinsics");
-    }
-    else if (beginStage == 3)
-    {
-        visualize("opt2-BA-", ODOMETER);
-        visualizeExtrinsics("opt2-extrinsics");
-    }
-    else if (beginStage > 3)
-    {
-        visualize("opt3-BA-", ODOMETER);
-        visualizeExtrinsics("opt3-extrinsics");
-    }
-
-//    mExtrinsics.readFromFile("../config/calib/calib_camera_kermit/2012_09_03/extrinsic.txt");
-//    visualizeExtrinsics("ref-extrinsics");
 
     // stage 1
     if (beginStage <= 1)
@@ -160,7 +132,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
                 for (size_t k = 2; k < segment.size(); ++k)
                 {
                     triangulateFeatures(segment.at(k-2), segment.at(k-1), segment.at(k),
-                                        *(mCameras.at(i)), mCameraParameters.at(i), T_cam_odo);
+                                        *(mCameras.at(i)), T_cam_odo);
                 }
             }
         }
@@ -184,8 +156,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
                       << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
         }
 
-        visualize("unopt-", ODOMETER);
-
         if (mVerbose)
         {
             std::cout << "# INFO: Running BA on odometer data... " << std::endl;
@@ -204,10 +174,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             std::cout << "# INFO: Reprojection error after BA (odometer): avg = " << avgError
                       << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
         }
-
-        visualize("opt1-BA-", ODOMETER);
-
-        visualizeExtrinsics("opt1-extrinsics");
 
         if (saveWorkingData)
         {
@@ -240,8 +206,8 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             std::cout << "# INFO: # local inter-map 3D-3D correspondences = "
                       << localInterMap2D2D.size() << std::endl;
 
-            size_t featureCount[CAMERA_COUNT];
-            for (int i = 0; i < CAMERA_COUNT; ++i)
+            size_t featureCount[mCameras.size()];
+            for (size_t i = 0; i < mCameras.size(); ++i)
             {
                 featureCount[i] = 0;
             }
@@ -252,7 +218,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
                 ++featureCount[localInterMap2D2D.at(i).second->frame()->cameraId()];
             }
 
-            for (int i = 0; i < CAMERA_COUNT; ++i)
+            for (size_t i = 0; i < mCameras.size(); ++i)
             {
                 std::cout << "# INFO: # features seen in camera " << i
                           << ": " << featureCount[i] << std::endl;
@@ -267,9 +233,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
 
             localInterMapFrameFrame.push_back(boost::make_tuple(f1->cameraId(), f2->cameraId(), f1, f2));
         }
-
-        visualizeFrameFrameCorrespondences("local-inter-p-p", localInterMapFrameFrame);
-        visualize3D3DCorrespondences("local-inter-3d-3d", localInterMap2D2D);
 
         for (size_t i = 0; i < localInterMap2D2D.size(); ++i)
         {
@@ -322,22 +285,18 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             std::cout << "# INFO: Done." << std::endl;
         }
 
-        visualize("opt2-BA-", ODOMETER);
-
-        visualizeExtrinsics("opt2-extrinsics");
-
         if (saveWorkingData)
         {
             if (!findLoopClosures)
             {
-                for (int i = 0; i < CAMERA_COUNT; ++i)
+                for (size_t i = 0; i < mCameras.size(); ++i)
                 {
                     std::ostringstream oss;
                     oss << "tmp_intrinsic_" << i << ".yaml";
 
                     boost::filesystem::path intrinsicPath(dataDir);
                     intrinsicPath /= oss.str();
-                    mCameraParameters.at(i).write(intrinsicPath.string());
+                    mCameras.at(i)->parameters().write(intrinsicPath.string());
                 }
             }
 
@@ -390,8 +349,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             }
         }
 
-        visualizeFrameFrameCorrespondences("loop-p-p", loopClosureFrameFrame);
-
         if (mVerbose)
         {
             std::cout << "# INFO: Done." << std::endl;
@@ -415,20 +372,16 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
                       << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
         }
 
-        visualize("opt3-BA-", ODOMETER);
-
-        visualizeExtrinsics("opt3-extrinsics");
-
         if (saveWorkingData)
         {
-            for (int i = 0; i < CAMERA_COUNT; ++i)
+            for (size_t i = 0; i < mCameras.size(); ++i)
             {
                 std::ostringstream oss;
                 oss << "tmp_intrinsic_" << i << ".yaml";
 
                 boost::filesystem::path intrinsicPath(dataDir);
                 intrinsicPath /= oss.str();
-                mCameraParameters.at(i).write(intrinsicPath.string());
+                mCameras.at(i)->parameters().write(intrinsicPath.string());
             }
 
             boost::filesystem::path extrinsicPath(dataDir);
@@ -450,7 +403,7 @@ CameraRigBA::setVerbose(bool verbose)
 
 void
 CameraRigBA::frameReprojectionError(const FramePtr& frame,
-                                    const CataCameraParameters& cameraParameters,
+                                    const CataCamera::Parameters& cameraParameters,
                                     const Pose& T_cam_odo,
                                     double& minError, double& maxError, double& avgError,
                                     size_t& featureCount,
@@ -556,7 +509,7 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
                 size_t frameFeatureCount;
 
                 frameReprojectionError(segment.at(k),
-                                       mCameraParameters.at(i),
+                                       mCameras.at(i)->parameters(),
                                        T_cam_odo,
                                        frameMinError, frameMaxError, frameAvgError, frameFeatureCount,
                                        type);
@@ -592,7 +545,6 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
 void
 CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& frame3,
                                  const CataCamera& camera,
-                                 const CataCameraParameters& cameraParameters,
                                  const Pose& T_cam_odo)
 {
     // triangulate new feature correspondences seen in last 3 frames
@@ -650,7 +602,7 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
         Eigen::Matrix4d H2 = H_odo_cam * frame2->odometer()->pose().inverse();
         Eigen::Matrix4d H3 = H_odo_cam * frame3->odometer()->pose().inverse();
 
-        tvt(camera, cameraParameters,
+        tvt(camera,
             H1, ipoints[0],
             H2, ipoints[1],
             H3, ipoints[2],
@@ -858,7 +810,7 @@ CameraRigBA::buildVocTree(void)
     // build vocabulary tree
     std::vector<std::vector<std::vector<float> > > features;
 
-    for (size_t cameraIdx = 0; cameraIdx < CAMERA_COUNT; ++cameraIdx)
+    for (size_t cameraIdx = 0; cameraIdx < mCameras.size(); ++cameraIdx)
     {
         std::vector<FrameSegment>& segments = mGraph.frameSegments(cameraIdx);
 
@@ -931,17 +883,17 @@ CameraRigBA::findLoopClosure3D3D(std::vector<boost::tuple<int, int, FramePtr, Fr
                                  std::vector<Correspondence3D3D>& correspondences3D3D,
                                  double reprojErrorThresh)
 {
-    std::vector<Correspondence3D3D> corr3D3D[CAMERA_COUNT];
-    std::vector<boost::tuple<int, int, FramePtr, FramePtr> > corrFF[CAMERA_COUNT];
+    std::vector<Correspondence3D3D> corr3D3D[mCameras.size()];
+    std::vector<boost::tuple<int, int, FramePtr, FramePtr> > corrFF[mCameras.size()];
 
-    Glib::Thread* threads[CAMERA_COUNT];
-    for (int i = 0; i < CAMERA_COUNT; ++i)
+    Glib::Thread* threads[mCameras.size()];
+    for (size_t i = 0; i < mCameras.size(); ++i)
     {
         threads[i] = Glib::Thread::create(sigc::bind(sigc::mem_fun(*this, &CameraRigBA::findLoopClosure3D3DHelper),
                                                      i, &corrFF[i], &corr3D3D[i], reprojErrorThresh));
     }
 
-    for (int i = 0; i < CAMERA_COUNT; ++i)
+    for (size_t i = 0; i < mCameras.size(); ++i)
     {
         threads[i]->join();
 
@@ -1020,14 +972,14 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
                     Point2DFeaturePtr& pf2 = corr2D2D.at(j).second;
 
                     cv::Point2f rectPt1, rectPt2;
-                    rectifyImagePoint(*(mCameras.at(cameraIdx)), mCameraParameters.at(cameraIdx), pf1->keypoint().pt, rectPt1, kNominalFocalLength);
-                    rectifyImagePoint(*(mCameras.at(fid.cameraIdx)), mCameraParameters.at(fid.cameraIdx), pf2->keypoint().pt, rectPt2, kNominalFocalLength);
+                    rectifyImagePoint(*(mCameras.at(cameraIdx)), pf1->keypoint().pt, rectPt1, kNominalFocalLength);
+                    rectifyImagePoint(*(mCameras.at(fid.cameraIdx)), pf2->keypoint().pt, rectPt2, kNominalFocalLength);
 
                     points1.push_back(rectPt1);
                     points2.push_back(rectPt2);
                 }
 
-                cv::Point2f pp(mCameraParameters.at(0).imageWidth() / 2.0f, mCameraParameters.at(0).imageHeight() / 2.0f);
+                cv::Point2f pp(mCameras.at(0)->parameters().imageWidth() / 2.0f, mCameras.at(0)->parameters().imageHeight() / 2.0f);
 
                 cv::Mat E, inlierMat;
                 E = findEssentialMat(points1, points2, kNominalFocalLength, pp, CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
@@ -1092,8 +1044,6 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
                 }
 
                 corr3D3D->insert(corr3D3D->end(), corr3D3DBest.begin(), corr3D3DBest.end());
-
-                visualize3D3DCorrespondences("loop-3d-3d", corr3D3DBest);
             }
         }
     }
@@ -1195,7 +1145,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 {
     std::map<uint64_t, std::vector<FramePtr> > pathMap;
 
-    for (int cameraIdx = 0; cameraIdx < CAMERA_COUNT; ++cameraIdx)
+    for (int cameraIdx = 0; cameraIdx < mCameras.size(); ++cameraIdx)
     {
         std::vector<FrameSegment>& segments = mGraph.frameSegments(cameraIdx);
 
@@ -1211,7 +1161,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
                 if (frames.empty())
                 {
-                    frames.resize(CAMERA_COUNT);
+                    frames.resize(mCameras.size());
                 }
 
                 frames.at(cameraIdx) = frame;
@@ -1219,7 +1169,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
         }
     }
 
-    std::list<FramePtr> windows[CAMERA_COUNT];
+    std::list<FramePtr> windows[mCameras.size()];
     int pathNodeIdx = -1;
     for (std::map<uint64_t, std::vector<FramePtr> >::iterator it = pathMap.begin();
             it != pathMap.end(); ++it)
@@ -1233,8 +1183,8 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
         std::vector<FramePtr>& frames = it->second;
 
-        std::vector<FramePtr> localFrameMaps[CAMERA_COUNT];
-        for (int cameraIdx = 0; cameraIdx < CAMERA_COUNT; ++cameraIdx)
+        std::vector<FramePtr> localFrameMaps[mCameras.size()];
+        for (int cameraIdx = 0; cameraIdx < mCameras.size(); ++cameraIdx)
         {
             std::list<FramePtr>& window = windows[cameraIdx];
 
@@ -1282,7 +1232,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             std::cout << "# INFO: Entering path node " << pathNodeIdx
                       << "/" << pathMap.size() - 1 << " [ ";
 
-            for (int i = 0; i < CAMERA_COUNT; ++i)
+            for (size_t i = 0; i < mCameras.size(); ++i)
             {
                 std::cout << windows[i].size() << " ";
             }
@@ -1290,7 +1240,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
         }
 
         // project each map into other cameras
-        for (int cameraIdx1 = 0; cameraIdx1 < CAMERA_COUNT; ++cameraIdx1)
+        for (int cameraIdx1 = 0; cameraIdx1 < mCameras.size(); ++cameraIdx1)
         {
             FramePtr& frame1 = frames.at(cameraIdx1);
 
@@ -1304,9 +1254,9 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
                 continue;
             }
 
-            Glib::Thread* threads[CAMERA_COUNT];
-            std::vector<Correspondence2D2D> subCorr2D2D[CAMERA_COUNT];
-            for (int cameraIdx2 = 0; cameraIdx2 < CAMERA_COUNT; ++cameraIdx2)
+            Glib::Thread* threads[mCameras.size()];
+            std::vector<Correspondence2D2D> subCorr2D2D[mCameras.size()];
+            for (int cameraIdx2 = 0; cameraIdx2 < mCameras.size(); ++cameraIdx2)
             {
                 if (cameraIdx1 == cameraIdx2)
                 {
@@ -1322,7 +1272,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
                                                                       reprojErrorThresh));
             }
 
-            for (int cameraIdx2 = 0; cameraIdx2 < CAMERA_COUNT; ++cameraIdx2)
+            for (int cameraIdx2 = 0; cameraIdx2 < mCameras.size(); ++cameraIdx2)
             {
                 if (cameraIdx1 == cameraIdx2)
                 {
@@ -1404,8 +1354,6 @@ CameraRigBA::matchFrameToWindow(int cameraIdx1, int cameraIdx2,
                       << " | " << corr2D2DBest.size() << " 2D-2D" << std::endl;
 
         }
-
-        visualize3D3DCorrespondences("local-inter-3d-3d", corr2D2DBest);
     }
 }
 
@@ -1455,14 +1403,14 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
     cv::eigen2cv(R2, R2_cv);
 
     cv::Mat mapX1, mapY1, mapX2, mapY2;
-    mCameraCalibs.at(cameraIdx1)->initUndistortRectifyMap(mapX1, mapY1,
-                                                          kNominalFocalLength, kNominalFocalLength,
-                                                          cv::Size(0, 0),
-                                                          -1.0f, -1.0f, R1_cv);
-    mCameraCalibs.at(cameraIdx2)->initUndistortRectifyMap(mapX2, mapY2,
-                                                          kNominalFocalLength, kNominalFocalLength,
-                                                          cv::Size(0, 0),
-                                                          -1.0f, -1.0f, R2_cv);
+    mCameras.at(cameraIdx1)->initUndistortRectifyMap(mapX1, mapY1,
+                                                     kNominalFocalLength, kNominalFocalLength,
+                                                     cv::Size(0, 0),
+                                                     -1.0f, -1.0f, R1_cv);
+    mCameras.at(cameraIdx2)->initUndistortRectifyMap(mapX2, mapY2,
+                                                     kNominalFocalLength, kNominalFocalLength,
+                                                     cv::Size(0, 0),
+                                                     -1.0f, -1.0f, R2_cv);
 
     cv::Mat rimg1, rimg2;
     cv::remap(frame1->image(), rimg1, mapX1, mapY1, cv::INTER_LINEAR);
@@ -1489,7 +1437,7 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         rpoints2.push_back(rkeypoints2.at(match.trainIdx).pt);
     }
 
-    cv::Point2f pp(mCameraParameters.at(0).imageWidth() / 2.0f, mCameraParameters.at(0).imageHeight() / 2.0f);
+    cv::Point2f pp(mCameras.at(0)->parameters().imageWidth() / 2.0f, mCameras.at(0)->parameters().imageHeight() / 2.0f);
 
     cv::Mat E, inlierMat;
     E = findEssentialMat(rpoints1, rpoints2, kNominalFocalLength, pp, CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
@@ -1583,11 +1531,11 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
             Eigen::Vector3d P_rcam = transformPoint(H_rcam1, p3D->point());
 
             Eigen::Vector2d p_rcam = (kNominalFocalLength / P_rcam(2)) * P_rcam.block<2,1>(0,0);
-            p_rcam += Eigen::Vector2d(mCameraParameters.at(cameraIdx1).imageWidth() / 2.0,
-                                      mCameraParameters.at(cameraIdx1).imageHeight() / 2.0);
+            p_rcam += Eigen::Vector2d(mCameras.at(cameraIdx1)->parameters().imageWidth() / 2.0,
+                                      mCameras.at(cameraIdx1)->parameters().imageHeight() / 2.0);
 
-            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameraParameters.at(cameraIdx1).imageWidth() - 1 ||
-                p_rcam(1) < 0.0 || p_rcam(1) > mCameraParameters.at(cameraIdx1).imageHeight() - 1)
+            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameras.at(cameraIdx1)->parameters().imageWidth() - 1 ||
+                p_rcam(1) < 0.0 || p_rcam(1) > mCameras.at(cameraIdx1)->parameters().imageHeight() - 1)
             {
                 continue;
             }
@@ -1621,11 +1569,11 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
             Eigen::Vector3d P_rcam = transformPoint(H_rcam2, p3D->point());
 
             Eigen::Vector2d p_rcam = (kNominalFocalLength / P_rcam(2)) * P_rcam.block<2,1>(0,0);
-            p_rcam += Eigen::Vector2d(mCameraParameters.at(cameraIdx2).imageWidth() / 2.0,
-                                      mCameraParameters.at(cameraIdx2).imageHeight() / 2.0);
+            p_rcam += Eigen::Vector2d(mCameras.at(cameraIdx2)->parameters().imageWidth() / 2.0,
+                                      mCameras.at(cameraIdx2)->parameters().imageHeight() / 2.0);
 
-            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameraParameters.at(cameraIdx2).imageWidth() - 1 ||
-                p_rcam(1) < 0.0 || p_rcam(1) > mCameraParameters.at(cameraIdx2).imageHeight() - 1)
+            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameras.at(cameraIdx2)->parameters().imageWidth() - 1 ||
+                p_rcam(1) < 0.0 || p_rcam(1) > mCameras.at(cameraIdx2)->parameters().imageHeight() - 1)
             {
                 continue;
             }
@@ -1703,205 +1651,8 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
             continue;
         }
 
-//        cv::Point2f rp1_cv;
-//        rectifyImagePoint(*(mCameras.at(cameraIdx1)), mCameraParameters.at(cameraIdx1),
-//                          p1->keypoint().pt, rp1_cv);
-//        rp1_cv.x -= mCameraParameters.at(cameraIdx1).imageWidth() / 2.0f;
-//        rp1_cv.y -= mCameraParameters.at(cameraIdx1).imageHeight() / 2.0f;
-//
-//        Eigen::Vector3d rp1;
-//        rp1 << rp1_cv.x, rp1_cv.y, 1.0;
-//
-//        cv::Point2f rp2_cv;
-//        rectifyImagePoint(*(mCameras.at(cameraIdx2)), mCameraParameters.at(cameraIdx2),
-//                          p2->keypoint().pt, rp2_cv);
-//        rp2_cv.x -= mCameraParameters.at(cameraIdx2).imageWidth() / 2.0f;
-//        rp2_cv.y -= mCameraParameters.at(cameraIdx2).imageHeight() / 2.0f;
-//
-//        Eigen::Vector3d rp2;
-//        rp2 << rp2_cv.x, rp2_cv.y, 1.0;
-//
-//        double reprojErr = sqrt(sampsonError(H_cam1_cam2, rp1, rp2)) * kNominalFocalLength;
-//
-//        if (reprojErr > kMaxReprojErr)
-//        {
-//            continue;
-//        }
-
         corr2D2D->push_back(candidateCorr2D2D.at(i));
     }
-}
-
-void
-CameraRigBA::visualizeFrameFrameCorrespondences(const std::string& overlayName,
-                                                const std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame) const
-{
-    GLOverlayExtended overlay(overlayName, VCharge::COORDINATE_FRAME_GLOBAL);
-
-    // visualize camera poses and 3D scene points
-    overlay.clear();
-    overlay.lineWidth(2.0f);
-
-    for (size_t i = 0; i < correspondencesFrameFrame.size(); ++i)
-    {
-        int cameraIdx1 = correspondencesFrameFrame.at(i).get<0>();
-        int cameraIdx2 = correspondencesFrameFrame.at(i).get<1>();
-        const FramePtr& frame1 = correspondencesFrameFrame.at(i).get<2>();
-        const FramePtr& frame2 = correspondencesFrameFrame.at(i).get<3>();
-
-        const Eigen::Matrix4d& H_cam_odo1 = mExtrinsics.getGlobalCameraPose(cameraIdx1);
-        const Eigen::Matrix4d& H_cam_odo2 = mExtrinsics.getGlobalCameraPose(cameraIdx2);
-
-        Eigen::Matrix4d H_cam1 = frame1->odometer()->pose() * H_cam_odo1;
-        Eigen::Matrix4d H_cam2 = frame2->odometer()->pose() * H_cam_odo2;
-
-        overlay.begin(VCharge::LINES);
-
-        switch (cameraIdx1)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-        }
-
-        overlay.vertex3f(H_cam1(0,3), H_cam1(1,3), H_cam1(2,3));
-
-        switch (cameraIdx2)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-        }
-
-        overlay.vertex3f(H_cam2(0,3), H_cam2(1,3), H_cam2(2,3));
-        overlay.end();
-    }
-
-    overlay.publish();
-}
-
-void
-CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
-                                          const std::vector<Correspondence3D3D>& correspondences) const
-{
-    GLOverlayExtended overlay(overlayName, VCharge::COORDINATE_FRAME_GLOBAL);
-
-    // visualize 3D-3D correspondences
-    overlay.clear();
-    overlay.lineWidth(1.0f);
-
-    overlay.begin(VCharge::LINES);
-
-    for (size_t i = 0; i < correspondences.size(); ++i)
-    {
-        int cameraIdx1 = correspondences.at(i).get<0>();
-        int cameraIdx2 = correspondences.at(i).get<1>();
-
-        const FramePtr& frame1 = correspondences.at(i).get<2>();
-        const FramePtr& frame2 = correspondences.at(i).get<3>();
-
-        Eigen::Vector3d p1 = correspondences.at(i).get<4>()->point();
-        Eigen::Vector3d p2 = correspondences.at(i).get<5>()->point();
-
-        const Eigen::Matrix4d& H_cam_odo1 = mExtrinsics.getGlobalCameraPose(cameraIdx1);
-        const Eigen::Matrix4d& H_cam_odo2 = mExtrinsics.getGlobalCameraPose(cameraIdx2);
-
-        Eigen::Matrix4d H_cam1 = frame1->odometer()->pose() * H_cam_odo1;
-        Eigen::Matrix4d H_cam2 = frame2->odometer()->pose() * H_cam_odo2;
-
-        switch (cameraIdx1)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.3f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.3f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.3f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.3f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.3f);
-        }
-
-        overlay.vertex3f(H_cam1(0,3), H_cam1(1,3), H_cam1(2,3));
-        overlay.vertex3f(p1(0), p1(1), p1(2));
-
-        overlay.color3f(1.0f, 1.0f, 1.0f);
-
-        overlay.vertex3f(p1(0), p1(1), p1(2));
-        overlay.vertex3f(p2(0), p2(1), p2(2));
-
-        switch (cameraIdx2)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.7f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.7f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.7f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.7f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.7f);
-        }
-
-        overlay.vertex3f(p2(0), p2(1), p2(2));
-        overlay.vertex3f(H_cam2(0,3), H_cam2(1,3), H_cam2(2,3));
-    }
-
-    overlay.end();
-
-    overlay.publish();
-}
-
-void
-CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
-                                          const std::vector<Correspondence2D2D>& correspondences2D2D) const
-{
-    std::vector<Correspondence3D3D> correspondences3D3D;
-    correspondences3D3D.reserve(correspondences2D2D.size());
-
-    for (size_t i = 0; i < correspondences2D2D.size(); ++i)
-    {
-        const Point2DFeaturePtr& p1 = correspondences2D2D.at(i).first;
-        const Point2DFeaturePtr& p2 = correspondences2D2D.at(i).second;
-
-        correspondences3D3D.push_back(boost::make_tuple(p1->frame()->cameraId(), p2->frame()->cameraId(),
-                                                        p1->frame(), p2->frame(),
-                                                        p1->feature3D(), p2->feature3D()));
-    }
-
-    visualize3D3DCorrespondences(overlayName, correspondences3D3D);
 }
 
 cv::Mat
@@ -1948,7 +1699,6 @@ CameraRigBA::project3DPoint(const CataCamera& camera,
 
 void
 CameraRigBA::rectifyImagePoint(const CataCamera& camera,
-                               const CataCameraParameters& cameraParameters,
                                const cv::Point2f& src, cv::Point2f& dst, double focal) const
 {
     Eigen::Vector3d P;
@@ -1957,13 +1707,12 @@ CameraRigBA::rectifyImagePoint(const CataCamera& camera,
 
     P /= P(2);
 
-    dst.x = P(0) * focal + cameraParameters.imageWidth() / 2.0f;
-    dst.y = P(1) * focal + cameraParameters.imageHeight() / 2.0f;
+    dst.x = P(0) * focal + camera.parameters().imageWidth() / 2.0f;
+    dst.y = P(1) * focal + camera.parameters().imageHeight() / 2.0f;
 }
 
 void
 CameraRigBA::rectifyImagePoint(const CataCamera& camera,
-                               const CataCameraParameters& cameraParameters,
                                const Eigen::Vector2d& src, Eigen::Vector2d& dst, double focal) const
 {
     Eigen::Vector3d P;
@@ -1972,20 +1721,19 @@ CameraRigBA::rectifyImagePoint(const CataCamera& camera,
 
     P /= P(2);
 
-    Eigen::Vector2d pp(cameraParameters.imageWidth() / 2.0, cameraParameters.imageHeight() / 2.0);
+    Eigen::Vector2d pp(camera.parameters().imageWidth() / 2.0, camera.parameters().imageHeight() / 2.0);
     dst = P.block<2,1>(0,0) * focal + pp;
 }
 
 void
 CameraRigBA::rectifyImagePoints(const CataCamera& camera,
-                                const CataCameraParameters& cameraParameters,
                                 const std::vector<cv::Point2f>& src,
                                 std::vector<cv::Point2f>& dst,
                                 double focal) const
 {
     dst.resize(src.size());
 
-    cv::Point2f pp(cameraParameters.imageWidth() / 2.0f, cameraParameters.imageHeight() / 2.0f);
+    cv::Point2f pp(camera.parameters().imageWidth() / 2.0f, camera.parameters().imageHeight() / 2.0f);
     for (size_t i = 0; i < src.size(); ++i)
     {
         const cv::Point2f& p = src.at(i);
@@ -2001,7 +1749,6 @@ CameraRigBA::rectifyImagePoints(const CataCamera& camera,
 
 void
 CameraRigBA::tvt(const CataCamera& camera,
-                 const CataCameraParameters& cameraParameters,
                  const Eigen::Matrix4d& H1,
                  const std::vector<cv::Point2f>& imagePoints1,
                  const Eigen::Matrix4d& H2,
@@ -2012,8 +1759,8 @@ CameraRigBA::tvt(const CataCamera& camera,
                  std::vector<size_t>& inliers) const
 {
     Eigen::Matrix3d K;
-    K << kNominalFocalLength, 0.0, cameraParameters.imageWidth() / 2.0,
-         0.0, kNominalFocalLength, cameraParameters.imageHeight() / 2.0,
+    K << kNominalFocalLength, 0.0, camera.parameters().imageWidth() / 2.0,
+         0.0, kNominalFocalLength, camera.parameters().imageHeight() / 2.0,
          0.0, 0.0, 1.0;
 
     Eigen::Matrix<double, 3, 4> P1 = K * H1.block<3,4>(0,0);
@@ -2039,9 +1786,9 @@ CameraRigBA::tvt(const CataCamera& camera,
         const cv::Point2f& p3_cv = imagePoints3.at(i);
 
         cv::Point2f rect_p1_cv, rect_p2_cv, rect_p3_cv;
-        rectifyImagePoint(camera, cameraParameters, p1_cv, rect_p1_cv, kNominalFocalLength);
-        rectifyImagePoint(camera, cameraParameters, p2_cv, rect_p2_cv, kNominalFocalLength);
-        rectifyImagePoint(camera, cameraParameters, p3_cv, rect_p3_cv, kNominalFocalLength);
+        rectifyImagePoint(camera, p1_cv, rect_p1_cv, kNominalFocalLength);
+        rectifyImagePoint(camera, p2_cv, rect_p2_cv, kNominalFocalLength);
+        rectifyImagePoint(camera, p3_cv, rect_p3_cv, kNominalFocalLength);
 
         Eigen::Matrix4d J;
         J.row(0) = P2.row(2) * rect_p2_cv.x - P2.row(0);
@@ -2144,7 +1891,7 @@ CameraRigBA::prune(int flags, int poseType)
 
                         if (poseType == CAMERA)
                         {
-                            CameraReprojectionError reprojErr(mCameraParameters.at(i), pf->keypoint().pt.x, pf->keypoint().pt.y);
+                            CameraReprojectionError reprojErr(mCameras.at(i)->parameters(), pf->keypoint().pt.x, pf->keypoint().pt.y);
 
                             double residuals[2];
                             reprojErr(frame->camera()->rotationData(),
@@ -2155,7 +1902,7 @@ CameraRigBA::prune(int flags, int poseType)
                         }
                         else
                         {
-                            OdometerReprojectionError reprojErr(mCameraParameters.at(i), pf->keypoint().pt.x, pf->keypoint().pt.y);
+                            OdometerReprojectionError reprojErr(mCameras.at(i)->parameters(), pf->keypoint().pt.x, pf->keypoint().pt.y);
 
                             double residuals[2];
                             reprojErr(T_cam_odo.rotationData(),
@@ -2198,19 +1945,19 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
     options.max_num_iterations = nIterations;
 
     // intrinsics
-    double intrinsicParams[CAMERA_COUNT][9];
+    double intrinsicParams[mCameras.size()][9];
 
-    for (int i = 0; i < CAMERA_COUNT; ++i)
+    for (size_t i = 0; i < mCameras.size(); ++i)
     {
-        intrinsicParams[i][0] = mCameraParameters.at(i).xi();
-        intrinsicParams[i][1] = mCameraParameters.at(i).k1();
-        intrinsicParams[i][2] = mCameraParameters.at(i).k2();
-        intrinsicParams[i][3] = mCameraParameters.at(i).p1();
-        intrinsicParams[i][4] = mCameraParameters.at(i).p2();
-        intrinsicParams[i][5] = mCameraParameters.at(i).gamma1();
-        intrinsicParams[i][6] = mCameraParameters.at(i).gamma2();
-        intrinsicParams[i][7] = mCameraParameters.at(i).u0();
-        intrinsicParams[i][8] = mCameraParameters.at(i).v0();
+        intrinsicParams[i][0] = mCameras.at(i)->parameters().xi();
+        intrinsicParams[i][1] = mCameras.at(i)->parameters().k1();
+        intrinsicParams[i][2] = mCameras.at(i)->parameters().k2();
+        intrinsicParams[i][3] = mCameras.at(i)->parameters().p1();
+        intrinsicParams[i][4] = mCameras.at(i)->parameters().p2();
+        intrinsicParams[i][5] = mCameras.at(i)->parameters().gamma1();
+        intrinsicParams[i][6] = mCameras.at(i)->parameters().gamma2();
+        intrinsicParams[i][7] = mCameras.at(i)->parameters().u0();
+        intrinsicParams[i][8] = mCameras.at(i)->parameters().v0();
     }
 
     // extrinsics
@@ -2256,7 +2003,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         {
                             costFunction
                                 = new ceres::AutoDiffCostFunction<OdometerCameraReprojectionError, 2, 4, 3, 3>(
-                                    new OdometerCameraReprojectionError(mCameraParameters.at(i),
+                                    new OdometerCameraReprojectionError(mCameras.at(i)->parameters(),
                                                                         frame->odometer()->position(),
                                                                         frame->odometer()->yaw(),
                                                                         feature2D->keypoint().pt.x, feature2D->keypoint().pt.y,
@@ -2266,7 +2013,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         {
                             costFunction
                                 = new ceres::AutoDiffCostFunction<OdometerCameraReprojectionError, 2, 4, 2, 3>(
-                                    new OdometerCameraReprojectionError(mCameraParameters.at(i),
+                                    new OdometerCameraReprojectionError(mCameras.at(i)->parameters(),
                                                                         frame->odometer()->position(),
                                                                         frame->odometer()->yaw(),
                                                                         feature2D->keypoint().pt.x, feature2D->keypoint().pt.y,
@@ -2280,7 +2027,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         {
                             costFunction
                                 = new ceres::AutoDiffCostFunction<OdometerReprojectionError, 2, 4, 3, 2, 1, 3>(
-                                    new OdometerReprojectionError(mCameraParameters.at(i),
+                                    new OdometerReprojectionError(mCameras.at(i)->parameters(),
                                                                   feature2D->keypoint().pt.x, feature2D->keypoint().pt.y,
                                                                   optimizeZ));
                         }
@@ -2288,7 +2035,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         {
                             costFunction
                                 = new ceres::AutoDiffCostFunction<OdometerReprojectionError, 2, 4, 2, 2, 1, 3>(
-                                    new OdometerReprojectionError(mCameraParameters.at(i),
+                                    new OdometerReprojectionError(mCameras.at(i)->parameters(),
                                                                   feature2D->keypoint().pt.x, feature2D->keypoint().pt.y,
                                                                   optimizeZ));
                         }
@@ -2316,7 +2063,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                     {
                         costFunction
                             = new ceres::AutoDiffCostFunction<CameraReprojectionError, 2, 4, 3, 3>(
-                                new CameraReprojectionError(mCameraParameters.at(i),
+                                new CameraReprojectionError(mCameras.at(i)->parameters(),
                                                             feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
                         break;
                     }
@@ -2427,405 +2174,19 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 
     if (mode == CATA_ODOMETER)
     {
-        for (int i = 0; i < CAMERA_COUNT; ++i)
+        for (size_t i = 0; i < mCameras.size(); ++i)
         {
-            mCameraParameters.at(i).xi() = intrinsicParams[i][0];
-            mCameraParameters.at(i).k1() = intrinsicParams[i][1];
-            mCameraParameters.at(i).k2() = intrinsicParams[i][2];
-            mCameraParameters.at(i).p1() = intrinsicParams[i][3];
-            mCameraParameters.at(i).p2() = intrinsicParams[i][4];
-            mCameraParameters.at(i).gamma1() = intrinsicParams[i][5];
-            mCameraParameters.at(i).gamma2() = intrinsicParams[i][6];
-            mCameraParameters.at(i).u0() = intrinsicParams[i][7];
-            mCameraParameters.at(i).v0() = intrinsicParams[i][8];
+            mCameras.at(i)->parameters().xi() = intrinsicParams[i][0];
+            mCameras.at(i)->parameters().k1() = intrinsicParams[i][1];
+            mCameras.at(i)->parameters().k2() = intrinsicParams[i][2];
+            mCameras.at(i)->parameters().p1() = intrinsicParams[i][3];
+            mCameras.at(i)->parameters().p2() = intrinsicParams[i][4];
+            mCameras.at(i)->parameters().gamma1() = intrinsicParams[i][5];
+            mCameras.at(i)->parameters().gamma2() = intrinsicParams[i][6];
+            mCameras.at(i)->parameters().u0() = intrinsicParams[i][7];
+            mCameras.at(i)->parameters().v0() = intrinsicParams[i][8];
         }
     }
-}
-
-void
-CameraRigBA::visualize(const std::string& overlayPrefix, int type)
-{
-    boost::unordered_set<Odometer*> odometerSet;
-
-    for (size_t i = 0; i < mCameras.size(); ++i)
-    {
-        std::ostringstream oss;
-        oss << overlayPrefix << i + 1;
-
-        GLOverlayExtended overlay(oss.str(), VCharge::COORDINATE_FRAME_GLOBAL);
-
-        // visualize camera poses and 3D scene points
-        overlay.clear();
-        overlay.pointSize(2.0f);
-        overlay.lineWidth(1.0f);
-
-        // draw cameras
-        std::vector<OdometerPtr> odometers;
-        std::vector<PosePtr> cameras;
-        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > scenePoints;
-
-        boost::unordered_set<Point3DFeature*> scenePointSet;
-
-        std::vector<FrameSegment>& segments = mGraph.frameSegments(i);
-        for (size_t j = 0; j < segments.size(); ++j)
-        {
-            FrameSegment& segment = segments.at(j);
-
-            for (size_t k = 0; k < segment.size(); ++k)
-            {
-                if (type == ODOMETER)
-                {
-                    odometers.push_back(segment.at(k)->odometer());
-                    odometerSet.insert(segment.at(k)->odometer().get());
-                }
-                else
-                {
-                    cameras.push_back(segment.at(k)->camera());
-                }
-
-                std::vector<Point2DFeaturePtr>& features2D = segment.at(k)->features2D();
-
-                for (size_t l = 0; l < features2D.size(); ++l)
-                {
-                    if (features2D.at(l)->feature3D().get() == 0)
-                    {
-                        continue;
-                    }
-
-                    if (features2D.at(l)->feature3D()->point().norm() < 1000.0)
-                    {
-                        scenePointSet.insert(features2D.at(l)->feature3D().get());
-                    }
-                }
-            }
-        }
-
-        if (type == ODOMETER)
-        {
-            for (size_t j = 0; j < odometers.size(); ++j)
-            {
-                OdometerPtr& odometer = odometers.at(j);
-
-                Eigen::Matrix4d H_odo = odometer->pose();
-                Eigen::Matrix4d H_cam = H_odo * mExtrinsics.getGlobalCameraPose(i);
-
-                double xBound = 0.1;
-                double yBound = 0.1;
-                double zFar = 0.2;
-
-                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-                frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-                frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-                for (size_t k = 0; k < frustum.size(); ++k)
-                {
-                    frustum.at(k) = transformPoint(H_cam, frustum.at(k));
-                }
-
-                overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-                overlay.begin(VCharge::LINES);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(0)(0), frustum.at(0)(1), frustum.at(0)(2));
-                    overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-                }
-
-                overlay.end();
-
-                switch (i)
-                {
-                case CAMERA_FRONT:
-                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-                    break;
-                case CAMERA_LEFT:
-                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                case CAMERA_REAR:
-                    overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-                    break;
-                case CAMERA_RIGHT:
-                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                default:
-                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-                }
-
-                overlay.begin(VCharge::POLYGON);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-                }
-
-                overlay.end();
-            }
-
-            overlay.lineWidth(1.0f);
-            overlay.pointSize(2.0f);
-        }
-        else
-        {
-            for (size_t j = 0; j < cameras.size(); ++j)
-            {
-                PosePtr& camera = cameras.at(j);
-
-                Eigen::Matrix4d H_cam = camera->pose().inverse();
-
-                double xBound = 0.1;
-                double yBound = 0.1;
-                double zFar = 0.2;
-
-                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-                frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-                frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-                for (size_t k = 0; k < frustum.size(); ++k)
-                {
-                    frustum.at(k) = transformPoint(H_cam, frustum.at(k));
-                }
-
-                overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-                overlay.begin(VCharge::LINES);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(0)(0), frustum.at(0)(1), frustum.at(0)(2));
-                    overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-                }
-
-                overlay.end();
-
-                switch (i)
-                {
-                case CAMERA_FRONT:
-                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-                    break;
-                case CAMERA_LEFT:
-                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                case CAMERA_REAR:
-                    overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-                    break;
-                case CAMERA_RIGHT:
-                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                default:
-                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-                }
-
-                overlay.begin(VCharge::POLYGON);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-                }
-
-                overlay.end();
-            }
-        }
-
-
-        // draw 3D scene points
-        switch (i)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-        }
-
-        overlay.begin(VCharge::POINTS);
-
-        for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
-                 it != scenePointSet.end(); ++it)
-        {
-            Eigen::Vector3d& p = (*it)->point();
-
-            overlay.vertex3f(p(0), p(1), p(2));
-        }
-
-        overlay.end();
-
-        overlay.publish();
-
-        usleep(50000);
-    }
-
-    std::ostringstream oss;
-    oss << overlayPrefix << "odo";
-
-    GLOverlayExtended overlay(oss.str(), VCharge::COORDINATE_FRAME_GLOBAL);
-
-    overlay.clear();
-    overlay.lineWidth(1.0f);
-    overlay.color3f(0.7f, 0.7f, 0.7f);
-
-    double w_2 = 0.05;
-    double l_2 = 0.1;
-
-    double vertices[4][3] = {{-l_2, -w_2, 0.0},
-                             {l_2, -w_2, 0.0},
-                             {l_2, w_2, 0.0},
-                             {-l_2, w_2, 0.0}};
-
-    if (type == ODOMETER)
-    {
-        for (boost::unordered_set<Odometer*>::iterator it = odometerSet.begin();
-                it != odometerSet.end(); ++it)
-        {
-            Odometer* odometer = *it;
-
-            Eigen::Matrix4d H = odometer->pose();
-
-            overlay.begin(VCharge::LINE_LOOP);
-
-            for (int i = 0; i < 4; ++i)
-            {
-                Eigen::Vector3d p;
-                p << vertices[i][0], vertices[i][1], vertices[i][2];
-
-                p = transformPoint(H, p);
-
-                overlay.vertex3f(p(0), p(1), p(2));
-            }
-
-            overlay.end();
-
-            Eigen::Vector3d p0(0.0, 0.0, 0.0);
-            Eigen::Vector3d p1(l_2, 0.0, 0.0);
-
-            p0 = transformPoint(H, p0);
-            p1 = transformPoint(H, p1);
-
-            overlay.begin(VCharge::LINES);
-
-            overlay.vertex3f(p0(0), p0(1), p0(2));
-            overlay.vertex3f(p1(0), p1(1), p1(2));
-
-            overlay.end();
-        }
-    }
-
-    overlay.publish();
-}
-
-void
-CameraRigBA::visualizeExtrinsics(const std::string& overlayName)
-{
-    GLOverlayExtended overlay(overlayName, VCharge::COORDINATE_FRAME_GLOBAL);
-
-    // visualize extrinsics
-    overlay.clear();
-    overlay.lineWidth(1.0f);
-
-    // x-axis
-    overlay.color4f(1.0f, 0.0f, 0.0f, 1.0f);
-    overlay.begin(VCharge::LINES);
-    overlay.vertex3f(0.0f, 0.0f, 0.0f);
-    overlay.vertex3f(0.3f, 0.0f, 0.0f);
-    overlay.end();
-
-    // y-axis
-    overlay.color4f(0.0f, 1.0f, 0.0f, 1.0f);
-    overlay.begin(VCharge::LINES);
-    overlay.vertex3f(0.0f, 0.0f, 0.0f);
-    overlay.vertex3f(0.0f, 0.3f, 0.0f);
-    overlay.end();
-
-    // z-axis
-    overlay.color4f(0.0f, 0.0f, 1.0f, 1.0f);
-    overlay.begin(VCharge::LINES);
-    overlay.vertex3f(0.0f, 0.0f, 0.0f);
-    overlay.vertex3f(0.0f, 0.0f, 0.3f);
-    overlay.end();
-
-    double z_ref = 0.0;
-    for (int i = 0; i < CAMERA_COUNT; ++i)
-    {
-        Eigen::Matrix4d H_cam = mExtrinsics.getGlobalCameraPose(i);
-
-        z_ref += H_cam(2,3);
-    }
-    z_ref /= CAMERA_COUNT;
-
-    for (int i = 0; i < CAMERA_COUNT; ++i)
-    {
-        Eigen::Matrix4d H_cam = mExtrinsics.getGlobalCameraPose(i);
-
-        double xBound = 0.1;
-        double yBound = 0.1;
-        double zFar = 0.2;
-
-        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-        frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-        frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-        frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-        frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-        frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-        for (size_t k = 0; k < frustum.size(); ++k)
-        {
-            frustum.at(k) = transformPoint(H_cam, frustum.at(k));
-            frustum.at(k)(2) -= z_ref;
-        }
-
-        overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-        overlay.begin(VCharge::LINES);
-
-        for (int k = 1; k < 5; ++k)
-        {
-            overlay.vertex3f(frustum.at(0)(0), frustum.at(0)(1), frustum.at(0)(2));
-            overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-        }
-
-        overlay.end();
-
-        switch (i)
-        {
-        case CAMERA_FRONT:
-            overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_LEFT:
-            overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        case CAMERA_REAR:
-            overlay.color4f(0.0f, 1.0f, 1.0f, 0.5f);
-            break;
-        case CAMERA_RIGHT:
-            overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-            break;
-        default:
-            overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-        }
-
-        overlay.begin(VCharge::POLYGON);
-
-        for (int k = 1; k < 5; ++k)
-        {
-            overlay.vertex3f(frustum.at(k)(0), frustum.at(k)(1), frustum.at(k)(2));
-        }
-
-        overlay.end();
-    }
-
-    overlay.publish();
 }
 
 bool
