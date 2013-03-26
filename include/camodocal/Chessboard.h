@@ -1,12 +1,17 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
+#include <boost/shared_ptr.hpp>
 #include <opencv2/core/core.hpp>
-
-#include "ChessboardQuad.h"
 
 namespace camodocal
 {
+
+// forward declarations
+class ChessboardCorner;
+typedef boost::shared_ptr<ChessboardCorner> ChessboardCornerPtr;
+class ChessboardQuad;
+typedef boost::shared_ptr<ChessboardQuad> ChessboardQuadPtr;
 
 class Chessboard
 {

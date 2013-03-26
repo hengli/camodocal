@@ -1,4 +1,4 @@
-#include "CamRigOdoCalibration.h"
+#include "camodocal/CamRigOdoCalibration.h"
 
 #include <iomanip>
 #include <iostream>
@@ -8,6 +8,7 @@
 #include "../visual_odometry/ReprojectionError.h"
 
 #include "CameraRigBA.h"
+#include "utils.h"
 
 namespace camodocal
 {

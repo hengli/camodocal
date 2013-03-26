@@ -6,8 +6,7 @@
 #include <opencv2/gpu/gpu.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "../gpl/gpl.h"
-#include "CamRigOdoCalibration.h"
+#include "camodocal/CamRigOdoCalibration.h"
 
 int
 main(int argc, char** argv)
@@ -141,11 +140,15 @@ main(int argc, char** argv)
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
 
-    double tsStart = timeInSeconds();
-
     camRigOdoCalib.run();
 
-    std::cout << "# INFO: Calibration took " << timeInSeconds() - tsStart << "s." << std::endl;
+    //****************
+
+    // Add odometry and image data here.
+    // camRigOdoCalib.addOdometry();
+    // camRigOdoCalib.addFrame();
+
+    //****************
 
     CameraRigExtrinsics extrinsics = camRigOdoCalib.extrinsics();
     extrinsics.writeToFile(outputFilename);

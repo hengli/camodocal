@@ -5,9 +5,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "camodocal/CataCameraCalibration.h"
-
-#include "../gpl/gpl.h"
-#include "Chessboard.h"
+#include "camodocal/Chessboard.h"
 
 int main(int argc, char** argv)
 {

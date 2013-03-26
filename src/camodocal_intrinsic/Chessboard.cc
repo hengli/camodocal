@@ -1,8 +1,9 @@
-#include "Chessboard.h"
+#include "camodocal/Chessboard.h"
 
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "ChessboardQuad.h"
 #include "Spline.h"
 
 #define MAX_CONTOUR_APPROX  7

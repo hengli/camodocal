@@ -7,10 +7,10 @@
 #include "camodocal/CamOdoCalibration.h"
 #include "camodocal/CataCamera.h"
 #include "camodocal/CataCameraCalibration.h"
+#include "camodocal/SensorDataBuffer.h"
 #include "camodocal/SparseGraph.h"
 
 #include "AtomicData.h"
-#include "utils.h"
 
 namespace camodocal
 {

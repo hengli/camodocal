@@ -20,14 +20,13 @@ camodocal_link_libraries(cam_odo_calibration
   ceres
 )
 
-camodocal_executable(extrinsic_calib
-  extrinsic_calib.cc
+camodocal_library(camodocal_extrinsic
   CameraRigBA.cc
   CamRigOdoCalibration.cc
   utils.cc
 )
 
-camodocal_link_libraries(extrinsic_calib
+camodocal_link_libraries(camodocal_extrinsic
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_HIGHGUI_LIBRARY}

@@ -2,9 +2,8 @@
 #define UTILS_H
 
 #include "camodocal/Odometer.h"
+#include "camodocal/SensorDataBuffer.h"
 #include "camodocal/SparseGraph.h"
-
-#include "../gpl/SensorDataBuffer.h"
 
 namespace camodocal
 {
