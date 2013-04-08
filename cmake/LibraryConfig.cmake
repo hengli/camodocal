@@ -16,14 +16,9 @@ camodocal_required_dependency(CUDA)
 camodocal_required_dependency(Eigen3)
 camodocal_required_dependency(GLIB2)
 camodocal_required_dependency(GLIBMM2)
-camodocal_required_dependency(GLUT)
 camodocal_required_dependency(GTHREAD2)
-camodocal_required_dependency(GTest)
 camodocal_required_dependency(LAPACK)
 camodocal_required_dependency(OpenCV)
-camodocal_required_dependency(OpenGL)
-camodocal_required_dependency(OSG)
-camodocal_required_dependency(Qt4)
 camodocal_required_dependency(SIGC++)
 camodocal_required_dependency(SuiteSparse)
 
@@ -42,6 +37,3 @@ endif(MSVC)
 
 # No auto linking, so this option is useless anyway
 mark_as_advanced(Boost_LIB_DIAGNOSTIC_DEFINITIONS)
-
-#### QT4 ####
-find_package(Qt4 COMPONENTS QtCore QtGui QtOpenGL)
