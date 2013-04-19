@@ -459,7 +459,7 @@ CataCameraCalibration::optimize(const std::vector< std::vector<cv::Point3f> >& o
     }
 
     ceres::Solver::Options options;
-    options.max_num_iterations = 1000;
+    options.max_num_iterations = 2000;
     options.function_tolerance = 1e-4;
 
     if (mVerbose)
