@@ -16,6 +16,7 @@ int main(int argc, char** argv)
     std::string prefix;
     std::string fileExtension;
     bool useOpenCV;
+    bool viewResults;
     bool verbose;
 
     //========= Handling Program options =========
@@ -30,6 +31,7 @@ int main(int argc, char** argv)
         ("file-extension,e", boost::program_options::value<std::string>(&fileExtension)->default_value(".bmp"), "File extension of images")
         ("camera-name", boost::program_options::value<std::string>(&cameraName)->default_value("camera"), "Name of camera")
         ("opencv", boost::program_options::bool_switch(&useOpenCV)->default_value(false), "Use OpenCV to detect corners")
+        ("view-results", boost::program_options::bool_switch(&viewResults)->default_value(false), "View results")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
 
@@ -53,7 +55,7 @@ int main(int argc, char** argv)
     }
 
     // look for images in input directory
-    std::vector<std::string> images;
+    std::vector<std::string> imageFilenames;
     boost::filesystem::directory_iterator itr;
     for (boost::filesystem::directory_iterator itr(inputDir); itr != boost::filesystem::directory_iterator(); ++itr)
     {
@@ -79,15 +81,15 @@ int main(int argc, char** argv)
             continue;
         }
 
-        images.push_back(itr->path().string());
+        imageFilenames.push_back(itr->path().string());
 
         if (verbose)
         {
-            std::cerr << "# INFO: Adding " << images.back() << std::endl;
+            std::cerr << "# INFO: Adding " << imageFilenames.back() << std::endl;
         }
     }
 
-    if (images.empty())
+    if (imageFilenames.empty())
     {
         std::cerr << "# ERROR: No chessboard images found." << std::endl;
         return 1;
@@ -95,18 +97,18 @@ int main(int argc, char** argv)
 
     if (verbose)
     {
-        std::cerr << "# INFO: # images: " << images.size() << std::endl;
+        std::cerr << "# INFO: # images: " << imageFilenames.size() << std::endl;
     }
 
-    cv::Mat image = cv::imread(images.front(), -1);
+    cv::Mat image = cv::imread(imageFilenames.front(), -1);
     const cv::Size frameSize = image.size();
 
     camodocal::CataCameraCalibration calibration(cameraName, frameSize);
     calibration.setVerbose(verbose);
 
-    for (size_t i = 0; i < images.size(); ++i)
+    for (size_t i = 0; i < imageFilenames.size(); ++i)
     {
-        image = cv::imread(images.at(i), -1);
+        image = cv::imread(imageFilenames.at(i), -1);
 
         camodocal::Chessboard chessboard(boardSize, image);
 
@@ -131,6 +133,7 @@ int main(int argc, char** argv)
             std::cerr << "# INFO: Did not detect chessboard in image " << i + 1 << std::endl;
         }
     }
+    cv::destroyWindow("Image");
 
     if (calibration.sampleCount() < 10)
     {
@@ -149,6 +152,27 @@ int main(int argc, char** argv)
     if (verbose)
     {
         std::cerr << "# INFO: Wrote calibration file to " << cameraName + "_camera_calib.yaml" << std::endl;
+    }
+
+    if (viewResults)
+    {
+        std::vector<cv::Mat> images(imageFilenames.size());
+        for (size_t i = 0; i < imageFilenames.size(); ++i)
+        {
+            images.at(i) = cv::imread(imageFilenames.at(i), -1);
+        }
+
+        // visualize observed and reprojected points
+        calibration.drawResults(boardSize, squareSize, images);
+
+        for (size_t i = 0; i < images.size(); ++i)
+        {
+            cv::putText(images.at(i), imageFilenames.at(i), cv::Point(10,20),
+                        cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255),
+                        1, CV_AA);
+            cv::imshow("Image", images.at(i));
+            cv::waitKey(0);
+        }
     }
 
     return 0;

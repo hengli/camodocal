@@ -118,6 +118,97 @@ CataCameraCalibration::cameraParameters(void) const
 }
 
 void
+CataCameraCalibration::drawResults(const cv::Size& boardSize, float squareSize,
+                                   std::vector<cv::Mat>& images) const
+{
+    std::vector< std::vector<cv::Point3f> > objectPoints;
+    for (size_t i = 0; i < images.size(); ++i)
+    {
+        std::vector<cv::Point3f> objectPointsInView;
+        for (int j = 0; j < boardSize.height; ++j)
+        {
+            for (int k = 0; k < boardSize.width; ++k)
+            {
+                objectPointsInView.push_back(cv::Point3f(j * squareSize, k * squareSize, 0.0));
+            }
+        }
+        objectPoints.push_back(objectPointsInView);
+    }
+
+    std::vector<cv::Mat> rvecs, tvecs;
+
+    for (size_t i = 0; i < images.size(); ++i)
+    {
+        cv::Mat rvec(3, 1, CV_64F);
+        rvec.at<double>(0) = mExtrParams.at<double>(i,0);
+        rvec.at<double>(1) = mExtrParams.at<double>(i,1);
+        rvec.at<double>(2) = mExtrParams.at<double>(i,2);
+
+        cv::Mat tvec(3, 1, CV_64F);
+        tvec.at<double>(0) = mExtrParams.at<double>(i,3);
+        tvec.at<double>(1) = mExtrParams.at<double>(i,4);
+        tvec.at<double>(2) = mExtrParams.at<double>(i,5);
+
+        rvecs.push_back(rvec);
+        tvecs.push_back(tvec);
+    }
+
+    int drawShiftBits = 4;
+    int drawMultiplier = 1 << drawShiftBits;
+
+    cv::Scalar green(0, 255, 0);
+    cv::Scalar red(0, 0, 255);
+
+    for (size_t i = 0; i < images.size(); ++i)
+    {
+        cv::Mat& image = images.at(i);
+        if (image.channels() == 1)
+        {
+            cv::cvtColor(image, image, CV_GRAY2RGB);
+        }
+
+        std::vector<cv::Point2f> estImagePoints;
+        projectPoints(objectPoints.at(i), rvecs.at(i), tvecs.at(i),
+                      mCameraParams, estImagePoints);
+
+        float errorSum = 0.0f;
+        float errorMax = std::numeric_limits<float>::min();
+
+        for (size_t j = 0; j < mImagePoints.at(i).size(); ++j)
+        {
+            cv::Point2f pObs = mImagePoints.at(i).at(j);
+            cv::Point2f pEst = estImagePoints.at(j);
+
+            cv::circle(image,
+                       cv::Point(cvRound(pObs.x * drawMultiplier),
+                                 cvRound(pObs.y * drawMultiplier)),
+                       5, green, 2, CV_AA, drawShiftBits);
+
+            cv::circle(image,
+                       cv::Point(cvRound(pEst.x * drawMultiplier),
+                                 cvRound(pEst.y * drawMultiplier)),
+                       5, red, 2, CV_AA, drawShiftBits);
+
+            float error = cv::norm(pObs - pEst);
+
+            errorSum += error;
+            if (error > errorMax)
+            {
+                errorMax = error;
+            }
+        }
+
+        std::ostringstream oss;
+        oss << "Reprojection error: avg = " << errorSum / mImagePoints.at(i).size()
+            << "   max = " << errorMax;
+
+        cv::putText(image, oss.str(), cv::Point(10, image.rows - 10),
+                    cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255),
+                    1, CV_AA);
+    }
+}
+
+void
 CataCameraCalibration::writeParams(const std::string& filename) const
 {
     mCameraParams.write(filename);
@@ -240,11 +331,14 @@ CataCameraCalibration::calibrateHelper(const cv::Size& boardSize,
                   << std::fixed << std::setprecision(3) << timeInSeconds() - startTime << " sec\n";
     }
 
-    cv::Mat pve;
-    std::cout << "[" << cameraParams.cameraName() << "] " << "# INFO: " << "Initial reprojection error: "
-              << std::fixed << std::setprecision(3)
-              << computeReprojectionError(objectPoints, imagePoints, cameraParams, rvecs, tvecs, pve)
-              << " pixels" << std::endl;
+    if (mVerbose)
+    {
+        cv::Mat pve;
+        std::cout << "[" << cameraParams.cameraName() << "] " << "# INFO: " << "Initial reprojection error: "
+                  << std::fixed << std::setprecision(3)
+                  << computeReprojectionError(objectPoints, imagePoints, cameraParams, rvecs, tvecs, pve)
+                  << " pixels" << std::endl;
+    }
 
     startTime = timeInSeconds();
 
@@ -365,7 +459,8 @@ CataCameraCalibration::optimize(const std::vector< std::vector<cv::Point3f> >& o
     }
 
     ceres::Solver::Options options;
-    options.max_num_iterations = 100;
+    options.max_num_iterations = 1000;
+    options.function_tolerance = 1e-4;
 
     if (mVerbose)
     {
@@ -472,10 +567,9 @@ CataCameraCalibration::computeReprojectionError(const std::vector< std::vector<c
                                                 const std::vector<cv::Mat>& tvecs,
                                                 cv::Mat& perViewErrors) const
 {
-    // Reprojection error changed to L2-norm because I am lazy.
     int imageCount = objectPoints.size();
     size_t pointsSoFar = 0;
-    float totalErr = 0.0;
+    float totalErr = 0.0f;
 
     perViewErrors = cv::Mat(1, imageCount, CV_32F);
 
@@ -489,11 +583,10 @@ CataCameraCalibration::computeReprojectionError(const std::vector< std::vector<c
         projectPoints(objectPoints.at(i), rvecs.at(i), tvecs.at(i),
                       cameraParams, estImagePoints);
 
-        float err = 0.0;
+        float err = 0.0f;
         for (size_t j = 0; j < imagePoints.at(i).size(); ++j)
         {
-            err += fabsf(imagePoints.at(i).at(j).x - estImagePoints.at(j).x);
-            err += fabsf(imagePoints.at(i).at(j).y - estImagePoints.at(j).y);
+            err += cv::norm(imagePoints.at(i).at(j) - estImagePoints.at(j));
         }
 
         perViewErrors.at<float>(i) = err / pointCount;

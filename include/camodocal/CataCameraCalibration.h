@@ -25,6 +25,9 @@ public:
     CataCamera::Parameters& cameraParameters(void);
     const CataCamera::Parameters& cameraParameters(void) const;
 
+    void drawResults(const cv::Size& boardSize, float squareSize,
+                     std::vector<cv::Mat>& images) const;
+
     void writeParams(const std::string& filename) const;
     void setVerbose(bool verbose);
 
