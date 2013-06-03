@@ -662,6 +662,18 @@ void
 EquidistantCamera::backprojectSymmetric(const Eigen::Vector2d& p_u,
                                         double& theta, double& phi) const
 {
+    double tol = 1e-10;
+    double p_u_norm = p_u.norm();
+
+    if (p_u_norm < 1e-10)
+    {
+        phi = 0.0;
+    }
+    else
+    {
+        phi = atan2(p_u(1), p_u(0));
+    }
+
     int npow = 9;
     if (mParameters.k5() == 0.0)
     {
@@ -680,52 +692,55 @@ EquidistantCamera::backprojectSymmetric(const Eigen::Vector2d& p_u,
         npow -= 2;
     }
 
-    std::vector<double> coeffs(npow + 1, 0.0);
-    coeffs.at(0) = -p_u.norm();
-    coeffs.at(1) = 1.0;
+    Eigen::MatrixXd coeffs(npow + 1, 1);
+    coeffs.setZero();
+    coeffs(0) = -p_u_norm;
+    coeffs(1) = 1.0;
 
     if (npow >= 3)
     {
-        coeffs.at(3) = mParameters.k2();
+        coeffs(3) = mParameters.k2();
     }
     if (npow >= 5)
     {
-        coeffs.at(5) = mParameters.k3();
+        coeffs(5) = mParameters.k3();
     }
     if (npow >= 7)
     {
-        coeffs.at(7) = mParameters.k4();
+        coeffs(7) = mParameters.k4();
     }
     if (npow >= 9)
     {
-        coeffs.at(9) = mParameters.k5();
+        coeffs(9) = mParameters.k5();
     }
 
-    std::vector<std::complex<double> > roots;
-    cv::solvePoly(coeffs, roots);
+    // Get eigenvalues of companion matrix corresponding to polynomial.
+    // Eigenvalues correspond to roots of polynomial.
+    Eigen::MatrixXd A(npow, npow);
+    A.setZero();
+    A.block(1, 0, npow - 1, npow - 1).setIdentity();
+    A.col(npow - 1) = - coeffs.block(0, 0, npow, 1) / coeffs(npow);
 
-    if (p_u.norm() < 1e-10)
-    {
-        phi = 0.0;
-    }
-    else
-    {
-        phi = atan2(p_u(1), p_u(0));
-    }
+    Eigen::EigenSolver<Eigen::MatrixXd> es(A);
+    Eigen::MatrixXcd eigval = es.eigenvalues();
 
     std::vector<double> thetas;
-    for (size_t i = 0; i < roots.size(); ++i)
+    for (int i = 0; i < eigval.rows(); ++i)
     {
-        if (fabs(roots.at(i).imag()) > 1e-10)
+        if (fabs(eigval(i).imag()) > tol)
         {
             continue;
         }
 
-        double t = roots.at(i).real();
+        double t = eigval(i).real();
 
-        if (t < 0.0)
+        if (t < -tol)
         {
             continue;
+        }
+        else if (t < 0.0)
+        {
+            t = 0.0;
         }
 
         thetas.push_back(t);
