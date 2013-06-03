@@ -1,4 +1,4 @@
-#include "camodocal/SparseGraph.h"
+#include "camodocal/sparse_graph/SparseGraph.h"
 
 #include <opencv2/highgui/highgui.hpp>
 #include <cstdio>
@@ -17,6 +17,7 @@ Pose::Pose()
 {
     m_q.setIdentity();
     m_t.setZero();
+    m_covariance.setZero();
 }
 
 Pose::Pose(const Eigen::Matrix4d& H)
@@ -95,6 +96,18 @@ Pose::pose(void) const
     H.block<3,1>(0,3) = m_t;
 
     return H;
+}
+
+Eigen::Matrix<double,7,7>&
+Pose::covariance(void)
+{
+    return m_covariance;
+}
+
+const Eigen::Matrix<double,7,7>&
+Pose::covariance(void) const
+{
+    return m_covariance;
 }
 
 Frame::Frame()

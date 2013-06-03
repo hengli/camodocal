@@ -49,10 +49,10 @@ void AngleAxisToQuaternion(const Eigen::Matrix<T, 3, 1>& rvec, T* q)
 {
     Eigen::Quaternion<T> quat = AngleAxisToQuaternion<T>(rvec);
 
-    q[0] = quat.w();
-    q[1] = quat.x();
-    q[2] = quat.y();
-    q[3] = quat.z();
+    q[0] = quat.x();
+    q[1] = quat.y();
+    q[2] = quat.z();
+    q[3] = quat.w();
 }
 
 template<typename T>
@@ -67,7 +67,7 @@ Eigen::Matrix<T, 3, 1> RotationToAngleAxis(const Eigen::Matrix<T, 3, 3> & rmat)
 template<typename T>
 void QuaternionToAngleAxis(const T* const q, Eigen::Matrix<T, 3, 1>& rvec)
 {
-    Eigen::Quaternion<T> quat(q[0], q[1], q[2], q[3]);
+    Eigen::Quaternion<T> quat(q[3], q[0], q[1], q[2]);
 
     Eigen::Matrix<T, 3, 3> rmat = quat.toRotationMatrix();
 

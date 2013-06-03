@@ -1,3 +1,3 @@
-camodocal_library(pugixml
+camodocal_library(camodocal_pugixml
   pugixml.cpp
 )

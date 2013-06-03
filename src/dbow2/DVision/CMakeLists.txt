@@ -3,7 +3,7 @@ include_directories(
   ../DUtilsCV
 )
 
-camodocal_library(DVision SHARED
+camodocal_library(camodocal_DVision SHARED
   BRIEF.cpp
   BundleCamera.cpp
   FSolver.cpp
@@ -18,12 +18,12 @@ camodocal_library(DVision SHARED
   SurfSet.cpp
 )
 
-camodocal_link_libraries(DVision
+camodocal_link_libraries(camodocal_DVision
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_FLANN_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY} 
   ${OPENCV_LEGACY_LIBRARY}
   ${OPENCV_NONFREE_LIBRARY}
-  DUtils
+  camodocal_DUtils
 )

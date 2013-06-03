@@ -1,4 +1,4 @@
-#include "camodocal/Odometer.h"
+#include "camodocal/sparse_graph/Odometer.h"
 
 namespace camodocal
 {

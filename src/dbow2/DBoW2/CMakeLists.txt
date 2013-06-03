@@ -3,7 +3,7 @@ include_directories(
   ../DVision
 )
 
-camodocal_library(DBoW2 SHARED
+camodocal_library(camodocal_DBoW2 SHARED
   BowVector.cpp
   FBrief.cpp
   FeatureVector.cpp
@@ -13,8 +13,8 @@ camodocal_library(DBoW2 SHARED
   ScoringObject.cpp
 )
 
-camodocal_link_libraries(DBoW2
-  DUtils
-  DUtilsCV
-  DVision
+camodocal_link_libraries(camodocal_DBoW2
+  camodocal_DUtils
+  camodocal_DUtilsCV
+  camodocal_DVision
 )

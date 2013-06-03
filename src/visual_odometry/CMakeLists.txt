@@ -1,18 +1,20 @@
+if(CAMODOCAL_CAMERA_MODELS_FOUND)
 if(EXISTS ${OPENCV_GPU_LIBRARY})
 
 include_directories(
-  ../brisk/thirdparty/agast/include
   ../ceres-solver/include
+  ../brisk/thirdparty/agast/include
 )
 
-camodocal_library(visual_odometry
+camodocal_library(camodocal_visual_odometry SHARED
   FeatureTracker.cc
+  GpuWrap.cc
   ORBGPU.cc
   SlidingWindowBA.cc
   SurfGPU.cc
 )
 
-camodocal_link_libraries(visual_odometry
+camodocal_link_libraries(camodocal_visual_odometry
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_FLANN_LIBRARY}
   ${OPENCV_HIGHGUI_LIBRARY}
@@ -22,11 +24,30 @@ camodocal_link_libraries(visual_odometry
   ${SIGC++_LIBRARY}
   ${GLIB2_LIBRARY}
   ${GTHREAD2_LIBRARY}
-  brisk
-  catacamera
-  fivepoint
-  gpl
-  sparse_graph
+  camodocal_brisk
+  camodocal_camera_models
+  camodocal_fivepoint
+  camodocal_gpl
+  camodocal_sparse_graph
+  ceres
 )
 
+camodocal_test(SlidingWindowBA)
+camodocal_link_libraries(SlidingWindowBA_test gpl camodocal_visual_odometry)
+
+if(VCHARGE_VIZ)
+
+camodocal_executable(SlidingWindowBA_sim
+  SlidingWindowBA_sim.cc
+)
+
+camodocal_link_libraries(SlidingWindowBA_sim
+  camodocal_visual_odometry
+  middleware
+  overlay
+) 
+
+endif(VCHARGE_VIZ)
+
 endif(EXISTS ${OPENCV_GPU_LIBRARY})
+endif(CAMODOCAL_CAMERA_MODELS_FOUND)

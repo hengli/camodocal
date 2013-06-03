@@ -4,11 +4,10 @@
 #include <Eigen/Dense>
 #include <opencv2/features2d/features2d.hpp>
 
-#include "camodocal/CataCamera.h"
-#include "camodocal/SparseGraph.h"
-
-#include "ORBGPU.h"
+#include "camodocal/camera_models/Camera.h"
+#include "camodocal/sparse_graph/SparseGraph.h"
 #include "SlidingWindowBA.h"
+#include "ORBGPU.h"
 #include "SurfGPU.h"
 
 namespace camodocal
@@ -109,7 +108,7 @@ protected:
 class TemporalFeatureTracker: public FeatureTracker
 {
 public:
-    TemporalFeatureTracker(const CataCamera::Parameters& cameraParameters,
+    TemporalFeatureTracker(const CameraConstPtr& camera,
                            DetectorType detectorType = ORB_DETECTOR,
                            DescriptorType descriptorType = ORB_DESCRIPTOR,
                            MatchTestType matchTestType = RATIO,
@@ -136,7 +135,7 @@ protected:
 
     void visualizeTracks(void);
 
-    CataCamera mCamera;
+    const CameraConstPtr kCamera;
 
     cv::Mat mImage;
     cv::Mat mMask;
@@ -162,7 +161,7 @@ protected:
 class CameraRigTemporalFeatureTracker: public FeatureTracker
 {
 public:
-    CameraRigTemporalFeatureTracker(const std::vector<CataCamera::Parameters>& cameraParameters,
+    CameraRigTemporalFeatureTracker(const std::vector<CameraConstPtr>& cameras,
                                     DetectorType detectorType = ORB_DETECTOR,
                                     DescriptorType descriptorType = ORB_DESCRIPTOR,
                                     MatchTestType matchTestType = RATIO,
@@ -177,13 +176,13 @@ protected:
     class CameraMetadata
     {
     public:
-        CameraMetadata(const CataCamera::Parameters& _cameraParameters)
-         : camera(_cameraParameters)
+        CameraMetadata(const CameraConstPtr& _camera)
+         : camera(_camera)
         {
 
         }
 
-        CataCamera camera;
+        CameraConstPtr camera;
         cv::Mat image;
         cv::Mat mask;
         std::vector<cv::KeyPoint> kpts, kptsPrev;
@@ -195,7 +194,7 @@ protected:
     void processImage(const cv::Mat& image, const cv::Mat& mask,
                       CameraMetadata* metadata);
 
-    void rectifyImagePoint(const CataCamera& camera,
+    void rectifyImagePoint(const CameraConstPtr& camera,
                            const cv::Point2f& src, cv::Point2f& dst) const;
 
     void visualizeTracks(void);

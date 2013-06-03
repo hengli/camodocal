@@ -45,7 +45,7 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
         mFeatureDetector = cv::Ptr<cv::FeatureDetector>(new cv::StarDetector(16, 25, 10, 8, 5));
         break;
     case SURF_GPU_DETECTOR:
-        mSURF_GPU = SurfGPU::instance(500.0);
+        mSURF_GPU = SurfGPU::instance(200.0);
         break; 
     case SURF_DETECTOR:
     default:
@@ -66,7 +66,7 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
         mORB_GPU = ORBGPU::instance(1000);
         break;
     case SURF_GPU_DESCRIPTOR:
-        mSURF_GPU = SurfGPU::instance(500.0);
+        mSURF_GPU = SurfGPU::instance(200.0);
         break;
     case SURF_DESCRIPTOR:
     default:
@@ -370,15 +370,15 @@ FeatureTracker::windowedMatchingMask(const std::vector<cv::KeyPoint>& keypoints1
 /* Temporal Feature Tracker                           */
 /***************************************************/
 
-TemporalFeatureTracker::TemporalFeatureTracker(const CataCamera::Parameters& cameraParameters,
+TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
                                                DetectorType detectorType,
                                                DescriptorType descriptorType,
                                                MatchTestType matchTestType,
                                                bool preprocess)
  : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
- , mCamera(cameraParameters)
+ , kCamera(camera)
  , mInit(false)
- , m_BA(cameraParameters)
+ , m_BA(camera)
  , kMaxDelta(80.0f)
  , kMinFeatureCorrespondences(15)
  , kNominalFocalLength(300.0)
@@ -790,11 +790,9 @@ TemporalFeatureTracker::computeVO(Eigen::Matrix3d& R_rel, Eigen::Vector3d& t_rel
         return false;
     }
 
-    cv::Point2f pp(mCamera.parameters().imageWidth() / 2.0f, mCamera.parameters().imageHeight() / 2.0f);
-
     cv::Mat E, R_rel_cv, t_rel_cv;
-    E = findEssentialMat(pointsPrev, points, kNominalFocalLength, pp, CV_FM_RANSAC, 0.99, kReprojErrorThresh, 1000, inliers);
-    recoverPose(E, pointsPrev, points, R_rel_cv, t_rel_cv, kNominalFocalLength, pp, inliers);
+    E = findEssentialMat(pointsPrev, points, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, kReprojErrorThresh / kNominalFocalLength, 1000, inliers);
+    recoverPose(E, pointsPrev, points, R_rel_cv, t_rel_cv, 1.0, cv::Point2d(0.0, 0.0), inliers);
 
     if (cv::countNonZero(inliers) < kMinFeatureCorrespondences)
     {
@@ -873,12 +871,12 @@ TemporalFeatureTracker::rectifyImagePoint(const cv::Point2f& src, cv::Point2f& d
 {
     Eigen::Vector3d P;
 
-    mCamera.liftProjective(src.x, src.y, &P(0), &P(1), &P(2));
+    kCamera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
 
     P /= P(2);
 
-    dst.x = P(0) * kNominalFocalLength + mCamera.parameters().imageWidth() / 2.0f;
-    dst.y = P(1) * kNominalFocalLength + mCamera.parameters().imageHeight() / 2.0f;
+    dst.x = P(0);
+    dst.y = P(1);
 }
 
 void
@@ -933,7 +931,7 @@ TemporalFeatureTracker::visualizeTracks(void)
 /* Camera Rig Temporal Feature Tracker                           */
 /***************************************************/
 
-CameraRigTemporalFeatureTracker::CameraRigTemporalFeatureTracker(const std::vector<CataCamera::Parameters>& cameraParameters,
+CameraRigTemporalFeatureTracker::CameraRigTemporalFeatureTracker(const std::vector<CameraConstPtr>& cameras,
                                                                  DetectorType detectorType,
                                                                  DescriptorType descriptorType,
                                                                  MatchTestType matchTestType,
@@ -944,11 +942,11 @@ CameraRigTemporalFeatureTracker::CameraRigTemporalFeatureTracker(const std::vect
  , kNominalFocalLength(300.0)
  , kReprojErrorThresh(4.0)
 {
-    int nCameras = cameraParameters.size();
+    int nCameras = cameras.size();
 
     for (int i = 0; i < nCameras; ++i)
     {
-        mCameraMetadata.push_back(CameraMetadata(cameraParameters.at(i)));
+        mCameraMetadata.push_back(CameraMetadata(cameras.at(i)));
     }
 }
 
@@ -1191,17 +1189,17 @@ CameraRigTemporalFeatureTracker::processImage(const cv::Mat& image, const cv::Ma
 }
 
 void
-CameraRigTemporalFeatureTracker::rectifyImagePoint(const CataCamera& camera,
+CameraRigTemporalFeatureTracker::rectifyImagePoint(const CameraConstPtr& camera,
                                                    const cv::Point2f& src, cv::Point2f& dst) const
 {
     Eigen::Vector3d P;
 
-    camera.liftProjective(src.x, src.y, &P(0), &P(1), &P(2));
+    camera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
 
     P /= P(2);
 
-    dst.x = P(0) * kNominalFocalLength + camera.parameters().imageWidth() / 2.0f;
-    dst.y = P(1) * kNominalFocalLength + camera.parameters().imageHeight() / 2.0f;
+    dst.x = P(0);
+    dst.y = P(1);
 }
 
 void

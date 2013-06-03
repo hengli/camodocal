@@ -1,4 +1,4 @@
-camodocal_library(DUtilsCV SHARED
+camodocal_library(camodocal_DUtilsCV SHARED
   Drawing.cpp
   Geometry.cpp
   GUI.cpp
@@ -8,7 +8,7 @@ camodocal_library(DUtilsCV SHARED
   Types.cpp
 )
 
-camodocal_link_libraries(DUtilsCV
+camodocal_link_libraries(camodocal_DUtilsCV
   ${OPENCV_CALIB3D_LIBRARY}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}

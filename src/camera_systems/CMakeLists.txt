@@ -1,0 +1,3 @@
+camodocal_library(camodocal_camera_systems
+  CameraRigExtrinsics.cc
+)

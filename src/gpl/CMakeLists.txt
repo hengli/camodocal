@@ -1,10 +1,10 @@
-camodocal_library(gpl SHARED
+set_source_files(GPL_SRC_FILES
+  CubicSpline.cc
   gpl.cc
 )
 
-set_target_properties(gpl PROPERTIES COMPILE_FLAGS "-D_REENTRANT")
-
-camodocal_link_libraries(gpl
+camodocal_library(camodocal_gpl SHARED ${GPL_SRC_FILES})
+camodocal_link_libraries(camodocal_gpl
   ${OPENCV_CORE_LIBRARY}
   rt
 )

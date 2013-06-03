@@ -6,23 +6,23 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "../ceres-solver/include/ceres/ceres.h"
+#include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
-#include "ReprojectionError.h"
 
 namespace camodocal
 {
 
-SlidingWindowBA::SlidingWindowBA(const CataCamera::Parameters& cameraParameters,
+SlidingWindowBA::SlidingWindowBA(const CameraConstPtr& camera,
                                  int N, int n, int mode,
                                  Eigen::Matrix4d globalCameraPose)
- : mCamera(cameraParameters)
+ : kCamera(camera)
  , m_N(N)
  , m_n(n)
  , mMode(mode)
  , kMinDisparity(3.0)
  , kNominalFocalLength(300.0)
- , kReprojErrorThresh(1.0)
+ , kReprojErrorThresh(2.0)
  , kTVTReprojErrorThresh(3.0)
  , mFrameCount(0)
  , mVerbose(false)
@@ -90,33 +90,22 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         frameCurr->camera()->translation() = R_rel * framePrev->camera()->translation() + t_rel;
     }
 
-    if (mFrameCount < 3)
-    {
-        if (mMode == VO)
-        {
-            R = frameCurr->camera()->rotation().toRotationMatrix();
-            t = frameCurr->camera()->translation();
-        }
-
-        return true;
-    }
-
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondencesToCheck;
 
-    if (mFrameCount == 3)
+    if (mFrameCount == 2)
     {
-        // compute pose in frame 2 relative to frame 0
+        // compute pose in frame 1 relative to frame 0
         std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
 
-        // use features that are seen in frames 0, 1, and 2
-        findFeatureCorrespondences(frameCurr->features2D(), 3, featureCorrespondences);
+        // use features that are seen in frames 0 and 1
+        findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
 
         if (mVerbose)
         {
-            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 3 frames." << std::endl;
+            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
         }
 
-        std::vector<cv::Point2f> imagePoints[3];
+        std::vector<cv::Point2f> imagePoints[2];
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
         {
             std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
@@ -137,24 +126,23 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             return false;
         }
 
-        std::vector<cv::Point2f> rectImagePoints[3];
-        for (size_t i = 0; i < 3; ++i)
+        std::vector<cv::Point2f> rectImagePoints[2];
+        for (size_t i = 0; i < 2; ++i)
         {
-            rectifyImagePoints(imagePoints[i], rectImagePoints[i], kNominalFocalLength);
+            rectifyImagePoints(imagePoints[i], rectImagePoints[i]);
         }
 
         cv::Mat inliers;
         if (mMode == VO)
         {
-            cv::Point2f pp(mCamera.parameters().imageWidth() / 2.0f, mCamera.parameters().imageHeight() / 2.0f);
             cv::Mat E, R_cv, t_cv;
-            E = findEssentialMat(rectImagePoints[0], rectImagePoints[2], kNominalFocalLength, pp,
-                                 CV_FM_RANSAC, 0.99, kReprojErrorThresh, 100, inliers);
-            recoverPose(E, rectImagePoints[0], rectImagePoints[2], R_cv, t_cv, kNominalFocalLength, pp, inliers);
+            E = findEssentialMat(rectImagePoints[0], rectImagePoints[1], 1.0, cv::Point2d(0.0, 0.0),
+                                 CV_FM_RANSAC, 0.99, kReprojErrorThresh / kNominalFocalLength, 100, inliers);
+            recoverPose(E, rectImagePoints[0], rectImagePoints[1], R_cv, t_cv, 1.0, cv::Point2d(0.0, 0.0), inliers);
 
             if (mVerbose)
             {
-                std::cout << "# INFO: Computed pose in frame 0 wrt pose in frame 2 with " << inliers.cols << " inliers:" << std::endl;
+                std::cout << "# INFO: Computed pose in frame 0 wrt pose in frame 1 with " << cv::countNonZero(inliers) << " inliers:" << std::endl;
                 std::cout << R_cv << std::endl;
                 std::cout << t_cv << std::endl;
             }
@@ -182,7 +170,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             inlierFeatureCorrespondences.push_back(featureCorrespondences.at(i));
         }
 
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 2; ++i)
         {
             imagePoints[i].clear();
         }
@@ -196,9 +184,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             }
         }
 
-        for (size_t i = 0; i < 3; ++i)
+        for (size_t i = 0; i < 2; ++i)
         {
-            rectifyImagePoints(imagePoints[i], rectImagePoints[i], kNominalFocalLength);
+            rectifyImagePoints(imagePoints[i], rectImagePoints[i]);
         }
 
         // triangulate scene points
@@ -207,19 +195,19 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
         if (mMode == VO)
         {
-            triangulatePoints(mWindow.front()->camera()->rotation(), mWindow.front()->camera()->translation(), imagePoints[0],
-                              frameCurr->camera()->rotation(), frameCurr->camera()->translation(), imagePoints[2],
+            triangulatePoints(framePrev->camera()->rotation(), framePrev->camera()->translation(), imagePoints[0],
+                              frameCurr->camera()->rotation(), frameCurr->camera()->translation(), imagePoints[1],
                               points3D, indices);
         }
         else
         {
             Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
 
-            Eigen::Matrix4d H1 = H_odo_cam * mWindow.front()->odometer()->pose().inverse();
+            Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometer()->pose().inverse();
             Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometer()->pose().inverse();
 
             triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), imagePoints[0],
-                              Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), imagePoints[2],
+                              Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), imagePoints[1],
                               points3D, indices);
         }
 
@@ -240,27 +228,19 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 double error;
                 if (mMode == VO)
                 {
-                    CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(mWindow.front()->camera()->rotationData(),
-                              mWindow.front()->camera()->translationData(),
-                              feature3D.data(), residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = kCamera->reprojectionError(feature3D,
+                                                       framePrev->camera()->rotation(),
+                                                       framePrev->camera()->translation(),
+                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
                 {
-                    OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(m_T_cam_odo.rotationData(),
-                              m_T_cam_odo.translationData(),
-                              mWindow.front()->odometer()->positionData(),
-                              mWindow.front()->odometer()->yawData(),
-                              feature3D.data(), residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = reprojectionError(feature3D,
+                                              m_T_cam_odo.rotation(),
+                                              m_T_cam_odo.translation(),
+                                              framePrev->odometer()->position(),
+                                              framePrev->odometer()->yaw(),
+                                              Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
                 errorTotal += error;
@@ -284,34 +264,26 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             for (size_t i = 0; i < points3D.size(); ++i)
             {
-                const cv::Point2f& feature2D = imagePoints[2].at(indices.at(i));
+                const cv::Point2f& feature2D = imagePoints[1].at(indices.at(i));
 
                 const Eigen::Vector3d& feature3D = points3D.at(i);
 
                 double error;
                 if (mMode == VO)
                 {
-                    CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(frameCurr->camera()->rotationData(),
-                              frameCurr->camera()->translationData(),
-                              feature3D.data(), residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = kCamera->reprojectionError(feature3D,
+                                                       frameCurr->camera()->rotation(),
+                                                       frameCurr->camera()->translation(),
+                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
                 {
-                    OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(m_T_cam_odo.rotationData(),
-                              m_T_cam_odo.translationData(),
-                              frameCurr->odometer()->positionData(),
-                              frameCurr->odometer()->yawData(),
-                              feature3D.data(), residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = reprojectionError(feature3D,
+                                              m_T_cam_odo.rotation(),
+                                              m_T_cam_odo.translation(),
+                                              frameCurr->odometer()->position(),
+                                              frameCurr->odometer()->yaw(),
+                                              Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
                 errorTotal += error;
@@ -326,7 +298,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             errorAvg = errorTotal / count;
 
-            std::cout << "# INFO: Reprojection error in frame 2: avg = " << errorAvg
+            std::cout << "# INFO: Reprojection error in frame 1: avg = " << errorAvg
                      << " px | max = " << errorMax << " px." << std::endl;
         }
 
@@ -340,55 +312,6 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             return false;
         }
 
-        // find pose in frame 1 from 3D-2D point correspondences
-        std::vector<cv::Point3f> scenePoints;
-
-        for (size_t i = 0; i < points3D.size(); ++i)
-        {
-            const Eigen::Vector3d& p = points3D.at(i);
-
-            scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
-        }
-
-        std::vector<cv::Point2f> tmpImagePoints;
-        for (size_t i = 0; i < indices.size(); ++i)
-        {
-            size_t idx = indices.at(i);
-
-            tmpImagePoints.push_back(rectImagePoints[1].at(idx));
-        }
-        rectImagePoints[1] = tmpImagePoints;
-
-        if (mMode == VO)
-        {
-            cv::Mat cameraMatrix = cv::Mat::eye(3, 3, CV_64F);
-            cameraMatrix.at<double>(0,0) = kNominalFocalLength;
-            cameraMatrix.at<double>(1,1) = kNominalFocalLength;
-            cameraMatrix.at<double>(0,2) = mCamera.parameters().imageWidth() / 2.0;
-            cameraMatrix.at<double>(1,2) = mCamera.parameters().imageHeight() / 2.0;
-
-            cv::Mat rvec_cv, tvec_cv;
-            cv::solvePnPRansac(scenePoints, rectImagePoints[1], cameraMatrix, cv::noArray(),
-                               rvec_cv, tvec_cv, false, 100, kReprojErrorThresh, 100, cv::noArray(), CV_EPNP);
-
-            if (mVerbose)
-            {
-                std::cout << "# INFO: Using " << scenePoints.size() << " scene points to compute pose in frame 1 via PnP:" << std::endl;
-
-                cv::Mat R_cv;
-                cv::Rodrigues(rvec_cv, R_cv);
-                std::cout << R_cv << std::endl;
-                std::cout << tvec_cv << std::endl;
-            }
-
-            Eigen::Vector3d rvec, tvec;
-            cv::cv2eigen(rvec_cv, rvec);
-            cv::cv2eigen(tvec_cv, tvec);
-
-            framePrev->camera()->rotation() = AngleAxisToQuaternion(rvec);
-            framePrev->camera()->translation() = tvec;
-        }
-
         for (size_t i = 0; i < points3D.size(); ++i)
         {
             size_t idx = indices.at(i);
@@ -397,58 +320,20 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
-            Point2DFeaturePtr& f2 = fc.at(2);
 
-            double error;
-            if (mMode == VO)
+            Point3DFeaturePtr point3D(new Point3DFeature);
+
+            point3D->point() = points3D.at(i);
+
+            for (int j = 0; j < 2; ++j)
             {
-                CameraReprojectionError reprojErr(mCamera.parameters(), f1->keypoint().pt.x, f1->keypoint().pt.y);
+                Point2DFeaturePtr& pt = fc.at(j);
 
-                double residuals[2];
-                reprojErr(framePrev->camera()->rotationData(),
-                          framePrev->camera()->translationData(),
-                          points3D.at(i).data(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
-            }
-            else
-            {
-                OdometerReprojectionError reprojErr(mCamera.parameters(), f1->keypoint().pt.x, f1->keypoint().pt.y);
-
-                double residuals[2];
-                reprojErr(m_T_cam_odo.rotationData(),
-                          m_T_cam_odo.translationData(),
-                          framePrev->odometer()->positionData(),
-                          framePrev->odometer()->yawData(),
-                          points3D.at(i).data(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
+                point3D->features2D().push_back(pt);
+                pt->feature3D() = point3D;
             }
 
-            // remove feature correspondences marked as outliers in PnP RANSAC
-           if (mMode == VO && error > kReprojErrorThresh)
-           {
-               f0->bestNextMatchIdx() = -1;
-               f1->bestPrevMatchIdx() = -1;
-               f1->bestNextMatchIdx() = -1;
-               f2->bestPrevMatchIdx() = -1;
-           }
-           else
-           {
-               Point3DFeaturePtr point3D(new Point3DFeature);
-
-               point3D->point() = points3D.at(i);
-
-               for (int j = 0; j < 3; ++j)
-               {
-                   Point2DFeaturePtr& pt = fc.at(j);
-
-                   point3D->features2D().push_back(pt);
-                   pt->feature3D() = point3D;
-               }
-
-               frameCurr->features3D().push_back(point3D);
-           }
+            frameCurr->features3D().push_back(point3D);
         }
 
         // remove untriangulated feature correspondences
@@ -458,17 +343,14 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
-            Point2DFeaturePtr& f2 = fc.at(2);
 
-            if (f2->feature3D().get() != 0)
+            if (f1->feature3D().get() != 0)
             {
                 continue;
             }
 
             f0->bestNextMatchIdx() = -1;
-            f1->bestNextMatchIdx() = -1;
             f1->bestPrevMatchIdx() = -1;
-            f2->bestPrevMatchIdx() = -1;
         }
     }
     else
@@ -479,11 +361,11 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         // use features that are seen in both previous and current frames,
         // and have associated 3D scene points
         std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
-        findFeatureCorrespondences(frameCurr->features2D(), 3, featureCorrespondences);
+        findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
 
         if (mVerbose)
         {
-            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 3 frames." << std::endl;
+            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
         }
 
         std::vector<std::vector<Point2DFeaturePtr> > triFeatureCorrespondences;
@@ -494,24 +376,20 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
-            Point2DFeaturePtr& f2 = fc.at(2);
 
-            if (f0->feature3D().get() == 0 || f1->feature3D().get() == 0)
+            if (f0->feature3D().get() == 0)
             {
-                if (f0->feature3D().get() == 0 && f1->feature3D().get() == 0)
-                {
-                    untriFeatureCorrespondences.push_back(fc);
-                }
+                untriFeatureCorrespondences.push_back(fc);
 
                 continue;
             }
 
             triFeatureCorrespondences.push_back(fc);
 
-            const Eigen::Vector3d& p = f1->feature3D()->point();
+            const Eigen::Vector3d& p = f0->feature3D()->point();
             scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
 
-            imagePoints.push_back(f2->keypoint().pt);
+            imagePoints.push_back(f1->keypoint().pt);
         }
 
         if (mMode == VO)
@@ -531,14 +409,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 std::cout << "# INFO: Using " << scenePoints.size() << " scene points to compute pose via PnP RANSAC." << std::endl;
             }
 
-            cv::Mat cameraMatrix = cv::Mat::eye(3, 3, CV_64F);
-            cameraMatrix.at<double>(0,0) = kNominalFocalLength;
-            cameraMatrix.at<double>(1,1) = kNominalFocalLength;
-            cameraMatrix.at<double>(0,2) = mCamera.parameters().imageWidth() / 2.0;
-            cameraMatrix.at<double>(1,2) = mCamera.parameters().imageHeight() / 2.0;
-
             std::vector<cv::Point2f> rectImagePoints;
-            rectifyImagePoints(imagePoints, rectImagePoints, kNominalFocalLength);
+            rectifyImagePoints(imagePoints, rectImagePoints);
 
             Eigen::Vector3d rvec, tvec;
             cv::Mat rvec_cv, tvec_cv;
@@ -549,8 +421,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             cv::eigen2cv(framePrev->camera()->translation(), tvec_cv);
 
-            cv::solvePnPRansac(scenePoints, rectImagePoints, cameraMatrix, cv::noArray(),
-                               rvec_cv, tvec_cv, true, 100, kReprojErrorThresh, 100, cv::noArray(), CV_ITERATIVE);
+            cv::solvePnPRansac(scenePoints, rectImagePoints, cv::Mat::eye(3, 3, CV_64F), cv::noArray(),
+                               rvec_cv, tvec_cv, true, 100, kReprojErrorThresh / kNominalFocalLength, 100, cv::noArray(), CV_ITERATIVE);
 
             cv::cv2eigen(rvec_cv, rvec);
             cv::cv2eigen(tvec_cv, tvec);
@@ -576,45 +448,36 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
-            Point2DFeaturePtr& f2 = fc.at(2);
 
             double error;
             if (mMode == VO)
             {
-                CameraReprojectionError reprojErr(mCamera.parameters(), f2->keypoint().pt.x, f2->keypoint().pt.y);
-
-                double residuals[2];
-                reprojErr(frameCurr->camera()->rotationData(),
-                          frameCurr->camera()->translationData(),
-                          f1->feature3D()->pointData(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
+                error = kCamera->reprojectionError(f0->feature3D()->point(),
+                                                   frameCurr->camera()->rotation(),
+                                                   frameCurr->camera()->translation(),
+                                                   Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
             }
             else
             {
-                OdometerReprojectionError reprojErr(mCamera.parameters(), f2->keypoint().pt.x, f2->keypoint().pt.y);
-
-                double residuals[2];
-                reprojErr(m_T_cam_odo.rotationData(),
-                          m_T_cam_odo.translationData(),
-                          frameCurr->odometer()->positionData(),
-                          frameCurr->odometer()->yawData(),
-                          f1->feature3D()->pointData(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
+                error = reprojectionError(f0->feature3D()->point(),
+                                          m_T_cam_odo.rotation(),
+                                          m_T_cam_odo.translation(),
+                                          frameCurr->odometer()->position(),
+                                          frameCurr->odometer()->yaw(),
+                                          Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
             }
 
             if (mMode == VO && error > kReprojErrorThresh)
             {
-                f1->bestNextMatchIdx() = -1;
-                f2->bestPrevMatchIdx() = -1;
+                f0->bestNextMatchIdx() = -1;
+                f1->bestPrevMatchIdx() = -1;
             }
             else
             {
-                f2->feature3D() = f1->feature3D();
-                f1->feature3D()->features2D().push_back(f2);
+                f1->feature3D() = f0->feature3D();
+                f1->feature3D()->features2D().push_back(f1);
 
-                frameCurr->features3D().push_back(f2->feature3D());
+                frameCurr->features3D().push_back(f1->feature3D());
             }
         }
 
@@ -628,32 +491,24 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 const cv::Point2f& feature2D = imagePoints.at(i);
 
                 const cv::Point3f& feature3D = scenePoints.at(i);
-                double point3D[3] = {feature3D.x, feature3D.y, feature3D.z};
+                Eigen::Vector3d point3D(feature3D.x, feature3D.y, feature3D.z);
 
                 double error;
                 if (mMode == VO)
                 {
-                    CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(frameCurr->camera()->rotationData(),
-                              frameCurr->camera()->translationData(),
-                              point3D, residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = kCamera->reprojectionError(point3D,
+                                                       frameCurr->camera()->rotation(),
+                                                       frameCurr->camera()->translation(),
+                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
                 {
-                    OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                    double residuals[2];
-                    reprojErr(m_T_cam_odo.rotationData(),
-                              m_T_cam_odo.translationData(),
-                              frameCurr->odometer()->positionData(),
-                              frameCurr->odometer()->yawData(),
-                              point3D, residuals);
-
-                    error = hypot(residuals[0], residuals[1]);
+                    error = reprojectionError(point3D,
+                                              m_T_cam_odo.rotation(),
+                                              m_T_cam_odo.translation(),
+                                              frameCurr->odometer()->position(),
+                                              frameCurr->odometer()->yaw(),
+                                              Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
                 totalError += error;
@@ -665,8 +520,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             std::cout << "# INFO: Reprojection error with computed pose: " << avgError << " px." << std::endl;
         }
 
-        // triangulate new feature correspondences seen in last 3 frames
-        std::vector<cv::Point2f> ipoints[3];
+        // triangulate new feature correspondences seen in last 2 frames
+        std::vector<cv::Point2f> ipoints[2];
 
         for (size_t i = 0; i < untriFeatureCorrespondences.size(); ++i)
         {
@@ -674,11 +529,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
-            Point2DFeaturePtr& f2 = fc.at(2);
 
             ipoints[0].push_back(f0->keypoint().pt);
             ipoints[1].push_back(f1->keypoint().pt);
-            ipoints[2].push_back(f2->keypoint().pt);
         }
 
         if (mVerbose)
@@ -691,29 +544,22 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
             std::vector<size_t> indices;
 
-            std::list<FramePtr>::reverse_iterator it = mWindow.rbegin();
-            ++it; ++it;
-            FramePtr& framePrevPrev = *it;
-
             if (mMode == VO)
             {
-                tvt(framePrevPrev->camera()->rotation(), framePrevPrev->camera()->translation(), ipoints[0],
-                    framePrev->camera()->rotation(), framePrev->camera()->translation(), ipoints[1],
-                    frameCurr->camera()->rotation(), frameCurr->camera()->translation(), ipoints[2],
-                    points3D, indices);
+                triangulatePoints(framePrev->camera()->rotation(), framePrev->camera()->translation(), ipoints[0],
+                                  frameCurr->camera()->rotation(), frameCurr->camera()->translation(), ipoints[1],
+                                  points3D, indices);
             }
             else
             {
                 Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
 
-                Eigen::Matrix4d H1 = H_odo_cam * framePrevPrev->odometer()->pose().inverse();
-                Eigen::Matrix4d H2 = H_odo_cam * framePrev->odometer()->pose().inverse();
-                Eigen::Matrix4d H3 = H_odo_cam * frameCurr->odometer()->pose().inverse();
+                Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometer()->pose().inverse();
+                Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometer()->pose().inverse();
 
-                tvt(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), ipoints[0],
-                    Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), ipoints[1],
-                    Eigen::Quaterniond(H3.block<3,3>(0,0)), Eigen::Vector3d(H3.block<3,1>(0,3)), ipoints[2],
-                    points3D, indices);
+                triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), ipoints[0],
+                                  Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), ipoints[1],
+                                  points3D, indices);
             }
 
             if (mVerbose)
@@ -735,27 +581,19 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         double error;
                         if (mMode == VO)
                         {
-                            CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(framePrevPrev->camera()->rotationData(),
-                                      framePrevPrev->camera()->translationData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
+                            error = kCamera->reprojectionError(feature3D,
+                                                               framePrev->camera()->rotation(),
+                                                               framePrev->camera()->translation(),
+                                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
                         else
                         {
-                            OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(m_T_cam_odo.rotationData(),
-                                      m_T_cam_odo.translationData(),
-                                      framePrevPrev->odometer()->positionData(),
-                                      framePrevPrev->odometer()->yawData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
+                            error = reprojectionError(feature3D,
+                                                      m_T_cam_odo.rotation(),
+                                                      m_T_cam_odo.translation(),
+                                                      framePrev->odometer()->position(),
+                                                      framePrev->odometer()->yaw(),
+                                                      Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
                         errorTotal += error;
@@ -770,7 +608,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
                     double errorAvg = errorTotal / count;
 
-                    std::cout << "# INFO: Reprojection error in frame n-2: avg = " << errorAvg
+                    std::cout << "# INFO: Reprojection error in frame n-1: avg = " << errorAvg
                               << " px | max = " << errorMax << " px." << std::endl;
 
                     count = 0;
@@ -786,78 +624,19 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         double error;
                         if (mMode == VO)
                         {
-                            CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(framePrev->camera()->rotationData(),
-                                      framePrev->camera()->translationData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
+                            error = kCamera->reprojectionError(feature3D,
+                                                               frameCurr->camera()->rotation(),
+                                                               frameCurr->camera()->translation(),
+                                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
                         else
                         {
-                            OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(m_T_cam_odo.rotationData(),
-                                      m_T_cam_odo.translationData(),
-                                      framePrev->odometer()->positionData(),
-                                      framePrev->odometer()->yawData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
-                        }
-
-                        errorTotal += error;
-
-                        if (error > errorMax)
-                        {
-                            errorMax = error;
-                        }
-
-                        ++count;
-                    }
-
-                    errorAvg = errorTotal / count;
-
-                    std::cout << "# INFO: Reprojection error in frame n-1: avg = " << errorAvg
-                              << " px | max = " << errorMax << " px." << std::endl;
-
-                    count = 0;
-                    errorTotal = 0.0;
-                    errorMax = std::numeric_limits<double>::min();
-
-                    for (size_t i = 0; i < points3D.size(); ++i)
-                    {
-                        const cv::Point2f& feature2D = ipoints[2].at(indices.at(i));
-
-                        const Eigen::Vector3d& feature3D = points3D.at(i);
-
-                        double error;
-                        if (mMode == VO)
-                        {
-                            CameraReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(frameCurr->camera()->rotationData(),
-                                      frameCurr->camera()->translationData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
-                        }
-                        else
-                        {
-                            OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D.x, feature2D.y);
-
-                            double residuals[2];
-                            reprojErr(m_T_cam_odo.rotationData(),
-                                      m_T_cam_odo.translationData(),
-                                      frameCurr->odometer()->positionData(),
-                                      frameCurr->odometer()->yawData(),
-                                      feature3D.data(), residuals);
-
-                            error = hypot(residuals[0], residuals[1]);
+                            error = reprojectionError(feature3D,
+                                                      m_T_cam_odo.rotation(),
+                                                      m_T_cam_odo.translation(),
+                                                      frameCurr->odometer()->position(),
+                                                      frameCurr->odometer()->yaw(),
+                                                      Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
                         errorTotal += error;
@@ -885,7 +664,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
                 std::vector<Point2DFeaturePtr>& fc = untriFeatureCorrespondences.at(indices.at(i));
 
-                for (int j = 0; j < 3; ++j)
+                for (int j = 0; j < 2; ++j)
                 {
                     Point2DFeaturePtr& pt = fc.at(j);
 
@@ -905,17 +684,14 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
                 Point2DFeaturePtr& f0 = fc.at(0);
                 Point2DFeaturePtr& f1 = fc.at(1);
-                Point2DFeaturePtr& f2 = fc.at(2);
 
-                if (f2->feature3D().get() != 0)
+                if (f1->feature3D().get() != 0)
                 {
                     continue;
                 }
 
                 f0->bestNextMatchIdx() = -1;
-                f1->bestNextMatchIdx() = -1;
                 f1->bestPrevMatchIdx() = -1;
-                f2->bestPrevMatchIdx() = -1;
             }
         }
     }
@@ -971,7 +747,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 //        {
 //            Point2DFeaturePtr& f = fc.at(j);
 //
-//            ReprojectionError reprojErr(mCamera.parameters(), f->keypoint().pt.x, f->keypoint().pt.y);
+//            ReprojectionError reprojErr(kCameraParameters, f->keypoint().pt.x, f->keypoint().pt.y);
 //
 //            double residuals[2];
 //            reprojErr(frameCurr->camera()->rotationData(),
@@ -1222,27 +998,19 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
         double error;
         if (mMode == VO)
         {
-            CameraReprojectionError reprojErr(mCamera.parameters(), feature2D->keypoint().pt.x, feature2D->keypoint().pt.y);
-
-            double residuals[2];
-            reprojErr(frame->camera()->rotationData(),
-                      frame->camera()->translationData(),
-                      feature3D->pointData(), residuals);
-
-            error = hypot(residuals[0], residuals[1]);
+            error = kCamera->reprojectionError(feature3D->point(),
+                                               frame->camera()->rotation(),
+                                               frame->camera()->translation(),
+                                               Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
         else
         {
-            OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D->keypoint().pt.x, feature2D->keypoint().pt.y);
-
-            double residuals[2];
-            reprojErr(m_T_cam_odo.rotationData(),
-                      m_T_cam_odo.translationData(),
-                      frame->odometer()->positionData(),
-                      frame->odometer()->yawData(),
-                      feature3D->pointData(), residuals);
-
-            error = hypot(residuals[0], residuals[1]);
+            error = reprojectionError(feature3D->point(),
+                                      m_T_cam_odo.rotation(),
+                                      m_T_cam_odo.translation(),
+                                      frame->odometer()->position(),
+                                      frame->odometer()->yaw(),
+                                      Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
 
         if (minError > error)
@@ -1297,27 +1065,19 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
             double error;
             if (mMode == VO)
             {
-                CameraReprojectionError reprojErr(mCamera.parameters(), feature2D->keypoint().pt.x, feature2D->keypoint().pt.y);
-
-                double residuals[2];
-                reprojErr(frame->camera()->rotationData(),
-                          frame->camera()->translationData(),
-                          feature3D->pointData(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
+                error = kCamera->reprojectionError(feature3D->point(),
+                                                   frame->camera()->rotation(),
+                                                   frame->camera()->translation(),
+                                                   Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
             }
             else
             {
-                OdometerReprojectionError reprojErr(mCamera.parameters(), feature2D->keypoint().pt.x, feature2D->keypoint().pt.y);
-
-                double residuals[2];
-                reprojErr(m_T_cam_odo.rotationData(),
-                          m_T_cam_odo.translationData(),
-                          frame->odometer()->positionData(),
-                          frame->odometer()->yawData(),
-                          feature3D->pointData(), residuals);
-
-                error = hypot(residuals[0], residuals[1]);
+                error = reprojectionError(feature3D->point(),
+                                          m_T_cam_odo.rotation(),
+                                          m_T_cam_odo.translation(),
+                                          frame->odometer()->position(),
+                                          frame->odometer()->yaw(),
+                                          Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
             }
 
             if (minError > error)
@@ -1343,6 +1103,23 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
     }
 
     avgError = totalError / count;
+}
+
+double
+SlidingWindowBA::reprojectionError(const Eigen::Vector3d& P,
+                                   const Eigen::Quaterniond& cam_odo_q,
+                                   const Eigen::Vector3d& cam_odo_t,
+                                   const Eigen::Vector2d& odo_p,
+                                   double odo_yaw,
+                                   const Eigen::Vector2d& observed_p) const
+{
+    Eigen::Quaterniond odo_q(cos(odo_yaw / 2.0), 0.0, 0.0, sin(odo_yaw / 2.0));
+    Eigen::Vector3d odo_t(odo_p(0), odo_p(1), 0.0);
+
+    Eigen::Quaterniond cam_q = cam_odo_q.conjugate() * odo_q.conjugate();
+    Eigen::Vector3d cam_t = -cam_odo_q.conjugate().toRotationMatrix() * (-odo_q.conjugate().toRotationMatrix() * odo_t);
+
+    return kCamera->reprojectionError(P, cam_q, cam_t, observed_p);
 }
 
 void
@@ -1394,10 +1171,10 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
 
 bool
 SlidingWindowBA::project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector3d& t,
-                                const Eigen::Vector4d& src, Eigen::Vector3d& dst) const
+                                const Eigen::Vector3d& src, Eigen::Vector2d& dst) const
 {
     // transform point from world frame to camera frame
-    Eigen::Vector3d P = q.toRotationMatrix() * (src.block<3,1>(0,0) / src(3)) + t;
+    Eigen::Vector3d P = q.toRotationMatrix() * src + t;
 
     // check if point is behind camera
     if (P(2) < 0.0)
@@ -1405,56 +1182,54 @@ SlidingWindowBA::project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector
         return false;
     }
 
-    mCamera.space2plane(P(0), P(1), P(2), &dst(0), &dst(1));
-    dst(2) = 1.0;
+    Eigen::Vector2d p;
+    kCamera->spaceToPlane(P, p);
+    dst << p;
 
     return true;
 }
 
 void
-SlidingWindowBA::rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst, double focal) const
+SlidingWindowBA::rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst) const
 {
     Eigen::Vector3d P;
 
-    mCamera.liftProjective(src.x, src.y, &P(0), &P(1), &P(2));
+    kCamera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
 
     P /= P(2);
 
-    dst.x = P(0) * focal + mCamera.parameters().imageWidth() / 2.0f;
-    dst.y = P(1) * focal + mCamera.parameters().imageHeight() / 2.0f;
+    dst.x = P(0);
+    dst.y = P(1);
 }
 
 void
-SlidingWindowBA::rectifyImagePoint(const Eigen::Vector2d& src, Eigen::Vector2d& dst, double focal) const
+SlidingWindowBA::rectifyImagePoint(const Eigen::Vector2d& src, Eigen::Vector2d& dst) const
 {
     Eigen::Vector3d P;
 
-    mCamera.liftProjective(src(0), src(1), &P(0), &P(1), &P(2));
+    kCamera->liftProjective(src, P);
 
     P /= P(2);
 
-    Eigen::Vector2d pp(mCamera.parameters().imageWidth() / 2.0, mCamera.parameters().imageHeight() / 2.0);
-    dst = P.block<2,1>(0,0) * focal + pp;
+    dst = P.block<2,1>(0,0);
 }
 
 void
 SlidingWindowBA::rectifyImagePoints(const std::vector<cv::Point2f>& src,
-                                    std::vector<cv::Point2f>& dst,
-                                    double focal) const
+                                    std::vector<cv::Point2f>& dst) const
 {
     dst.resize(src.size());
 
-    cv::Point2f pp(mCamera.parameters().imageWidth() / 2.0f, mCamera.parameters().imageHeight() / 2.0f);
     for (size_t i = 0; i < src.size(); ++i)
     {
         const cv::Point2f& p = src.at(i);
 
         Eigen::Vector3d P;
-        mCamera.liftProjective(p.x, p.y, &P(0), &P(1), &P(2));
+        kCamera->liftProjective(Eigen::Vector2d(p.x, p.y), P);
 
         P /= P(2);
 
-        dst.at(i) = cv::Point2f(P(0), P(1)) * focal + pp;
+        dst.at(i) = cv::Point2f(P(0), P(1));
     }
 }
 
@@ -1468,25 +1243,13 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
                                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
                                    std::vector<size_t>& inliers) const
 {
-    Eigen::Matrix3d K;
-    K << kNominalFocalLength, 0.0, mCamera.parameters().imageWidth() / 2.0,
-         0.0, kNominalFocalLength, mCamera.parameters().imageHeight() / 2.0,
-         0.0, 0.0, 1.0;
+    // assume identity camera matrix with unit focal length and zero principal point
 
     Eigen::Matrix4d T1 = homogeneousTransform(q1.toRotationMatrix(), t1);
-    Eigen::Matrix<double, 3, 4> P1 = K * T1.block<3,4>(0,0);
+    Eigen::Matrix<double,3,4> P1 = T1.block<3,4>(0,0);
 
     Eigen::Matrix4d T2 = homogeneousTransform(q2.toRotationMatrix(), t2);
-    Eigen::Matrix<double, 3, 4> P2 = K * T2.block<3,4>(0,0);
-
-    Eigen::Matrix4d H1 = homogeneousTransform(q1.toRotationMatrix(), t1);
-    Eigen::Matrix4d H2 = homogeneousTransform(q2.toRotationMatrix(), t2);
-    Eigen::Matrix4d H12 = H2 * H1.inverse();
-
-    Eigen::Matrix3d E = skew(Eigen::Vector3d(H12.block<3,1>(0,3))) * H12.block<3,3>(0,0);
-
-    double focal = K(0,0);
-    Eigen::Vector2d pp(K(0,2), K(1,2));
+    Eigen::Matrix<double,3,4> P2 = T2.block<3,4>(0,0);
 
     // linear triangulation
     for (size_t i = 0; i < imagePoints1.size(); ++i)
@@ -1495,8 +1258,8 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
         const cv::Point2f& p2_cv = imagePoints2.at(i);
 
         cv::Point2f rect_p1_cv, rect_p2_cv;
-        rectifyImagePoint(p1_cv, rect_p1_cv, kNominalFocalLength);
-        rectifyImagePoint(p2_cv, rect_p2_cv, kNominalFocalLength);
+        rectifyImagePoint(p1_cv, rect_p1_cv);
+        rectifyImagePoint(p2_cv, rect_p2_cv);
 
         Eigen::Matrix4d J;
         J.row(0) = P1.row(2) * rect_p1_cv.x - P1.row(0);
@@ -1510,24 +1273,24 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
         P /= P(3);
 
         // validate scene point
-        Eigen::Vector3d p1, p2;
-        if (!project3DPoint(q1, t1, P, p1))
+        Eigen::Vector2d p1, p2;
+        if (!project3DPoint(q1, t1, P.block<3,1>(0,0), p1))
         {
             continue;
         }
-        if (!project3DPoint(q2, t2, P, p2))
+        if (!project3DPoint(q2, t2, P.block<3,1>(0,0), p2))
         {
             continue;
         }
 
         if (mMode == VO)
         {
-            if ((p1 - Eigen::Vector3d(p1_cv.x, p1_cv.y, 1.0)).norm() > kTVTReprojErrorThresh)
+            if ((p1 - Eigen::Vector2d(p1_cv.x, p1_cv.y)).norm() > kTVTReprojErrorThresh)
             {
                 continue;
             }
 
-            if ((p2 - Eigen::Vector3d(p2_cv.x, p2_cv.y, 1.0)).norm() > kTVTReprojErrorThresh)
+            if ((p2 - Eigen::Vector2d(p2_cv.x, p2_cv.y)).norm() > kTVTReprojErrorThresh)
             {
                 continue;
             }
@@ -1556,29 +1319,15 @@ SlidingWindowBA::tvt(const Eigen::Quaterniond& q1,
                      std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
                      std::vector<size_t>& inliers) const
 {
-    Eigen::Matrix3d K;
-    K << kNominalFocalLength, 0.0, mCamera.parameters().imageWidth() / 2.0,
-         0.0, kNominalFocalLength, mCamera.parameters().imageHeight() / 2.0,
-         0.0, 0.0, 1.0;
+    // assume identity camera matrix with unit focal length and zero principal point
 
     Eigen::Matrix4d H1 = homogeneousTransform(q1.toRotationMatrix(), t1);
     Eigen::Matrix4d H2 = homogeneousTransform(q2.toRotationMatrix(), t2);
     Eigen::Matrix4d H3 = homogeneousTransform(q3.toRotationMatrix(), t3);
 
-    Eigen::Matrix<double, 3, 4> P1 = K * H1.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P2 = K * H2.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P3 = K * H3.block<3,4>(0,0);
-
-    Eigen::Matrix4d H12 = H2 * H1.inverse();
-    Eigen::Matrix4d H23 = H3 * H2.inverse();
-    Eigen::Matrix4d H13 = H3 * H1.inverse();
-
-    Eigen::Matrix3d E12 = skew(Eigen::Vector3d(H12.block<3,1>(0,3))) * H12.block<3,3>(0,0);
-    Eigen::Matrix3d E23 = skew(Eigen::Vector3d(H23.block<3,1>(0,3))) * H23.block<3,3>(0,0);
-    Eigen::Matrix3d E13 = skew(Eigen::Vector3d(H13.block<3,1>(0,3))) * H13.block<3,3>(0,0);
-
-    double focal = K(0,0);
-    Eigen::Vector2d pp(K(0,2), K(1,2));
+    Eigen::Matrix<double, 3, 4> P1 = H1.block<3,4>(0,0);
+    Eigen::Matrix<double, 3, 4> P2 = H2.block<3,4>(0,0);
+    Eigen::Matrix<double, 3, 4> P3 = H3.block<3,4>(0,0);
 
     // linear triangulation
     for (size_t i = 0; i < imagePoints1.size(); ++i)
@@ -1588,9 +1337,9 @@ SlidingWindowBA::tvt(const Eigen::Quaterniond& q1,
         const cv::Point2f& p3_cv = imagePoints3.at(i);
 
         cv::Point2f rect_p1_cv, rect_p2_cv, rect_p3_cv;
-        rectifyImagePoint(p1_cv, rect_p1_cv, kNominalFocalLength);
-        rectifyImagePoint(p2_cv, rect_p2_cv, kNominalFocalLength);
-        rectifyImagePoint(p3_cv, rect_p3_cv, kNominalFocalLength);
+        rectifyImagePoint(p1_cv, rect_p1_cv);
+        rectifyImagePoint(p2_cv, rect_p2_cv);
+        rectifyImagePoint(p3_cv, rect_p3_cv);
 
         Eigen::Matrix4d J;
         J.row(0) = P2.row(2) * rect_p2_cv.x - P2.row(0);
@@ -1604,33 +1353,33 @@ SlidingWindowBA::tvt(const Eigen::Quaterniond& q1,
         scenePoint /= scenePoint(3);
 
         // validate scene point
-        Eigen::Vector3d p1, p2, p3;
-        if (!project3DPoint(q1, t1, scenePoint, p1))
+        Eigen::Vector2d p1, p2, p3;
+        if (!project3DPoint(q1, t1, scenePoint.block<3,1>(0,0), p1))
         {
             continue;
         }
-        if (!project3DPoint(q2, t2, scenePoint, p2))
+        if (!project3DPoint(q2, t2, scenePoint.block<3,1>(0,0), p2))
         {
             continue;
         }
-        if (!project3DPoint(q3, t3, scenePoint, p3))
+        if (!project3DPoint(q3, t3, scenePoint.block<3,1>(0,0), p3))
         {
             continue;
         }
 
         if (mMode == VO)
         {
-            if ((p1 - Eigen::Vector3d(p1_cv.x, p1_cv.y, 1.0)).norm() > kTVTReprojErrorThresh)
+            if ((p1 - Eigen::Vector2d(p1_cv.x, p1_cv.y)).norm() > kTVTReprojErrorThresh)
             {
                 continue;
             }
 
-            if ((p2 - Eigen::Vector3d(p2_cv.x, p2_cv.y, 1.0)).norm() > kTVTReprojErrorThresh)
+            if ((p2 - Eigen::Vector2d(p2_cv.x, p2_cv.y)).norm() > kTVTReprojErrorThresh)
             {
                 continue;
             }
 
-            if ((p3 - Eigen::Vector3d(p3_cv.x, p3_cv.y, 1.0)).norm() > kTVTReprojErrorThresh)
+            if ((p3 - Eigen::Vector2d(p3_cv.x, p3_cv.y)).norm() > kTVTReprojErrorThresh)
             {
                 continue;
             }
@@ -1676,14 +1425,15 @@ SlidingWindowBA::optimize(void)
                 continue;
             }
 
-            ceres::CostFunction* costFunction;
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
 
             if (mMode == VO)
             {
-                costFunction =
-                    new ceres::AutoDiffCostFunction<CameraReprojectionError, 2, 4, 3, 3>(
-                        new CameraReprojectionError(mCamera.parameters(), feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
+                ceres::CostFunction* costFunction =
+                    CostFunctionFactory::instance()->generateCostFunction(kCamera,
+                                                                          Eigen::Vector2d(feature2D->keypoint().pt.x,
+                                                                                          feature2D->keypoint().pt.y),
+                                                                          CAMERA_EXTRINSICS | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          frame->camera()->rotationData(), frame->camera()->translationData(),
@@ -1691,10 +1441,11 @@ SlidingWindowBA::optimize(void)
             }
             else
             {
-                ceres::CostFunction* costFunction
-                    = new ceres::AutoDiffCostFunction<OdometerReprojectionError, 2, 4, 3, 2, 1, 3>(
-                        new OdometerReprojectionError(mCamera.parameters(),
-                                                      feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
+                ceres::CostFunction* costFunction =
+                    CostFunctionFactory::instance()->generateCostFunction(kCamera,
+                                                                          Eigen::Vector2d(feature2D->keypoint().pt.x,
+                                                                                          feature2D->keypoint().pt.y),
+                                                                          CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_EXTRINSICS | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          m_T_cam_odo.rotationData(),

@@ -1,5 +1,5 @@
 // Ceres Solver - A fast non-linear least squares minimizer
-// Copyright 2010, 2011, 2012 Google Inc. All rights reserved.
+// Copyright 2010, 2011, 2012, 2013 Google Inc. All rights reserved.
 // http://code.google.com/p/ceres-solver/
 //
 // Redistribution and use in source and binary forms, with or without
@@ -34,13 +34,14 @@
 
 #include "ceres/dense_sparse_matrix.h"
 
-#include "gtest/gtest.h"
 #include "ceres/casts.h"
 #include "ceres/linear_least_squares_problems.h"
 #include "ceres/matrix_proto.h"
 #include "ceres/triplet_sparse_matrix.h"
 #include "ceres/internal/eigen.h"
 #include "ceres/internal/scoped_ptr.h"
+#include "glog/logging.h"
+#include "gtest/gtest.h"
 
 namespace ceres {
 namespace internal {
@@ -200,6 +201,7 @@ TEST_F(DenseSparseMatrixTest, AppendDiagonal) {
 
   // Verify the diagonal got added.
   Matrix m = dsm.matrix();
+
   EXPECT_EQ(6, m.rows());
   EXPECT_EQ(3, m.cols());
   for (int i = 0; i < 3; ++i) {
@@ -215,6 +217,7 @@ TEST_F(DenseSparseMatrixTest, AppendDiagonal) {
 
   // Verify the diagonal gets removed.
   dsm.RemoveDiagonal();
+
   m = dsm.matrix();
 
   EXPECT_EQ(3, m.rows());

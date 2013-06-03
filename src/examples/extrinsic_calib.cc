@@ -6,7 +6,8 @@
 #include <opencv2/gpu/gpu.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "camodocal/CamRigOdoCalibration.h"
+#include "camodocal/calib/CamRigOdoCalibration.h"
+#include "camodocal/camera_models/CameraFactory.h"
 
 int
 main(int argc, char** argv)
@@ -105,7 +106,7 @@ main(int argc, char** argv)
     //===========================Initialize calibration==========================
     
     // read catacamera params
-    std::vector<CataCameraCalibration*> cameraCalib(cameraCount);
+    std::vector<camodocal::CameraPtr> cameras(cameraCount);
     for (int i = 0; i < cameraCount; ++i)
     {
         boost::filesystem::path calibFilePath(calibDir);
@@ -114,16 +115,15 @@ main(int argc, char** argv)
         oss << "camera_" << i << "_calib.yaml";
         calibFilePath /= oss.str();
 
-        CataCamera::Parameters cameraParams;
-        if (!cameraParams.read(calibFilePath.string()))
+        camodocal::CameraPtr camera = camodocal::CameraFactory::instance()->generateCamera(calibFilePath.string());
+        if (camera.get() == 0)
         {
             std::cout << "# ERROR: Unable to read calibration file: " << calibFilePath.string() << std::endl;
 
             return 0;
         }
 
-        cameraCalib.at(i) = new CataCameraCalibration("camera", cv::Size(640, 480));
-        cameraCalib.at(i)->cameraParameters() = cameraParams;
+        cameras.at(i) = camera;
     }
 
     //========================= Start Threads =========================
@@ -136,7 +136,7 @@ main(int argc, char** argv)
     options.saveImages = saveImages;
     options.verbose = verbose;
 
-    CamRigOdoCalibration camRigOdoCalib(cameraCalib, options);
+    CamRigOdoCalibration camRigOdoCalib(cameras, options);
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
 

@@ -33,19 +33,24 @@ set(CERES_INTERNAL_SRC
     block_evaluate_preparer.cc
     block_jacobi_preconditioner.cc
     block_jacobian_writer.cc
+    block_random_access_crs_matrix.cc
     block_random_access_dense_matrix.cc
     block_random_access_matrix.cc
     block_random_access_sparse_matrix.cc
     block_sparse_matrix.cc
     block_structure.cc
+    c_api.cc
     canonical_views_clustering.cc
     cgnr_solver.cc
+    compressed_col_sparse_matrix_utils.cc
     compressed_row_jacobian_writer.cc
     compressed_row_sparse_matrix.cc
     conditioned_cost_function.cc
     conjugate_gradients_solver.cc
     coordinate_descent_minimizer.cc
     corrector.cc
+    covariance.cc
+    covariance_impl.cc
     cxsparse.cc
     dense_normal_cholesky_solver.cc
     dense_qr_solver.cc
@@ -58,15 +63,21 @@ set(CERES_INTERNAL_SRC
     implicit_schur_complement.cc
     iterative_schur_complement_solver.cc
     levenberg_marquardt_strategy.cc
+    line_search.cc
+    line_search_direction.cc
+    line_search_minimizer.cc
     linear_least_squares_problems.cc
     linear_operator.cc
     linear_solver.cc
     local_parameterization.cc
     loss_function.cc
+    low_rank_inverse_hessian.cc
+    minimizer.cc
     normal_prior.cc
     parameter_block_ordering.cc
     partitioned_matrix_view.cc
-    polynomial_solver.cc
+    polynomial.cc
+    preconditioner.cc
     problem.cc
     problem_impl.cc
     program.cc
@@ -75,6 +86,7 @@ set(CERES_INTERNAL_SRC
     runtime_numeric_diff_cost_function.cc
     schur_complement_solver.cc
     schur_eliminator.cc
+    schur_jacobi_preconditioner.cc
     scratch_evaluate_preparer.cc
     solver.cc
     solver_impl.cc
@@ -108,11 +120,11 @@ else(${SCHUR_SPECIALIZATIONS})
 endif(${SCHUR_SPECIALIZATIONS})
 
 camodocal_library(ceres
-                  ${PROTO_SRCS}
-                  ${PROTO_HDRS}
-                  ${CERES_INTERNAL_SRC}
-                  ${CERES_INTERNAL_HDRS}
-                  ${CERES_INTERNAL_SCHUR_FILES})
+                ${PROTO_SRCS}
+                ${PROTO_HDRS}
+                ${CERES_INTERNAL_SRC}
+                ${CERES_INTERNAL_HDRS}
+                ${CERES_INTERNAL_SCHUR_FILES})
 
 set(CERES_LIBRARY_DEPENDENCIES ${GLOG_LIB})
 

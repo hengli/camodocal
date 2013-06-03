@@ -82,21 +82,21 @@ unsigned long long timeInMicroseconds(void);
 double timeInSeconds(void);
 
 void colorDepthImage(cv::Mat& imgDepth,
-										cv::Mat& imgColoredDepth,
-										float minRange, float maxRange);
+                     cv::Mat& imgColoredDepth,
+                     float minRange, float maxRange);
 
 bool colormap(const std::string& name, unsigned char idx,
-								 float& r, float& g, float& b);
+              float& r, float& g, float& b);
 
 std::vector<cv::Point2i> bresLine(int x0, int y0, int x1, int y1);
 std::vector<cv::Point2i> bresCircle(int x0, int y0, int r);
 
 void LLtoUTM(double latitude, double longitude,
-								double& utmNorthing, double& utmEasting,
-								std::string& utmZone);
+             double& utmNorthing, double& utmEasting,
+             std::string& utmZone);
 void UTMtoLL(double utmNorthing, double utmEasting,
-								const std::string& utmZone,
-								double& latitude, double& longitude);
+             const std::string& utmZone,
+             double& latitude, double& longitude);
 
 long int timestampDiff(uint64_t t1, uint64_t t2);
 

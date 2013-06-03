@@ -40,7 +40,9 @@ Optional dependencies
 Go to the build folder where the executables corresponding to the examples are located in.
 
 1. Intrinsic calibration (src/examples/intrinsic_calib.cc)
-     bin/intrinsic_calib -i ../data/images/ -p img
+     bin/intrinsic_calib -i ../data/images/ -p img --camera-model mei
+
+   The intrinsic calibration supports three camera models: pinhole, mei, and kannala-brandt.
 
 2. Extrinsic calibration (src/examples/extrinsic_calib.cc)
    

@@ -1,17 +1,20 @@
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+#include <iomanip>
 #include <iostream>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
 
-#include "camodocal/CataCameraCalibration.h"
-#include "camodocal/Chessboard.h"
+#include "camodocal/chessboard/Chessboard.h"
+#include "camodocal/calib/CameraCalibration.h"
+#include "../gpl/gpl.h"
 
 int main(int argc, char** argv)
 {
     cv::Size boardSize;
     float squareSize;
     std::string inputDir;
+    std::string cameraModel;
     std::string cameraName;
     std::string prefix;
     std::string fileExtension;
@@ -29,6 +32,7 @@ int main(int argc, char** argv)
         ("input,i", boost::program_options::value<std::string>(&inputDir)->default_value("images"), "Input directory containing chessboard images")
         ("prefix,p", boost::program_options::value<std::string>(&prefix)->default_value("image"), "Prefix of images")
         ("file-extension,e", boost::program_options::value<std::string>(&fileExtension)->default_value(".bmp"), "File extension of images")
+        ("camera-model", boost::program_options::value<std::string>(&cameraModel)->default_value("mei"), "Camera model: kannala-brandt | mei | pinhole")
         ("camera-name", boost::program_options::value<std::string>(&cameraName)->default_value("camera"), "Name of camera")
         ("opencv", boost::program_options::bool_switch(&useOpenCV)->default_value(false), "Use OpenCV to detect corners")
         ("view-results", boost::program_options::bool_switch(&viewResults)->default_value(false), "View results")
@@ -52,6 +56,38 @@ int main(int argc, char** argv)
     {
         std::cerr << "# ERROR: Cannot find input directory " << inputDir << "." << std::endl;
         return 1;
+    }
+
+    camodocal::Camera::ModelType modelType;
+    if (boost::iequals(cameraModel, "kannala-brandt"))
+    {
+        modelType = camodocal::Camera::KANNALA_BRANDT;
+    }
+    else if (boost::iequals(cameraModel, "mei"))
+    {
+        modelType = camodocal::Camera::MEI;
+    }
+    else if (boost::iequals(cameraModel, "pinhole"))
+    {
+        modelType = camodocal::Camera::PINHOLE;
+    }
+    else
+    {
+        std::cerr << "# ERROR: Unknown camera model: " << cameraModel << std::endl;
+        return 1;
+    }
+
+    switch (modelType)
+    {
+    case camodocal::Camera::KANNALA_BRANDT:
+        std::cout << "# INFO: Camera model: Kannala-Brandt" << std::endl;
+        break;
+    case camodocal::Camera::MEI:
+        std::cout << "# INFO: Camera model: Mei" << std::endl;
+        break;
+    case camodocal::Camera::PINHOLE:
+        std::cout << "# INFO: Camera model: Pinhole" << std::endl;
+        break;
     }
 
     // look for images in input directory
@@ -103,7 +139,7 @@ int main(int argc, char** argv)
     cv::Mat image = cv::imread(imageFilenames.front(), -1);
     const cv::Size frameSize = image.size();
 
-    camodocal::CataCameraCalibration calibration(cameraName, frameSize);
+    camodocal::CameraCalibration calibration(modelType, cameraName, frameSize);
     calibration.setVerbose(verbose);
 
     for (size_t i = 0; i < imageFilenames.size(); ++i)
@@ -122,8 +158,8 @@ int main(int argc, char** argv)
 
             calibration.addChessboardData(chessboard.getCorners());
 
-            cv::Mat sketch; 
-            chessboard.getSketch().copyTo(sketch); 
+            cv::Mat sketch;
+            chessboard.getSketch().copyTo(sketch);
 
             cv::imshow("Image", sketch);
             cv::waitKey(50);
@@ -146,8 +182,17 @@ int main(int argc, char** argv)
         std::cerr << "# INFO: Calibrating..." << std::endl;
     }
 
+    double startTime = camodocal::timeInSeconds();
+
     calibration.calibrate(boardSize, squareSize);
     calibration.writeParams(cameraName + "_camera_calib.yaml");
+
+    if (verbose)
+    {
+        std::cout << "# INFO: Calibration took a total time of "
+                  << std::fixed << std::setprecision(3) << camodocal::timeInSeconds() - startTime
+                  << " sec.\n";
+    }
 
     if (verbose)
     {

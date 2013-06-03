@@ -152,6 +152,12 @@ link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 # testing
 enable_testing()
 
+set(VCHARGE_VIZ FALSE)
+
+if(VCHARGE_VIZ)
+add_definitions(-DVCHARGE_VIZ)
+endif(VCHARGE_VIZ)
+
 ################ Sub Directories ################
 
 # Global includes
