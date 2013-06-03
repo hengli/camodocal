@@ -1,0 +1,12 @@
+CamOdoCal: Automatic Intrinsic and Extrinsic Calibration of a Rig with Multiple Generic Cameras and Odometry
+Copyright (c) 2013 Lionel Heng
+
+This software is licensed under CC-BY-NC-SA. For more information, visit
+http://creativecommons.org/licenses/by-nc-sa/3.0/
+
+To obtain a commercial license, contact the author.
+
+To use this software for non-commercial purposes, please attibute the work
+to the original author:
+Lionel Heng, ETH Zürich
+http://www.inf.ethz.ch/~hengli
