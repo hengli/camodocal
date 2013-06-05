@@ -5,7 +5,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "../ceres-solver/include/ceres/ceres.h"
+#include "ceres/ceres.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"

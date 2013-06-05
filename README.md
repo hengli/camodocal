@@ -15,17 +15,18 @@ Build Instructions for Ubuntu
 
 *Required dependencies*
 * BLAS (Ubuntu package: libblas-dev)
-* CUDA
+* Boost >= 1.4.0 (Ubuntu package: libboost-all-dev)
+* CUDA >= 4.2
 * Eigen3 (Ubuntu package: libeigen3-dev)
 * GLib (Ubuntu package: libglib2.0-dev)
-* gtkmm (Ubuntu package: libglibmm-2.4-dev)
 * GThread (Ubuntu package: libglib2.0-dev)
+* gtkmm (Ubuntu package: libglibmm-2.4-dev)
 * libsigc++ (Ubuntu package: libsigc++-2.0-dev)
-* Boost >= 1.4.0 (Ubuntu package: libboost-all-dev)
 * OpenCV >= 2.4.0
 * SuiteSparse (Ubuntu package: libsuitesparse-dev)
 
 *Optional dependencies*
+* GTest
 * OpenMP
 
 1. Before you compile the repository code, you need to install the required

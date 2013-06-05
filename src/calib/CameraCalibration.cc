@@ -11,7 +11,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
-#include "../ceres-solver/include/ceres/ceres.h"
+#include "ceres/ceres.h"
 #include "../gpl/EigenUtils.h"
 #include "camodocal/camera_models/CameraFactory.h"
 #include "../camera_models/CostFunctionFactory.h"

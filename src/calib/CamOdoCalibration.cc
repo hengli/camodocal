@@ -10,7 +10,7 @@
 #include <opencv2/core/eigen.hpp>
 
 #include "../gpl/EigenUtils.h"
-#include "../ceres-solver/include/ceres/ceres.h"
+#include "ceres/ceres.h"
 
 namespace camodocal
 {
@@ -67,11 +67,6 @@ CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::al
                                     const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_odo)
 {
     if (H_odo.size() != H_cam.size())
-    {
-        return false;
-    }
-
-    if (motionsEnough())
     {
         return false;
     }

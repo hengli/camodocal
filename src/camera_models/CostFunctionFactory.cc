@@ -1,6 +1,6 @@
 #include "CostFunctionFactory.h"
 
-#include "../ceres-solver/include/ceres/ceres.h"
+#include "ceres/ceres.h"
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/EquidistantCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"

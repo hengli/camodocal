@@ -6,8 +6,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "../ceres-solver/include/ceres/ceres.h"
-#include "../ceres-solver/include/ceres/covariance.h"
+#include "ceres/ceres.h"
+#include "ceres/covariance.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
@@ -451,6 +451,33 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_3.sg";
             mGraph.writeToBinaryFile(graphPath.string());
+        }
+    }
+
+    if (beginStage <= 4)
+    {
+        double zGround = 0.0;
+        if (findAbsoluteGroundHeight(zGround))
+        {
+            if (mVerbose)
+            {
+                std::cout << "# INFO: Found ground plane: z = " << zGround << std::endl;
+            }
+
+            for (size_t i = 0; i < mCameras.size(); ++i)
+            {
+                Eigen::Matrix4d cameraPose = mExtrinsics.getGlobalCameraPose(i);
+                cameraPose(2,3) -= zGround;
+
+                mExtrinsics.setGlobalCameraPose(i, cameraPose);
+            }
+        }
+        else
+        {
+            if (mVerbose)
+            {
+                std::cout << "# INFO: Did not find ground plane." << std::endl;
+            }
         }
     }
 }
@@ -1514,7 +1541,7 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
     }
 
     cv::Mat E, inlierMat;
-    E = findEssentialMat(rpoints1, rpoints2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh / kNominalFocalLength, 1000, inlierMat);
+    E = findEssentialMat(rpoints1, rpoints2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
 
     if (cv::countNonZero(inlierMat) < kMinInterCorrespondences2D2D)
     {
@@ -2020,6 +2047,44 @@ CameraRigBA::prune(int flags, int poseType)
 void
 CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 {
+    // find number of points seen by more than 1 camera
+    boost::unordered_set<Point3DFeature*> scenePointSet;
+    for (size_t i = 0; i < mCameras.size(); ++i)
+    {
+        const std::vector<FrameSegment>& segments = mGraph.frameSegments(i);
+        for (size_t j = 0; j < segments.size(); ++j)
+        {
+            const FrameSegment& segment = segments.at(j);
+
+            for (size_t k = 0; k < segment.size(); ++k)
+            {
+                const std::vector<Point2DFeaturePtr>& features2D = segment.at(k)->features2D();
+
+                for (size_t l = 0; l < features2D.size(); ++l)
+                {
+                    if (features2D.at(l)->feature3D().get() == 0)
+                    {
+                        continue;
+                    }
+
+                    scenePointSet.insert(features2D.at(l)->feature3D().get());
+                }
+            }
+        }
+    }
+
+    size_t nPointsMultipleCams = 0;
+    for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
+         it != scenePointSet.end(); ++it)
+    {
+        if (seenByMultipleCameras((*it)->features2D()))
+        {
+            ++nPointsMultipleCams;
+        }
+    }
+
+    double weightM = static_cast<double>(scenePointSet.size()) / static_cast<double>(nPointsMultipleCams);
+
     ceres::Problem problem;
 
     ceres::Solver::Options options;
@@ -2059,15 +2124,22 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
                     Point2DFeaturePtr& feature2D = features2D.at(l);
+                    Point3DFeaturePtr& feature3D = feature2D->feature3D();
 
-                    if (feature2D->feature3D().get() == 0)
+                    if (feature3D.get() == 0)
                     {
                         continue;
                     }
 
                     optimizeExtrinsics[i] = 1;
 
-                    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
+                    double weight = 1.0;
+                    if (seenByMultipleCameras(feature3D->features2D()))
+                    {
+                        weight = weightM;
+                    }
+
+                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), 1.0, ceres::TAKE_OWNERSHIP);
 
                     ceres::CostFunction* costFunction;
                     switch (mode)
@@ -2085,7 +2157,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  T_cam_odo.at(i).rotationData(),
                                                  T_cam_odo.at(i).translationData(),
-                                                 feature2D->feature3D()->pointData());
+                                                 feature3D->pointData());
 
                         break;
                     }
@@ -2102,7 +2174,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                                                  T_cam_odo.at(i).translationData(),
                                                  frame->odometer()->positionData(),
                                                  frame->odometer()->yawData(),
-                                                 feature2D->feature3D()->pointData());
+                                                 feature3D->pointData());
 
                         break;
                     }
@@ -2120,7 +2192,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                                                  T_cam_odo.at(i).translationData(),
                                                  frame->odometer()->positionData(),
                                                  frame->odometer()->yawData(),
-                                                 feature2D->feature3D()->pointData());
+                                                 feature3D->pointData());
 
                         break;
                     }
@@ -2134,7 +2206,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  frame->camera()->rotationData(),
                                                  frame->camera()->translationData(),
-                                                 feature2D->feature3D()->pointData());
+                                                 feature3D->pointData());
 
                         break;
                     }
@@ -2245,6 +2317,36 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
             mCameras.at(i)->readParameters(intrinsicParams[i]);
         }
     }
+}
+
+bool
+CameraRigBA::seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& features2D) const
+{
+    if (features2D.size() <= 1)
+    {
+        return false;
+    }
+
+    int firstCameraId = features2D.front()->frame()->cameraId();
+    std::vector<Point2DFeaturePtr>::const_iterator it = features2D.begin() + 1;
+
+    while (it != features2D.end())
+    {
+        if ((*it)->frame()->cameraId() != firstCameraId)
+        {
+            return true;
+        }
+
+        ++it;
+    }
+
+    return false;
+}
+
+bool
+CameraRigBA::findAbsoluteGroundHeight(double& zGround) const
+{
+    return false;
 }
 
 #ifdef VCHARGE_VIZ
@@ -2819,6 +2921,31 @@ CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
 
     visualize3D3DCorrespondences(overlayName, correspondences3D3D);
 }
+
+void
+CameraRigBA::visualizeGroundPoints(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points) const
+{
+    vcharge::GLOverlayExtended overlay("ground-pts", VCharge::COORDINATE_FRAME_GLOBAL);
+
+    // visualize 3D-3D correspondences
+    overlay.clear();
+    overlay.pointSize(3.0f);
+    overlay.color3f(0.0f, 1.0f, 0.0f);
+
+    overlay.begin(VCharge::POINTS);
+
+    for (size_t i = 0; i < points.size(); ++i)
+    {
+        const Eigen::Vector3d& p = points.at(i);
+
+        overlay.vertex3d(p(0), p(1), p(2));
+    }
+
+    overlay.end();
+
+    overlay.publish();
+}
+
 #endif
 
 bool

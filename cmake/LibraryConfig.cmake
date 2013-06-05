@@ -22,6 +22,7 @@ camodocal_required_dependency(OpenCV)
 camodocal_required_dependency(SIGC++)
 camodocal_required_dependency(SuiteSparse)
 
+camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
 
 ##### Boost #####

@@ -8,7 +8,6 @@ include_directories(
 
 camodocal_library(camodocal_visual_odometry SHARED
   FeatureTracker.cc
-  GpuWrap.cc
   ORBGPU.cc
   SlidingWindowBA.cc
   SurfGPU.cc

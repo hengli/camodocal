@@ -136,6 +136,10 @@ private:
 
     void optimize(int mode, bool optimizeZ = true, int nIterations = 500);
 
+    bool seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& features2D) const;
+
+    bool findAbsoluteGroundHeight(double& zGround) const;
+
 #ifdef VCHARGE_VIZ
     void visualize(const std::string& overlayPrefix, int type);
 
@@ -149,9 +153,18 @@ private:
 
     void visualize3D3DCorrespondences(const std::string& overlayName,
                                       const std::vector<Correspondence2D2D>& correspondences) const;
+
+    void visualizeGroundPoints(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points) const;
 #endif
 
     bool validateGraph(void) const;
+
+    typedef struct
+    {
+        double mean;
+        double variance;
+        std::vector<size_t> pointIndices;
+    } ZPlaneModel;
 
     std::vector<CameraPtr> mCameras;
     CameraRigExtrinsics& mExtrinsics;
