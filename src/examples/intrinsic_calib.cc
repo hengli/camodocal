@@ -142,6 +142,7 @@ int main(int argc, char** argv)
     camodocal::CameraCalibration calibration(modelType, cameraName, frameSize);
     calibration.setVerbose(verbose);
 
+    std::vector<bool> chessboardFound(imageFilenames.size(), false);
     for (size_t i = 0; i < imageFilenames.size(); ++i)
     {
         image = cv::imread(imageFilenames.at(i), -1);
@@ -168,6 +169,7 @@ int main(int argc, char** argv)
         {
             std::cerr << "# INFO: Did not detect chessboard in image " << i + 1 << std::endl;
         }
+        chessboardFound.at(i) = chessboard.cornersFound();
     }
     cv::destroyWindow("Image");
 
@@ -201,21 +203,29 @@ int main(int argc, char** argv)
 
     if (viewResults)
     {
-        std::vector<cv::Mat> images(imageFilenames.size());
+        std::vector<cv::Mat> cbImages;
+        std::vector<std::string> cbImageFilenames;
+
         for (size_t i = 0; i < imageFilenames.size(); ++i)
         {
-            images.at(i) = cv::imread(imageFilenames.at(i), -1);
+            if (!chessboardFound.at(i))
+            {
+                continue;
+            }
+
+            cbImages.push_back(cv::imread(imageFilenames.at(i), -1));
+            cbImageFilenames.push_back(imageFilenames.at(i));
         }
 
         // visualize observed and reprojected points
-        calibration.drawResults(boardSize, squareSize, images);
+        calibration.drawResults(boardSize, squareSize, cbImages);
 
-        for (size_t i = 0; i < images.size(); ++i)
+        for (size_t i = 0; i < cbImages.size(); ++i)
         {
-            cv::putText(images.at(i), imageFilenames.at(i), cv::Point(10,20),
+            cv::putText(cbImages.at(i), cbImageFilenames.at(i), cv::Point(10,20),
                         cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255),
                         1, CV_AA);
-            cv::imshow("Image", images.at(i));
+            cv::imshow("Image", cbImages.at(i));
             cv::waitKey(0);
         }
     }
