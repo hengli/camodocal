@@ -19,6 +19,7 @@ Build Instructions for Ubuntu
 * CUDA >= 4.2
 * Eigen3 (Ubuntu package: libeigen3-dev)
 * GLib (Ubuntu package: libglib2.0-dev)
+* glog
 * GThread (Ubuntu package: libglib2.0-dev)
 * gtkmm (Ubuntu package: libglibmm-2.4-dev)
 * libsigc++ (Ubuntu package: libsigc++-2.0-dev)
