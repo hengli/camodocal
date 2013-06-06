@@ -14,10 +14,16 @@
 namespace camodocal
 {
 
+enum PoseSource
+{
+    GPS_INS,
+    ODOMETRY
+};
+
 class CamOdoThread
 {
 public:
-    explicit CamOdoThread(int nMotions, int cameraIdx,
+    explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
                           AtomicData<cv::Mat>* image,
                           const CameraConstPtr& camera,
                           SensorDataBuffer<OdometerPtr>& odometerBuffer,
@@ -51,12 +57,6 @@ private:
     void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                             const std::vector<OdometerPtr>& odoPoses,
                             FrameSegment& frameSegment);
-
-    enum PoseSource
-    {
-        GPS_INS,
-        ODOMETER
-    };
 
     PoseSource mPoseSource;
 
@@ -154,8 +154,9 @@ public:
     class Options
     {
     public:
-        Options() : nMotions(200), findLoopClosures(true), saveWorkingData(true), beginStage(0), saveImages(false), verbose(false) {};
+        Options() : poseSource(ODOMETRY), nMotions(200), findLoopClosures(true), saveWorkingData(true), beginStage(0), saveImages(false), verbose(false) {};
 
+        PoseSource poseSource;
         int nMotions;
 
         bool findLoopClosures;

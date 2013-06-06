@@ -104,8 +104,8 @@ main(int argc, char** argv)
     }
 
     //===========================Initialize calibration==========================
-    
-    // read catacamera params
+
+    // read camera params
     std::vector<camodocal::CameraPtr> cameras(cameraCount);
     for (int i = 0; i < cameraCount; ++i)
     {
@@ -128,6 +128,7 @@ main(int argc, char** argv)
 
     //========================= Start Threads =========================
     CamRigOdoCalibration::Options options;
+    options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
     options.findLoopClosures = findLoopClosures;
     options.saveWorkingData = true;
@@ -143,11 +144,19 @@ main(int argc, char** argv)
     camRigOdoCalib.run();
 
     //****************
-
+    //
+    // IMPORTANT: Add data in the order of increasing timestamp.
     // Add odometry and image data here.
-    // camRigOdoCalib.addOdometry();
-    // camRigOdoCalib.addFrame();
-
+    // camRigOdoCalib.addOdometry(x, y, yaw, timestamp);
+    // camRigOdoCalib.addFrame(cameraId, image, timestamp);
+    //
+    // Alternatively, if you are calibrating against GPS/INS,
+    // set options.poseSource = GPS_INS, and add GPS/INS
+    // and image data here.
+    //
+    // camRigOdoCalib.addGpsIns(lat, lon, roll, pitch, yaw, timestamp);
+    // camRigOdoCalib.addFrame(cameraId, image, timestamp);
+    //
     //****************
 
     CameraRigExtrinsics extrinsics = camRigOdoCalib.extrinsics();

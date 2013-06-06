@@ -18,7 +18,7 @@ namespace camodocal
 
 bool CamRigOdoCalibration::mStop = false;
 
-CamOdoThread::CamOdoThread(int nMotions, int cameraIdx,
+CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
                            AtomicData<cv::Mat>* image,
                            const CameraConstPtr& camera,
                            SensorDataBuffer<OdometerPtr>& odometerBuffer,
@@ -33,7 +33,7 @@ CamOdoThread::CamOdoThread(int nMotions, int cameraIdx,
                            bool& stop,
                            bool saveImages,
                            bool verbose)
- : mPoseSource(ODOMETER)
+ : mPoseSource(poseSource)
  , mThread(0)
  , mCameraIdx(cameraIdx)
  , mRunning(false)
@@ -238,7 +238,7 @@ CamOdoThread::threadFunction(void)
         OdometerPtr currOdometer;
         PosePtr currGpsIns;
 
-        if (mPoseSource == ODOMETER && !mOdometerBuffer.current(currOdometer))
+        if (mPoseSource == ODOMETRY && !mOdometerBuffer.current(currOdometer))
         {
             std::cout << "# WARNING: No data in odometer buffer." << std::endl;
         }
@@ -246,7 +246,7 @@ CamOdoThread::threadFunction(void)
         {
             std::cout << "# WARNING: No data in GPS/INS buffer." << std::endl;
         }
-        else if (mPoseSource == ODOMETER && !receivedOdometer)
+        else if (mPoseSource == ODOMETRY && !receivedOdometer)
         {
             prevPos = currOdometer->position();
             receivedOdometer = true;
@@ -256,11 +256,11 @@ CamOdoThread::threadFunction(void)
             prevPos = currGpsIns->translation().block<2,1>(0,0);
             receivedOdometer = true;
         }
-        else if ((mPoseSource == ODOMETER && (currOdometer->position() - prevPos).norm() > kKeyFrameDistance) ||
+        else if ((mPoseSource == ODOMETRY && (currOdometer->position() - prevPos).norm() > kKeyFrameDistance) ||
                  (mPoseSource == GPS_INS && (currGpsIns->translation().block<2,1>(0,0) - prevPos).norm() > kKeyFrameDistance))
         {
             Eigen::Vector2d currPos;
-            if (mPoseSource == ODOMETER)
+            if (mPoseSource == ODOMETRY)
             {
                 currPos = currOdometer->position();
             }
@@ -279,7 +279,7 @@ CamOdoThread::threadFunction(void)
             mOdometerBufferMutex.lock();
 
             OdometerPtr interpOdo;
-            if (mPoseSource == ODOMETER && !mInterpOdometerBuffer.find(timeStamp, interpOdo))
+            if (mPoseSource == ODOMETRY && !mInterpOdometerBuffer.find(timeStamp, interpOdo))
             {
                 double timeStart = timeInSeconds();
                 while (!interpolateOdometer(mOdometerBuffer, timeStamp, interpOdo))
@@ -737,7 +737,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
         mImages.at(i) = new AtomicData<cv::Mat>();
         mCamOdoCompleted[i] = false;
 
-        CamOdoThread* thread = new CamOdoThread(options.nMotions, i, mImages.at(i), mCameras.at(i),
+        CamOdoThread* thread = new CamOdoThread(options.poseSource, options.nMotions, i, mImages.at(i), mCameras.at(i),
                                                 mOdometerBuffer, mInterpOdometerBuffer, mOdometerBufferMutex,
                                                 mGpsInsBuffer, mInterpGpsInsBuffer, mGpsInsBufferMutex,
                                                 mStatuses.at(i), mSketches.at(i), mCamOdoCompleted[i], mStop,
