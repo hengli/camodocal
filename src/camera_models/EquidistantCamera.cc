@@ -680,8 +680,9 @@ EquidistantCamera::backprojectSymmetric(const Eigen::Vector2d& p_u,
         npow -= 2;
     }
 
+    double p_u_norm = p_u.norm();
     std::vector<double> coeffs(npow + 1, 0.0);
-    coeffs.at(0) = -p_u.norm();
+    coeffs.at(0) = -p_u_norm;
     coeffs.at(1) = 1.0;
 
     if (npow >= 3)
@@ -731,7 +732,14 @@ EquidistantCamera::backprojectSymmetric(const Eigen::Vector2d& p_u,
         thetas.push_back(t);
     }
 
-    theta = *std::min_element(thetas.begin(), thetas.end());
+    if (thetas.empty())
+    {
+        theta = p_u_norm;
+    }
+    else
+    {
+        theta = *std::min_element(thetas.begin(), thetas.end());
+    }
 }
 
 }
