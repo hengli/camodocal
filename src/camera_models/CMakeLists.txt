@@ -17,8 +17,8 @@ camodocal_link_libraries(camodocal_camera_models
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY}
   ${OPENCV_CALIB3D_LIBRARY}
+  camodocal_gpl
   ceres
-  gpl
 )
 
 camodocal_test(CataCamera)

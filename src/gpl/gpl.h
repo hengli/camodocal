@@ -91,6 +91,12 @@ bool colormap(const std::string& name, unsigned char idx,
 std::vector<cv::Point2i> bresLine(int x0, int y0, int x1, int y1);
 std::vector<cv::Point2i> bresCircle(int x0, int y0, int r);
 
+void fitCircle(const std::vector<cv::Point2d>& points,
+               double& centerX, double& centerY, double& radius);
+
+std::vector<cv::Point2d> intersectCircles(double x1, double y1, double r1,
+                                          double x2, double y2, double r2);
+
 void LLtoUTM(double latitude, double longitude,
              double& utmNorthing, double& utmEasting,
              std::string& utmZone);

@@ -332,62 +332,62 @@ EquidistantCamera::estimateIntrinsics(const cv::Size& boardSize,
     params.v0() = v0;
 
     // Initialize focal length
-    // Use non-radial line image and stereographic projection
+    // C. Hughes, P. Denny, M. Glavin, and E. Jones,
+    // Equidistant Fish-Eye Calibration and Rectification by Vanishing Point
+    // Extraction, PAMI 2010
+    // Find circles from rows of chessboard corners, and for each pair
+    // of circles, find vanishing points: v1 and v2.
+    // f = ||v1 - v2|| / PI;
     double f0 = 0.0;
     for (size_t i = 0; i < imagePoints.size(); ++i)
     {
+        Eigen::Vector2d center[boardSize.height];
+        double radius[boardSize.height];
         for (int r = 0; r < boardSize.height; ++r)
         {
-            cv::Mat P(boardSize.width, 4, CV_64F);
+            std::vector<cv::Point2d> circle;
             for (int c = 0; c < boardSize.width; ++c)
             {
-                const cv::Point2f& imagePoint = imagePoints.at(i).at(r * boardSize.width + c);
-
-                double u = imagePoint.x - u0;
-                double v = imagePoint.y - v0;
-
-                P.at<double>(c, 0) = u;
-                P.at<double>(c, 1) = v;
-                P.at<double>(c, 2) = 1.0;
-                P.at<double>(c, 3) = -(square(u) + square(v)) / 4.0;
+                circle.push_back(imagePoints.at(i).at(r * boardSize.width + c));
             }
 
-            cv::Mat C;
-            cv::SVD::solveZ(P, C);
+            fitCircle(circle, center[r](0), center[r](1), radius[r]);
+        }
 
-            double t = square(C.at<double>(0)) + square(C.at<double>(1)) + C.at<double>(2) * C.at<double>(3);
-            if (t < 0.0)
+        for (int j = 0; j < boardSize.height; ++j)
+        {
+            for (int k = j + 1; k < boardSize.height; ++k)
             {
-                continue;
-            }
+                // find distance between pair of vanishing points which
+                // correspond to intersection points of 2 circles
+                std::vector<cv::Point2d> ipts;
+                ipts = intersectCircles(center[j](0), center[j](1), radius[j],
+                                        center[k](0), center[k](1), radius[k]);
 
-            // check that line image is not radial
-            double d = sqrt(1.0 / t);
-            double nx = C.at<double>(0) * d;
-            double ny = C.at<double>(1) * d;
-            if (hypot(nx, ny) > 0.95)
-            {
-                continue;
-            }
+                if (ipts.size() < 2)
+                {
+                    continue;
+                }
 
-            double f = sqrt(C.at<double>(2) / C.at<double>(3));
+                double f = cv::norm(ipts.at(0) - ipts.at(1)) / M_PI;
 
-            params.mu() = f;
-            params.mv() = f;
+                params.mu() = f;
+                params.mv() = f;
 
-            setParameters(params);
+                setParameters(params);
 
-            for (size_t j = 0; j < objectPoints.size(); ++j)
-            {
-                estimateExtrinsics(objectPoints.at(j), imagePoints.at(j), rvecs.at(j), tvecs.at(j));
-            }
+                for (size_t l = 0; l < objectPoints.size(); ++l)
+                {
+                    estimateExtrinsics(objectPoints.at(l), imagePoints.at(l), rvecs.at(l), tvecs.at(l));
+                }
 
-            double reprojErr = reprojectionError(objectPoints, imagePoints, rvecs, tvecs, cv::noArray());
+                double reprojErr = reprojectionError(objectPoints, imagePoints, rvecs, tvecs, cv::noArray());
 
-            if (reprojErr < minReprojErr)
-            {
-                minReprojErr = reprojErr;
-                f0 = f;
+                if (reprojErr < minReprojErr)
+                {
+                    minReprojErr = reprojErr;
+                    f0 = f;
+                }
             }
         }
     }
