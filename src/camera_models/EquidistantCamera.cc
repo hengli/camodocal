@@ -497,7 +497,7 @@ EquidistantCamera::undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p)
 //         mParameters.gamma2() * p_d(1) + mParameters.v0();
 }
 
-void
+cv::Mat
 EquidistantCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                            float fx, float fy,
                                            cv::Size imageSize,
@@ -557,6 +557,10 @@ EquidistantCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
     }
 
     cv::convertMaps(mapX, mapY, map1, map2, CV_32FC1, false);
+
+    cv::Mat K_rect_cv;
+    cv::eigen2cv(K_rect, K_rect_cv);
+    return K_rect_cv;
 }
 
 const EquidistantCamera::Parameters&

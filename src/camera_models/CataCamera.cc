@@ -815,7 +815,7 @@ CataCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u,
          dydmx, dydmy;
 }
 
-void
+cv::Mat
 CataCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                     float fx, float fy,
                                     cv::Size imageSize,
@@ -875,6 +875,10 @@ CataCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
     }
 
     cv::convertMaps(mapX, mapY, map1, map2, CV_32FC1, false);
+
+    cv::Mat K_rect_cv;
+    cv::eigen2cv(K_rect, K_rect_cv);
+    return K_rect_cv;
 }
 
 const CataCamera::Parameters&
