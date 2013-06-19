@@ -220,6 +220,70 @@ private:
     bool m_optimize_z;
 };
 
+// variables: camera intrinsics and camera extrinsics
+template<class CameraT>
+class StereoReprojectionError
+{
+public:
+    StereoReprojectionError(const Eigen::Vector3d& observed_P,
+                            const Eigen::Vector2d& observed_p_l,
+                            const Eigen::Vector2d& observed_p_r)
+     : m_observed_P(observed_P)
+     , m_observed_p_l(observed_p_l)
+     , m_observed_p_r(observed_p_r)
+    {
+
+    }
+
+    template <typename T>
+    bool operator()(const T* const intrinsic_params_l,
+                    const T* const intrinsic_params_r,
+                    const T* const q_l,
+                    const T* const t_l,
+                    const T* const q_l_r,
+                    const T* const t_l_r,
+                    T* residuals) const
+    {
+        Eigen::Matrix<T,3,1> P;
+        P(0) = T(m_observed_P(0));
+        P(1) = T(m_observed_P(1));
+        P(2) = T(m_observed_P(2));
+
+        Eigen::Matrix<T,2,1> predicted_p_l;
+        CameraT::spaceToPlane(intrinsic_params_l, q_l, t_l, P, predicted_p_l);
+
+        Eigen::Quaternion<T> q_r = Eigen::Quaternion<T>(q_l_r) * Eigen::Quaternion<T>(q_l);
+
+        Eigen::Matrix<T,3,1> t_r;
+        t_r(0) = t_l[0];
+        t_r(1) = t_l[1];
+        t_r(2) = t_l[2];
+
+        t_r = Eigen::Quaternion<T>(q_l_r) * t_r;
+        t_r(0) += t_l_r[0];
+        t_r(1) += t_l_r[1];
+        t_r(2) += t_l_r[2];
+
+        Eigen::Matrix<T,2,1> predicted_p_r;
+        CameraT::spaceToPlane(intrinsic_params_r, q_r.coeffs().data(), t_r.data(), P, predicted_p_r);
+
+        residuals[0] = predicted_p_l(0) - T(m_observed_p_l(0));
+        residuals[1] = predicted_p_l(1) - T(m_observed_p_l(1));
+        residuals[2] = predicted_p_r(0) - T(m_observed_p_r(0));
+        residuals[3] = predicted_p_r(1) - T(m_observed_p_r(1));
+
+        return true;
+    }
+
+private:
+    // observed 3D point
+    Eigen::Vector3d m_observed_P;
+
+    // observed 2D point
+    Eigen::Vector2d m_observed_p_l;
+    Eigen::Vector2d m_observed_p_r;
+};
+
 boost::shared_ptr<CostFunctionFactory> CostFunctionFactory::m_instance;
 
 CostFunctionFactory::CostFunctionFactory()
@@ -464,6 +528,42 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             }
             break;
         }
+        break;
+    }
+
+    return costFunction;
+}
+
+ceres::CostFunction*
+CostFunctionFactory::generateCostFunction(const CameraConstPtr& cameraL,
+                                          const CameraConstPtr& cameraR,
+                                          const Eigen::Vector3d& observed_P,
+                                          const Eigen::Vector2d& observed_p_l,
+                                          const Eigen::Vector2d& observed_p_r) const
+{
+    ceres::CostFunction* costFunction = 0;
+
+    if (cameraL->modelType() != cameraR->modelType())
+    {
+        return costFunction;
+    }
+
+    switch (cameraL->modelType())
+    {
+    case Camera::KANNALA_BRANDT:
+        costFunction =
+            new ceres::AutoDiffCostFunction<StereoReprojectionError<EquidistantCamera>, 4, 8, 8, 4, 3, 4, 3>(
+                new StereoReprojectionError<EquidistantCamera>(observed_P, observed_p_l, observed_p_r));
+        break;
+    case Camera::PINHOLE:
+        costFunction =
+            new ceres::AutoDiffCostFunction<StereoReprojectionError<PinholeCamera>, 4, 8, 8, 4, 3, 4, 3>(
+                new StereoReprojectionError<PinholeCamera>(observed_P, observed_p_l, observed_p_r));
+        break;
+    case Camera::MEI:
+        costFunction =
+            new ceres::AutoDiffCostFunction<StereoReprojectionError<CataCamera>, 4, 9, 9, 4, 3, 4, 3>(
+                new StereoReprojectionError<CataCamera>(observed_P, observed_p_l, observed_p_r));
         break;
     }
 

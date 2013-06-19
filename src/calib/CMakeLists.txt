@@ -24,6 +24,7 @@ set(SRCS
   CamOdoCalibration.cc
   CamRigOdoCalibration.cc
   HandEyeCalibration.cc
+  StereoCameraCalibration.cc
   utils.cc
 )
 

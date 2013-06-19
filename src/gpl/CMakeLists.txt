@@ -1,5 +1,10 @@
+include_directories(
+  ../ceres-solver/include
+)
+
 set_source_files(GPL_SRC_FILES
   CubicSpline.cc
+  EigenQuaternionParameterization.cc
   gpl.cc
 )
 

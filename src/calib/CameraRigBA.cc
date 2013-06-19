@@ -9,6 +9,7 @@
 #include "ceres/ceres.h"
 #include "ceres/covariance.h"
 #include "../camera_models/CostFunctionFactory.h"
+#include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "../visual_odometry/SlidingWindowBA.h"
@@ -2232,7 +2233,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                 case CAMERA:
                 {
                     ceres::LocalParameterization* quaternionParameterization =
-                        new ceres::QuaternionParameterization;
+                        new EigenQuaternionParameterization;
 
                     problem.SetParameterization(frame->camera()->rotationData(), quaternionParameterization);
 
@@ -2250,7 +2251,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
             if (optimizeExtrinsics[i])
             {
                 ceres::LocalParameterization* quaternionParameterization =
-                    new ceres::QuaternionParameterization;
+                    new EigenQuaternionParameterization;
 
                 problem.SetParameterization(T_cam_odo.at(i).rotationData(), quaternionParameterization);
             }

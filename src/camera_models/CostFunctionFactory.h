@@ -46,6 +46,12 @@ public:
                                               const Eigen::Vector2d& observed_p,
                                               int flags, bool optimize_cam_odo_z = true) const;
 
+    ceres::CostFunction* generateCostFunction(const CameraConstPtr& cameraLeft,
+                                              const CameraConstPtr& cameraRight,
+                                              const Eigen::Vector3d& observed_P,
+                                              const Eigen::Vector2d& observed_p_left,
+                                              const Eigen::Vector2d& observed_p_right) const;
+
 private:
     static boost::shared_ptr<CostFunctionFactory> m_instance;
 };

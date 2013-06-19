@@ -12,6 +12,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 
 #include "ceres/ceres.h"
+#include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
 #include "camodocal/camera_models/CameraFactory.h"
 #include "../camera_models/CostFunctionFactory.h"
@@ -64,15 +65,15 @@ CameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
     bool ret = calibrateHelper(boardSize, objectPoints, mImagePoints,
                                mCamera, rvecs, tvecs);
 
-    mExtrParams = cv::Mat(imageCount, 6, CV_64F);
+    mCameraPoses = cv::Mat(imageCount, 6, CV_64F);
     for (int i = 0; i < imageCount; ++i)
     {
-        mExtrParams.at<double>(i,0) = rvecs.at(i).at<double>(0);
-        mExtrParams.at<double>(i,1) = rvecs.at(i).at<double>(1);
-        mExtrParams.at<double>(i,2) = rvecs.at(i).at<double>(2);
-        mExtrParams.at<double>(i,3) = tvecs.at(i).at<double>(0);
-        mExtrParams.at<double>(i,4) = tvecs.at(i).at<double>(1);
-        mExtrParams.at<double>(i,5) = tvecs.at(i).at<double>(2);
+        mCameraPoses.at<double>(i,0) = rvecs.at(i).at<double>(0);
+        mCameraPoses.at<double>(i,1) = rvecs.at(i).at<double>(1);
+        mCameraPoses.at<double>(i,2) = rvecs.at(i).at<double>(2);
+        mCameraPoses.at<double>(i,3) = tvecs.at(i).at<double>(0);
+        mCameraPoses.at<double>(i,4) = tvecs.at(i).at<double>(1);
+        mCameraPoses.at<double>(i,5) = tvecs.at(i).at<double>(2);
     }
 
     // calculate average reprojection error
@@ -86,6 +87,12 @@ int
 CameraCalibration::sampleCount(void) const
 {
     return mImagePoints.size();
+}
+
+std::vector< std::vector<cv::Point2f> >&
+CameraCalibration::imagePoints(void)
+{
+    return mImagePoints;
 }
 
 const std::vector< std::vector<cv::Point2f> >&
@@ -104,6 +111,18 @@ const CameraConstPtr
 CameraCalibration::camera(void) const
 {
     return mCamera;
+}
+
+cv::Mat&
+CameraCalibration::cameraPoses(void)
+{
+    return mCameraPoses;
+}
+
+const cv::Mat&
+CameraCalibration::cameraPoses(void) const
+{
+    return mCameraPoses;
 }
 
 void
@@ -129,14 +148,14 @@ CameraCalibration::drawResults(const cv::Size& boardSize, float squareSize,
     for (size_t i = 0; i < images.size(); ++i)
     {
         cv::Mat rvec(3, 1, CV_64F);
-        rvec.at<double>(0) = mExtrParams.at<double>(i,0);
-        rvec.at<double>(1) = mExtrParams.at<double>(i,1);
-        rvec.at<double>(2) = mExtrParams.at<double>(i,2);
+        rvec.at<double>(0) = mCameraPoses.at<double>(i,0);
+        rvec.at<double>(1) = mCameraPoses.at<double>(i,1);
+        rvec.at<double>(2) = mCameraPoses.at<double>(i,2);
 
         cv::Mat tvec(3, 1, CV_64F);
-        tvec.at<double>(0) = mExtrParams.at<double>(i,3);
-        tvec.at<double>(1) = mExtrParams.at<double>(i,4);
-        tvec.at<double>(2) = mExtrParams.at<double>(i,5);
+        tvec.at<double>(0) = mCameraPoses.at<double>(i,3);
+        tvec.at<double>(1) = mCameraPoses.at<double>(i,4);
+        tvec.at<double>(2) = mCameraPoses.at<double>(i,5);
 
         rvecs.push_back(rvec);
         tvecs.push_back(tvec);
@@ -233,7 +252,7 @@ CameraCalibration::calibrateHelper(const cv::Size& boardSize,
         std::cout << "[" << camera->cameraName() << "] "
                   << "# INFO: " << "Initial reprojection error: "
                   << std::fixed << std::setprecision(3)
-                  << camera->reprojectionError(objectPoints, imagePoints, rvecs, tvecs, cv::noArray())
+                  << camera->reprojectionError(objectPoints, imagePoints, rvecs, tvecs)
                   << " pixels" << std::endl;
     }
 
@@ -242,7 +261,7 @@ CameraCalibration::calibrateHelper(const cv::Size& boardSize,
 
     if (mVerbose)
     {
-        float err = camera->reprojectionError(objectPoints, imagePoints, rvecs, tvecs, cv::noArray());
+        double err = camera->reprojectionError(objectPoints, imagePoints, rvecs, tvecs);
         std::cout << "[" << camera->cameraName() << "] " << "# INFO: Final reprojection error: "
                   << err << " pixels" << std::endl;
         std::cout << "[" << camera->cameraName() << "] " << "# INFO: "
@@ -304,7 +323,7 @@ CameraCalibration::optimize(const std::vector< std::vector<cv::Point3f> >& objec
     for (size_t i = 0; i < imagePoints.size(); ++i)
     {
         ceres::LocalParameterization* quaternionParameterization =
-            new ceres::QuaternionParameterization;
+            new EigenQuaternionParameterization;
 
         problem.SetParameterization(extrinsicCameraParams[i],
                                     quaternionParameterization);
@@ -339,6 +358,8 @@ CameraCalibration::optimize(const std::vector< std::vector<cv::Point3f> >& objec
         tvec.at<double>(0) = extrinsicCameraParams[i][4];
         tvec.at<double>(1) = extrinsicCameraParams[i][5];
         tvec.at<double>(2) = extrinsicCameraParams[i][6];
+
+        delete [] extrinsicCameraParams[i];
     }
 }
 

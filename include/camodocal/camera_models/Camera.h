@@ -106,7 +106,7 @@ public:
                              const std::vector< std::vector<cv::Point2f> >& imagePoints,
                              const std::vector<cv::Mat>& rvecs,
                              const std::vector<cv::Mat>& tvecs,
-                             cv::OutputArray perViewErrors) const;
+                             cv::OutputArray perViewErrors = cv::noArray()) const;
 
     double reprojectionError(const Eigen::Vector3d& P,
                              const Eigen::Quaterniond& camera_q,

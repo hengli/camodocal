@@ -22,9 +22,13 @@ public:
     bool calibrate(const cv::Size& boardSize, float squareSize);
 
     int sampleCount(void) const;
+    std::vector< std::vector<cv::Point2f> >& imagePoints(void);
     const std::vector< std::vector<cv::Point2f> >& imagePoints(void) const;
     CameraPtr& camera(void);
     const CameraConstPtr camera(void) const;
+
+    cv::Mat& cameraPoses(void);
+    const cv::Mat& cameraPoses(void) const;
 
     void drawResults(const cv::Size& boardSize, float squareSize,
                      std::vector<cv::Mat>& images) const;
@@ -44,9 +48,7 @@ private:
                   CameraPtr& camera,
                   std::vector<cv::Mat>& rvecs, std::vector<cv::Mat>& tvecs) const;
 
-    cv::Size mBoardSize;
-    float mSquareSize;
-    cv::Mat mExtrParams;
+    cv::Mat mCameraPoses;
     cv::Mat mReprojErrs;
     float mAvgReprojErr;
     CameraPtr mCamera;
