@@ -22,7 +22,10 @@ set(SRCS
   CameraCalibration.cc
   CameraRigBA.cc
   CamOdoCalibration.cc
+  CamOdoThread.cc
+  CamOdoWatchdogThread.cc
   CamRigOdoCalibration.cc
+  CamRigThread.cc
   HandEyeCalibration.cc
   StereoCameraCalibration.cc
   utils.cc

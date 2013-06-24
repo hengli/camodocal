@@ -141,11 +141,10 @@ main(int argc, char** argv)
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
 
-    camRigOdoCalib.run();
-
     //****************
     //
-    // IMPORTANT: Add data in the order of increasing timestamp.
+    // IMPORTANT: Create a thread, and in this thread,
+    //            add data in the order of increasing timestamp.
     // Add odometry and image data here.
     // camRigOdoCalib.addOdometry(x, y, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
@@ -157,7 +156,15 @@ main(int argc, char** argv)
     // camRigOdoCalib.addGpsIns(lat, lon, roll, pitch, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
     //
+    // After you are done, if the minimum number of motions has not been
+    // reached, but you want to run the calibration anyway, call:
+    // camRigOdoCalib.run();
+    //
     //****************
+
+    // Receive incoming data. Calibration automatically runs once minimum
+    // number of motions has been reached for all cameras.
+    camRigOdoCalib.start();
 
     CameraRigExtrinsics extrinsics = camRigOdoCalib.extrinsics();
     extrinsics.writeToFile(outputFilename);
