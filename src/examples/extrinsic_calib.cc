@@ -35,6 +35,7 @@ main(int argc, char** argv)
     bool verbose;
     std::string bagFilename;
     std::string sensorConfiguration;
+    std::string integratedOdometryTextfile;
 
 
     //================= Handling Program options ==================
@@ -43,6 +44,7 @@ main(int argc, char** argv)
         ("help", "produce help message")
         ("bag,b", boost::program_options::value<std::string>(&bagFilename)->default_value(""), "Bag file containing camera, GPS or odometry data.")
         ("sensor-configuration", boost::program_options::value<std::string>(&sensorConfiguration)->default_value(""), ".info file describing the sensor configuration and topics of the bag file.")
+        ("odometry-textfile,o", boost::program_options::value<std::string>(&integratedOdometryTextfile)->default_value(""), "Filename (+path) to the txt file containing the integrated odometry data.")
         ("calib,c", boost::program_options::value<std::string>(&calibDir)->default_value("calib"), "Directory containing camera calibration files")
         ("camera-count", boost::program_options::value<int>(&cameraCount)->default_value(1), "Number of cameras in rig")
         ("f", boost::program_options::value<float>(&focal)->default_value(300.0f), "Nominal focal length")
@@ -163,23 +165,33 @@ main(int argc, char** argv)
 
     // parse BAG file
     aslam::backend::RosbagDataParser dataParser(bagFilename, sensorConfiguration);
-    dataParser.parseAll();
 
-	  std::vector<GPSMeasurement> gpsMeasurements = dataParser.getGPSMeasurements();
+	dataParser.parseAll();
+
+    std::vector<GPSMeasurement> gpsMeasurements = dataParser.getGPSMeasurements();;
+    std::vector<CameraMeasurement> cameraImages = dataParser.getCameraMeasurements();
+    std::vector<IntegratedOdometryMeasurement> integratedOdometry;
+
+	if (integratedOdometryTextfile == "")
+	{
+		// use odometry integrator:
 	  std::vector<OdometryFrontWheelMeasurement> frontWheelMeasurements = dataParser.getOdometryFrontWheelMeasurements();
 	  std::vector<OdometryBackWheelMeasurement> backWheelMeasurements = dataParser.getOdometryBackWheelMeasurements();
 	  std::vector<OdometrySteeringMeasurement> steeringMeasurements = dataParser.getOdometrySteeringMeasurements();
-	  std::vector<CameraMeasurement> cameraImages = dataParser.getCameraMeasurements();
 
 	  aslam::backend::OdometryIntegrator odoIntegrator;
-
 	  double yaw0 = 0;
 	  if (gpsMeasurements.size() > 0)
 	  {
 		  yaw0 = gpsMeasurements.begin()->_yaw;
 	  }
-	  std::vector<IntegratedOdometryMeasurement> integratedOdometry = odoIntegrator.integrateOdometry(frontWheelMeasurements, backWheelMeasurements, steeringMeasurements, yaw0);
+	  integratedOdometry = odoIntegrator.integrateOdometry(frontWheelMeasurements, backWheelMeasurements, steeringMeasurements, yaw0);
 
+	} else
+	{
+		 // use integrated odometry text file
+		integratedOdometry = dataParser.parseOdometryTextFile(integratedOdometryTextfile);
+	}
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options, integratedOdometry.size(), gpsMeasurements.size());
 
