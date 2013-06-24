@@ -10,9 +10,23 @@
 #include "camodocal/camera_models/Camera.h"
 #include "camodocal/camera_systems/CameraRigExtrinsics.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
+#include <vector>
+#include <string>
+#include <boost/shared_ptr.hpp>
 
 namespace camodocal
 {
+
+struct CamodocalCameraMeasurement
+{
+	CamodocalCameraMeasurement(int camIndx, uint64_t timestamp, const cv::Mat& image, const boost::shared_ptr<std::vector<std::string> >& imageBuffer) :
+		_camIndex(camIndx), _timestamp(timestamp), _image(image), _imageBuffer(imageBuffer) {};
+
+	int _camIndex;
+	uint64_t _timestamp;
+	cv::Mat _image;
+	boost::shared_ptr<std::vector<std::string> > _imageBuffer;
+};
 
 enum PoseSource
 {
@@ -47,12 +61,19 @@ public:
     void reprojectionError(double& minError, double& maxError, double& avgError) const;
 
     void launch(void);
+    void launchOffline(void);
     void join(void);
     bool running(void) const;
     sigc::signal<void>& signalFinished(void);
 
+    void addFrame(const CamodocalCameraMeasurement& camMeasurement);
+
+
+
+
 private:
     void threadFunction(void);
+    void threadFunctionOffline(void);
 
     void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                             const std::vector<OdometerPtr>& odoPoses,
@@ -68,6 +89,7 @@ private:
     CamOdoCalibration mCamOdoCalib;
     std::vector<FrameSegment> mFrameSegments;
 
+    std::vector<CamodocalCameraMeasurement> mImageBuffer;
     AtomicData<cv::Mat>* mImage;
     const CameraConstPtr mCamera;
     SensorDataBuffer<OdometerPtr>& mOdometerBuffer;
@@ -168,10 +190,12 @@ public:
     };
 
     CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
-                         const Options& options);
+                         const Options& options, const int odometryBufferSize, const int gpsInsBufferSize);
     virtual ~CamRigOdoCalibration();
 
     void addFrame(int cameraIdx, const cv::Mat& image, uint64_t timestamp);
+
+    bool addFrameOffline(int cameraIdx, const cv::Mat& image, uint64_t timestamp, const boost::shared_ptr<std::vector<std::string> >& imageBuffer);
 
     void addOdometry(double x, double y, double yaw, uint64_t timestamp);
 
@@ -179,12 +203,13 @@ public:
                    double roll, double pitch, double yaw,
                    uint64_t timestamp);
 
-    void run(void);
+    void run(bool offline);
 
     const CameraRigExtrinsics& extrinsics(void) const;
 
 private:
     void launchCamOdoThreads(void);
+    void launchCamOdoThreadsOffline(void);
 
     void onCamOdoThreadFinished(CamOdoThread* odoCamThread);
     void onCamRigThreadFinished(CamRigThread* camRigThread);

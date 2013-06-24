@@ -22,7 +22,10 @@ public:
 
     void nearest(uint64_t timestamp, T& data);
     bool nearest(uint64_t timestamp, T& dataBefore, T& dataAfter);
+    bool nearestOffline(uint64_t timestamp, T& dataBefore, T& dataAfter);
 
+
+    bool getFirst(T& data);
     bool current(T& data);
     void push(uint64_t timestamp, const T& data);
 
@@ -303,6 +306,45 @@ SensorDataBuffer<T>::nearest(uint64_t timestamp, T& dataBefore, T& dataAfter)
 
 template <class T>
 bool
+SensorDataBuffer<T>::nearestOffline(uint64_t timestamp, T& dataBefore, T& dataAfter)
+{
+    boost::mutex::scoped_lock lock(mGlobalMutex);
+
+    if (mBuffer.empty())
+    {
+        return false;
+    }
+
+    int mark = mBuffer.size() - 1;
+    while(true)
+    {
+        long int tsDiff = timestampDiff(timestamp, mBuffer.at(mark).first);
+        if (tsDiff < 0)
+        {
+                dataBefore = mBuffer.at(mark).second;
+                if (mark < mBuffer.size() - 1)
+                {
+                    dataAfter = mBuffer.at(mark + 1).second;
+                } else
+                {
+                	// HACK. this should not happen unless there are camera frames with timestamps greater than the last odometry measurement (i.e. here, extrapolation woudl be needed)
+                	dataAfter = dataBefore;
+                }
+                return true;
+        }
+        --mark;
+        if (mark < 0)
+        {
+        	// unable do find a solution
+        	return false;
+        }
+    }
+    return false;
+}
+
+
+template <class T>
+bool
 SensorDataBuffer<T>::current(T& data)
 {
     boost::mutex::scoped_lock lock(mGlobalMutex);
@@ -314,6 +356,23 @@ SensorDataBuffer<T>::current(T& data)
     else
     {
         data = mBuffer.at(mIndex).second;
+        return true;
+    }
+}
+
+template <class T>
+bool
+SensorDataBuffer<T>::getFirst(T& data)
+{
+    boost::mutex::scoped_lock lock(mGlobalMutex);
+
+    if (mBuffer.empty())
+    {
+        return false;
+    }
+    else
+    {
+        data = mBuffer.at(0).second;
         return true;
     }
 }

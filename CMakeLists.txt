@@ -102,6 +102,9 @@ include_directories(
 
   # CamOdoCalConfig.h
   ${CMAKE_CURRENT_BINARY_DIR}
+
+  # Rosbag Data Parser !!! SOMEHOW INCLUDE THIS IN A BETTER (NON-HARDCODED) WAY !!!
+  /home/mbuerki/ros_aslam/aslam_fixed_lag_estimation/aslam_data_parser/include
 )
 
 if(BUILD_SHARED_LIBS)

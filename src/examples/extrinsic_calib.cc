@@ -9,6 +9,14 @@
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
 
+#include "aslam/data_parser/DataParser.hpp"
+#include "aslam/data_parser/Measurements.hpp"
+#include "aslam/data_parser/OdometryIntegrator.hpp"
+
+#include <limits>
+
+#include <chrono>
+
 int
 main(int argc, char** argv)
 {
@@ -25,11 +33,16 @@ main(int argc, char** argv)
     bool saveImages;
     bool debug;
     bool verbose;
+    std::string bagFilename;
+    std::string sensorConfiguration;
+
 
     //================= Handling Program options ==================
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
         ("help", "produce help message")
+        ("bag,b", boost::program_options::value<std::string>(&bagFilename)->default_value(""), "Bag file containing camera, GPS or odometry data.")
+        ("sensor-configuration", boost::program_options::value<std::string>(&sensorConfiguration)->default_value(""), ".info file describing the sensor configuration and topics of the bag file.")
         ("calib,c", boost::program_options::value<std::string>(&calibDir)->default_value("calib"), "Directory containing camera calibration files")
         ("camera-count", boost::program_options::value<int>(&cameraCount)->default_value(1), "Number of cameras in rig")
         ("f", boost::program_options::value<float>(&focal)->default_value(300.0f), "Nominal focal length")
@@ -137,11 +150,92 @@ main(int argc, char** argv)
     options.saveImages = saveImages;
     options.verbose = verbose;
 
-    CamRigOdoCalibration camRigOdoCalib(cameras, options);
+    if (bagFilename == "")
+    {
+     	std::cout << "# ERROR: No ROS bag file provided. Aborting!" << std::endl;
+     	return 0;
+    }
+    if (sensorConfiguration == "")
+    {
+    	std::cout << "# ERROR: No sensor configuration for the ROS bag specified. Aborting" << std::endl;
+    	return 0;
+    }
+
+    // parse BAG file
+    aslam::backend::RosbagDataParser dataParser(bagFilename, sensorConfiguration);
+    dataParser.parseAll();
+
+	  std::vector<GPSMeasurement> gpsMeasurements = dataParser.getGPSMeasurements();
+	  std::vector<OdometryFrontWheelMeasurement> frontWheelMeasurements = dataParser.getOdometryFrontWheelMeasurements();
+	  std::vector<OdometryBackWheelMeasurement> backWheelMeasurements = dataParser.getOdometryBackWheelMeasurements();
+	  std::vector<OdometrySteeringMeasurement> steeringMeasurements = dataParser.getOdometrySteeringMeasurements();
+	  std::vector<CameraMeasurement> cameraImages = dataParser.getCameraMeasurements();
+
+	  aslam::backend::OdometryIntegrator odoIntegrator;
+
+	  double yaw0 = 0;
+	  if (gpsMeasurements.size() > 0)
+	  {
+		  yaw0 = gpsMeasurements.begin()->_yaw;
+	  }
+	  std::vector<IntegratedOdometryMeasurement> integratedOdometry = odoIntegrator.integrateOdometry(frontWheelMeasurements, backWheelMeasurements, steeringMeasurements, yaw0);
+
+
+    CamRigOdoCalibration camRigOdoCalib(cameras, options, integratedOdometry.size(), gpsMeasurements.size());
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
 
-    camRigOdoCalib.run();
+    std::cout << "# INFO: Reading in sensor data..." << std::endl;
+
+    unsigned long tms_first_odo, tms_last_odo, tms_odo, tms_gps, tms_cam;
+
+    if (cameraImages.size() == 0)
+    {
+    	std::cout << "# ERROR: No camera images found. Aborting" << std::endl;
+    	return 0;
+    }
+
+    if (integratedOdometry.size() < 2)
+    {
+    	std::cout << "# ERROR: Not enough odometry measurements provided. Aborting" << std::endl;
+    	return 0;
+    }
+
+    tms_first_odo = static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(integratedOdometry[0]._timestamp.time_since_epoch()).count());
+    tms_last_odo = static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(integratedOdometry[integratedOdometry.size() -1 ]._timestamp.time_since_epoch()).count());
+
+    // read in odo
+  	for(std::vector<IntegratedOdometryMeasurement>::const_iterator it = integratedOdometry.begin(); it != integratedOdometry.end(); ++it)
+  	{
+  		tms_odo = static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(it->_timestamp.time_since_epoch()).count());
+  		camRigOdoCalib.addOdometry(it->_x, it->_y, it->_theta, tms_odo);
+  		if (odoM++ == 0)
+  		{
+  			std::cout << "first odo timestamp: " << tms_odo << std::endl;
+  		}
+  	}
+  	// read in GPS
+//  	for(std::vector<GPSMeasurement>::const_iterator it = gpsMeasurements.begin(); it != gpsMeasurements.end(); ++it)
+//  	{
+//  		tms_gps = static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(it->_timestamp.time_since_epoch()).count());
+//  		camRigOdoCalib.addGpsIns(it->_latitude, it->_longitude, it->_roll, it->_pitch, it->_yaw, tms_gps);
+//  	}
+
+  	int camFrames = 0;
+  	//int maxNumCamFrames = 500;
+	for(std::vector<CameraMeasurement>::const_iterator it = cameraImages.begin(); it != cameraImages.end(); ++it)
+	{
+		tms_cam = static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(it->_timestamp.time_since_epoch()).count());
+		// don't add any camera frames before the first and after the last odometere frame (because we have no odometer extrapolation implemented (yet)
+		if (tms_cam <= tms_first_odo) continue;
+		if (tms_cam >= tms_odo) break;
+
+		camRigOdoCalib.addFrameOffline(it->_cameraIndex, it->_image, tms_cam, it->_imageBuffer);
+		camFrames++;
+		//if (camFrames > maxNumCamFrames) break;
+	}
+
+    camRigOdoCalib.run(true);
 
     //****************
     //
