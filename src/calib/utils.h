@@ -16,6 +16,10 @@ bool
 interpolatePose(SensorDataBuffer<PosePtr>& poseBuffer,
                 uint64_t timestamp, PosePtr& interpPose);
 
+bool
+interpolatePoseOffline(SensorDataBuffer<PosePtr>& poseBuffer,
+                uint64_t timestamp, PosePtr& interpPose);
+
 }
 
 #endif

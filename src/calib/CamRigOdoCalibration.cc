@@ -148,6 +148,12 @@ CamOdoThread::launch(void)
 }
 
 void
+CamOdoThread::launchOffline(void)
+{
+    mThread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &CamOdoThread::threadFunctionOffline));
+}
+
+void
 CamOdoThread::join(void)
 {
     if (mRunning)
@@ -536,6 +542,269 @@ CamOdoThread::threadFunction(void)
     mSignalFinished();
 }
 
+void CamOdoThread::threadFunctionOffline()
+{
+	std::cout << "Started thread function..." << std::endl;
+
+    mRunning = true;
+
+    TemporalFeatureTracker tracker(mCamera,
+                                   SURF_DETECTOR, SURF_DESCRIPTOR, RATIO, false);
+    tracker.setVerbose(mCamOdoCalib.getVerbose());
+
+    uint64_t prevTimeStamp = 0;
+    Eigen::Vector2d prevPos(0.0, 0.0);
+    bool receivedOdometer = false;
+
+    cv::Mat image;
+    cv::Mat colorImage;
+
+    int trackBreaks = 0;
+
+    std::vector<OdometerPtr> odometerPoses;
+
+#ifdef VCHARGE_VIZ
+    std::ostringstream oss;
+    oss << "swba" << mCameraIdx + 1;
+    vcharge::GLOverlayExtended overlay(oss.str(), VCharge::COORDINATE_FRAME_GLOBAL);
+#endif
+
+    bool halt = false;
+
+    int iteration = 0;
+
+    if (mOdometerBuffer.size() == 0)
+    {
+        std::cout << "# WARNING: No data in odometer buffer. Aborting." << std::endl;
+        return;
+    }
+
+//    if (mGpsInsBuffer.size() == 0)
+//    {
+//        std::cout << "# WARNING: No data in GPS/INS buffer. Aborting" << std::endl;
+//        return;
+//    }
+
+    OdometerPtr currOdometer;
+    PosePtr currGpsIns;
+
+    int odoIndex = 0;
+    int gpsIndex = 0;
+
+    // read in first positions
+    if(!mOdometerBuffer.getFirst(currOdometer))
+    {
+    	std::cout << "# ERROR: Failed to retrieve first odometer position. " << std::endl;
+    	return;
+    }
+    //mGpsInsBuffer.getFirst(currGpsIns);
+
+    prevPos = currOdometer->position();
+
+
+    while (true)
+    {
+    	std::cout << "##### INFO: at iteration " << iteration << std::endl;
+    	// get next image from buffer
+    	if (iteration >= mImageBuffer.size())
+    	{
+    		// done, stop, but first add the last motion segment
+		   std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
+
+		   std::cout << "# INFO: odometry track length is: " << odometerPoses.size() << std::endl;
+		   if (odometerPoses.size() >= kMinTrackLength)
+		   {
+			   addCamOdoCalibData(voPoses, odometerPoses, tracker.getFrames());
+		   }
+
+		   if (!odometerPoses.empty())
+		   {
+			   odometerPoses.erase(odometerPoses.begin(), odometerPoses.begin() + voPoses.size() - 1);
+		   }
+
+    		break;
+    	}
+
+		// get timestamp
+    	CamodocalCameraMeasurement camM = mImageBuffer[iteration];
+		uint64_t timeStamp = camM._timestamp;
+
+
+		// check if odo has moved enough
+		// interpolate odometry to time of image
+        OdometerPtr interpOdo;
+        if (mPoseSource == ODOMETRY && !mInterpOdometerBuffer.find(timeStamp, interpOdo))
+        {
+            if(!interpolateOdometer(mOdometerBuffer, timeStamp, interpOdo))
+            {
+				std::cout << "# ERROR: No odometer data for " << kOdometerTimeout << "s. Exiting..." << std::endl;
+				exit(1);
+            }
+
+            mInterpOdometerBuffer.push(timeStamp, interpOdo);
+        }
+
+        if (mPoseSource == ODOMETRY && (interpOdo->position() - prevPos).norm() > kKeyFrameDistance)
+        {
+        	// this is a keyframe
+        	// copy image data
+			camM._image.copyTo(image);
+
+			FramePtr frame(new Frame);
+			image.copyTo(frame->image());
+			Eigen::Matrix3d R;
+			Eigen::Vector3d t;
+
+			std::cout << "adding frame of timestamp " << timeStamp << std::endl;
+			bool camValid = tracker.addFrame(frame, cv::Mat(), R, t);
+			if (camValid) std::cout << "successfully added frame of timestamp " << timeStamp << std::endl;
+			else std::cout << "failed to add frame of timestamp " << timeStamp << std::endl;
+
+	        // tag frame with odometer and GPS/INS data
+		   frame->odometer() = interpOdo;
+
+//		   if (interpGpsIns.get() != 0)
+//		   {
+//			   frame->gps_ins() = interpGpsIns;
+//		   }
+
+		   if (!mSaveImages)
+		   {
+			  frame->image() = cv::Mat();
+		   }
+
+		   Eigen::Vector2d currPos;
+		   if (mPoseSource == ODOMETRY)
+		   {
+			  currPos = interpOdo->position();//currOdometer->position();
+
+		   }
+//		   else
+//		   {
+//			  currPos = interpGpsIns->translation().block<2,1>(0,0);//currGpsIns->translation().block<2,1>(0,0);
+//		   }
+	       if (camValid)
+	       {
+	           odometerPoses.push_back(frame->odometer());
+
+	           prevPos = currPos;
+
+//				std::string ci = boost::lexical_cast<std::string>(mCameraIdx);
+//				std::string i = boost::lexical_cast<std::string>(iteration);
+//				cv::imwrite("/home/mbuerki/test/" + ci + "_test_" + i + ".png", image);
+	       } else
+	       {
+	           std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
+
+	           std::cout << "# INFO: odometry track length is: " << odometerPoses.size() << std::endl;
+	           if (odometerPoses.size() >= kMinTrackLength)
+	           {
+	               addCamOdoCalibData(voPoses, odometerPoses, tracker.getFrames());
+	           }
+
+	           if (!odometerPoses.empty())
+	           {
+	               odometerPoses.erase(odometerPoses.begin(), odometerPoses.begin() + voPoses.size() - 1);
+	           }
+
+	           ++trackBreaks;
+	       }
+
+        }
+
+
+
+
+
+
+//
+//        PosePtr interpGpsIns;
+//        if ((mPoseSource == GPS_INS || !mGpsInsBuffer.empty()) && !mInterpGpsInsBuffer.find(timeStamp, interpGpsIns))
+//        {
+//            if(!interpolatePose(mGpsInsBuffer, timeStamp, interpGpsIns))
+//            {
+//				std::cout << "# ERROR: No GPS/INS data for " << kOdometerTimeout << "s. Exiting..." << std::endl;
+//				exit(1);
+//            }
+//
+//            mInterpGpsInsBuffer.push(timeStamp, interpGpsIns);
+//        }
+
+
+
+//       if (mPoseSource == GPS_INS)
+//       {
+//           OdometerPtr gpsIns(new Odometer);
+//           gpsIns->timeStamp() = interpGpsIns->timeStamp();
+//           gpsIns->x() = interpGpsIns->translation()(1);
+//           gpsIns->y() = -interpGpsIns->translation()(0);
+//
+//           Eigen::Matrix3d R = interpGpsIns->rotation().toRotationMatrix();
+//           double roll, pitch, yaw;
+//           mat2RPY(R, roll, pitch, yaw);
+//           gpsIns->yaw() = -yaw;
+//
+//           frame->odometer() = gpsIns;
+//       }
+
+
+       int currentMotionCount = 0;
+	  if (odometerPoses.size() >= kMinTrackLength)
+	  {
+		  currentMotionCount = odometerPoses.size() - 1;
+	  }
+
+	  std::ostringstream oss;
+	  oss << "# motions: " << mCamOdoCalib.getCurrentMotionCount() + currentMotionCount << " | "
+		  << "# track breaks: " << trackBreaks;
+
+      if (mCamOdoCalib.getCurrentMotionCount() + currentMotionCount >= mCamOdoCalib.getMotionCount())
+      {
+          mCompleted = true;
+      }
+
+      iteration++;
+    } //while(true)
+
+
+    std::cout << "# INFO: Data assembling finished for  camera " << mCameraIdx << "..." << std::endl;
+    std::cout << "# INFO: Odometer poses length: " << odometerPoses.size() << std::endl;
+    std::cout << "# INFO: Number of track breaks: " << trackBreaks << std::endl;
+
+    std::cout << "# INFO: Calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
+
+
+
+
+//    mCamOdoCalib.writeMotionSegmentsToFile(filename);
+
+    if (odometerPoses.size() == 0)
+    {
+        std::cout << "# ERROR: NO odometer poses added. Calibration impossible for camera " << mCameraIdx << ". Aborting." << std::endl;
+        exit(1);
+    }
+
+    Eigen::Matrix4d H_cam_odo;
+    mCamOdoCalib.calibrate(H_cam_odo);
+
+    std::cout << "# INFO: Finished calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
+    std::cout << "Rotation: " << std::endl << H_cam_odo.block<3,3>(0,0) << std::endl;
+    std::cout << "Translation: " << std::endl << H_cam_odo.block<3,1>(0,3).transpose() << std::endl;
+
+    mCamOdoTransform = H_cam_odo;
+
+    mRunning = false;
+
+    mSignalFinished();
+}
+
+void
+CamOdoThread::addFrame(const CamodocalCameraMeasurement& camMeasurement)
+{
+
+	mImageBuffer.push_back(camMeasurement);
+}
+
 void
 CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                                  const std::vector<OdometerPtr>& odoPoses,
@@ -719,13 +988,13 @@ CamRigThread::threadFunction(void)
 }
 
 CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
-                                           const Options& options)
+                                           const Options& options, const int odometryBufferSize, const int gpsInsBufferSize)
  : mMainLoop(Glib::MainLoop::create())
  , mCamOdoThreads(cameras.size())
  , mImages(cameras.size())
  , mCameras(cameras)
- , mOdometerBuffer(1000)
- , mGpsInsBuffer(1000)
+ , mOdometerBuffer(odometryBufferSize)
+ , mGpsInsBuffer(gpsInsBufferSize)
  , mExtrinsics(cameras.size())
  , mStatuses(cameras.size())
  , mSketches(cameras.size())
@@ -814,7 +1083,7 @@ CamRigOdoCalibration::addGpsIns(double lat, double lon,
 }
 
 void
-CamRigOdoCalibration::run(void)
+CamRigOdoCalibration::run(bool offline)
 {
     if (mOptions.beginStage == 0)
     {
@@ -826,9 +1095,17 @@ CamRigOdoCalibration::run(void)
 
         std::cout << "# INFO: Running odometer-camera calibration for each of the " << mCameras.size() << " cameras." << std::endl;
 
-        // run odometer-camera calibration for each camera
-        Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreads));
-        mMainLoop->run();
+        if (offline)
+        {
+            // run odometer-camera calibration for each camera in offline mode
+            Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreadsOffline));
+            mMainLoop->run();
+        } else
+        {
+            // run odometer-camera calibration for each camera
+            Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreads));
+            mMainLoop->run();
+        }
 
         std::cout << "# INFO: Completed odometer-camera calibration for all cameras." << std::endl;
 
@@ -917,6 +1194,14 @@ CamRigOdoCalibration::launchCamOdoThreads(void)
 }
 
 void
+CamRigOdoCalibration::launchCamOdoThreadsOffline(void)
+{
+    std::for_each(mCamOdoThreads.begin(), mCamOdoThreads.end(), std::mem_fun(&CamOdoThread::launch));
+
+    mCamOdoWatchdogThread->launch();
+}
+
+void
 CamRigOdoCalibration::onCamOdoThreadFinished(CamOdoThread* odoCamThread)
 {
     odoCamThread->join();
@@ -983,4 +1268,18 @@ CamRigOdoCalibration::keyboardHandler(unsigned char key, int x, int y)
     }
 }
 
+bool
+CamRigOdoCalibration::addFrameOffline(int cameraIdx, const cv::Mat& image,
+                               uint64_t timestamp, const boost::shared_ptr<std::vector<std::string> >& imageBuffer)
+{
+
+	CamodocalCameraMeasurement camM(cameraIdx, timestamp, image, imageBuffer);
+	if (cameraIdx >= mCamOdoThreads.size())
+	{
+		std::cout << "# ERROR: camera index greater than number of calibration threads. Aborting" << std::endl;
+		return false;
+	}
+	mCamOdoThreads[cameraIdx]->addFrame(camM);
+	return true;
+}
 }
