@@ -8,7 +8,17 @@ This C++ library supports both intrinsic calibration of a generic camera and ext
 
 By default, the unified projection model is used since this model approximates a wide range of cameras from normal cameras to catadioptric cameras. Note that in our equidistant fish-eye model, we use 8 parameters: k2, k3, k4, k5, mu, mv, u0, v0. k1 is set to 1.
 
-The link to the paper which accompanies the C++ library will be posted here upon acceptance of the paper in a conference.
+The landing page of the library is located at http://people.inf.ethz.ch/hengli/camodocal/
+
+The workings of the library is described in the paper:
+
+        Lionel Heng, Bo Li, and Marc Pollefeys,
+        CamOdoCal: Automatic Intrinsic and Extrinsic Calibration of a Rig with Multiple Generic Cameras and Odometry,
+        In Proc. IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2013.
+
+If you use this library in an academic publication, please cite this paper.
+
+This work is supported in part by the European Community's Seventh Framework Programme (FP7/2007-2013) under grant #269916 (V-Charge).
 
 Build Instructions for Ubuntu
 -----------------------------
