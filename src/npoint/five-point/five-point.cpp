@@ -176,11 +176,11 @@ int recoverPose( const Mat & E, InputArray _points1, InputArray _points2, Mat & 
 	mask4 = (Q.row(2) < dist) & mask4; 
 
 	// If _mask is given, then use it to filter outliers. 
-	if (_mask.needed())
+	if (!_mask.empty())
 	{
-		_mask.create(1, npoints, CV_8U, -1, true); 
+
 		Mat mask = _mask.getMat(); 
-//		mask.setTo(true); 
+        CV_Assert(mask.size() == mask1.size()); 
 		bitwise_and(mask, mask1, mask1); 
 		bitwise_and(mask, mask2, mask2); 
 		bitwise_and(mask, mask3, mask3); 
