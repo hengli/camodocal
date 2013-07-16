@@ -22,11 +22,18 @@ class CamRigThread;
 class CamRigOdoCalibration: public sigc::trackable
 {
 public:
+    enum Mode
+    {
+        OFFLINE,
+        ONLINE
+    };
+
     class Options
     {
     public:
-        Options() : poseSource(ODOMETRY), nMotions(200), findLoopClosures(true), saveWorkingData(true), beginStage(0), saveImages(false), verbose(false) {};
+        Options() : mode(OFFLINE), poseSource(ODOMETRY), nMotions(200), findLoopClosures(true), saveWorkingData(true), beginStage(0), saveImages(false), verbose(false) {};
 
+        Mode mode;
         PoseSource poseSource;
         int nMotions;
 

@@ -195,18 +195,15 @@ CamOdoThread::threadFunction(void)
 
     while (!halt)
     {
-        usleep(1000);
-
-        bool lockFrame = mImage->tryLockData();
-
-        if (!lockFrame)
+        while (!mImage->tryLockData())
         {
-            continue;
+            usleep(100);
         }
 
         if (!mImage->available() || mImage->timeStamp() == prevTimeStamp)
         {
             mImage->unlockData();
+            mImage->notifyProcessingDone();
 
             continue;
         }
@@ -512,6 +509,8 @@ CamOdoThread::threadFunction(void)
         {
             mCompleted = true;
         }
+
+        mImage->notifyProcessingDone();
     }
 
     std::cout << "# INFO: Calibrating odometer - camera " << mCameraIdx << "..." << std::endl;

@@ -125,9 +125,11 @@ template<class T>
 void
 AtomicData<T>::notifyProcessingDone(void)
 {
-    boost::lock_guard<boost::mutex> lock(mProcessMutex);
+    {
+        boost::lock_guard<boost::mutex> lock(mProcessMutex);
 
-    mProcess = false;
+        mProcess = false;
+    }
 
     mProcessCond.notify_one();
 }
@@ -137,6 +139,9 @@ void
 AtomicData<T>::waitForProcessingDone(void)
 {
     boost::unique_lock<boost::mutex> lock(mProcessMutex);
+
+    mProcess = true;
+
     while (mProcess)
     {
         mProcessCond.wait(lock);

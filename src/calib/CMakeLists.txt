@@ -42,6 +42,7 @@ camodocal_library(camodocal_calib SHARED ${SRCS})
 camodocal_link_libraries(camodocal_calib
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
+  ${Boost_THREAD_LIBRARY}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY}
   ${OPENCV_CALIB3D_LIBRARY}

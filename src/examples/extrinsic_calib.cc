@@ -128,6 +128,7 @@ main(int argc, char** argv)
 
     //========================= Start Threads =========================
     CamRigOdoCalibration::Options options;
+//    options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
     options.findLoopClosures = findLoopClosures;
@@ -156,6 +157,11 @@ main(int argc, char** argv)
     // camRigOdoCalib.addGpsIns(lat, lon, roll, pitch, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
     //
+    // If options.mode == CamRigOdoCalibration::ONLINE,
+    // the addFrame call returns immediately.
+    // If options.mode == CamRigOdoCalibration::OFFLINE,
+    // the addFrame call returns after the image has been processed.
+    //
     // After you are done, if the minimum number of motions has not been
     // reached, but you want to run the calibration anyway, call:
     // camRigOdoCalib.run();
@@ -163,7 +169,9 @@ main(int argc, char** argv)
     //****************
 
     // Receive incoming data. Calibration automatically runs once minimum
-    // number of motions has been reached for all cameras.
+    // number of motions has been reached for all cameras. Alternatively,
+    // call camRigOdoCalib.run() to run the calibration with the data
+    // collected so far.
     camRigOdoCalib.start();
 
     CameraRigExtrinsics extrinsics = camRigOdoCalib.extrinsics();
