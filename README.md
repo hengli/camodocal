@@ -56,7 +56,7 @@ Build Instructions for Ubuntu
 Examples
 --------
 
-Go to the build folder where the executables corresponding to the examples are located in.
+Go to the build folder where the executables corresponding to the examples are located in. To see all allowed options for each executable, use the --help option which shows a description of all available options.
 
 1. Intrinsic calibration ([src/examples/intrinsic_calib.cc] [1])
 
@@ -64,7 +64,14 @@ Go to the build folder where the executables corresponding to the examples are l
 
    The camera-model parameter takes one of the following three values: pinhole, mei, and kannala-brandt.
 
-2. Extrinsic calibration ([src/examples/extrinsic_calib.cc] [2])
+2. Stereo calibration  ([src/examples/stereo_calib.cc] [2])
+
+        bin/stereo_calib -i ../data/images/ --prefix-l left --prefix-r right --camera-model mei
+
+   The camera-model parameter takes one of the following three values: pinhole, mei, and kannala-brandt.
+
+3. Extrinsic calibration ([src/examples/extrinsic_calib.cc] [3])
    
   [1]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
-  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
+  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"
+  [3]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
