@@ -73,5 +73,5 @@ Go to the build folder where the executables corresponding to the examples are l
 3. Extrinsic calibration ([src/examples/extrinsic_calib.cc] [3])
    
   [1]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
-  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/stereo_calib.cc"
+  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"
   [3]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
