@@ -260,29 +260,29 @@ std::ostream&
 operator<< (std::ostream& out, const CataCamera::Parameters& params)
 {
     out << "Camera Parameters:" << std::endl;
-    out << "   model " << "MEI" << std::endl;
-    out << "    name " << params.m_cameraName << std::endl;
-    out << "   width " << params.m_imageWidth << std::endl;
-    out << "  height " << params.m_imageHeight << std::endl;
+    out << "    model_type " << "MEI" << std::endl;
+    out << "   camera_name " << params.m_cameraName << std::endl;
+    out << "   image_width " << params.m_imageWidth << std::endl;
+    out << "  image_height " << params.m_imageHeight << std::endl;
 
     out << "Mirror Parameters" << std::endl;
     out << std::fixed << std::setprecision(10);
-    out << "      xi " << params.m_xi << std::endl;
+    out << "            xi " << params.m_xi << std::endl;
 
     // radial distortion: k1, k2
     // tangential distortion: p1, p2
     out << "Distortion Parameters" << std::endl;
-    out << "      k1 " << params.m_k1 << std::endl
-        << "      k2 " << params.m_k2 << std::endl
-        << "      p1 " << params.m_p1 << std::endl
-        << "      p2 " << params.m_p2 << std::endl;
+    out << "            k1 " << params.m_k1 << std::endl
+        << "            k2 " << params.m_k2 << std::endl
+        << "            p1 " << params.m_p1 << std::endl
+        << "            p2 " << params.m_p2 << std::endl;
 
     // projection: gamma1, gamma2, u0, v0
     out << "Projection Parameters" << std::endl;
-    out << "  gamma1 " << params.m_gamma1 << std::endl
-        << "  gamma2 " << params.m_gamma2 << std::endl
-        << "      u0 " << params.m_u0 << std::endl
-        << "      v0 " << params.m_v0 << std::endl;
+    out << "        gamma1 " << params.m_gamma1 << std::endl
+        << "        gamma2 " << params.m_gamma2 << std::endl
+        << "            u0 " << params.m_u0 << std::endl
+        << "            v0 " << params.m_v0 << std::endl;
 
     return out;
 }

@@ -231,21 +231,21 @@ std::ostream&
 operator<< (std::ostream& out, const EquidistantCamera::Parameters& params)
 {
     out << "Camera Parameters:" << std::endl;
-    out << "   model " << "KANNALA_BRANDT" << std::endl;
-    out << "    name " << params.m_cameraName << std::endl;
-    out << "   width " << params.m_imageWidth << std::endl;
-    out << "  height " << params.m_imageHeight << std::endl;
+    out << "    model_type " << "KANNALA_BRANDT" << std::endl;
+    out << "   camera_name " << params.m_cameraName << std::endl;
+    out << "   image_width " << params.m_imageWidth << std::endl;
+    out << "  image_height " << params.m_imageHeight << std::endl;
 
     // projection: k2, k3, k4, k5, mu, mv, u0, v0
     out << "Projection Parameters" << std::endl;
-    out << "      k2 " << params.m_k2 << std::endl
-        << "      k3 " << params.m_k3 << std::endl
-        << "      k4 " << params.m_k4 << std::endl
-        << "      k5 " << params.m_k5 << std::endl
-        << "      mu " << params.m_mu << std::endl
-        << "      mv " << params.m_mv << std::endl
-        << "      u0 " << params.m_u0 << std::endl
-        << "      v0 " << params.m_v0 << std::endl;
+    out << "            k2 " << params.m_k2 << std::endl
+        << "            k3 " << params.m_k3 << std::endl
+        << "            k4 " << params.m_k4 << std::endl
+        << "            k5 " << params.m_k5 << std::endl
+        << "            mu " << params.m_mu << std::endl
+        << "            mv " << params.m_mv << std::endl
+        << "            u0 " << params.m_u0 << std::endl
+        << "            v0 " << params.m_v0 << std::endl;
 
     return out;
 }

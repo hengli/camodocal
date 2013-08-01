@@ -236,25 +236,25 @@ std::ostream&
 operator<< (std::ostream& out, const PinholeCamera::Parameters& params)
 {
     out << "Camera Parameters:" << std::endl;
-    out << "   model " << "PINHOLE" << std::endl;
-    out << "    name " << params.m_cameraName << std::endl;
-    out << "   width " << params.m_imageWidth << std::endl;
-    out << "  height " << params.m_imageHeight << std::endl;
+    out << "    model_type " << "PINHOLE" << std::endl;
+    out << "   camera_name " << params.m_cameraName << std::endl;
+    out << "   image_width " << params.m_imageWidth << std::endl;
+    out << "  image_height " << params.m_imageHeight << std::endl;
 
     // radial distortion: k1, k2
     // tangential distortion: p1, p2
     out << "Distortion Parameters" << std::endl;
-    out << "      k1 " << params.m_k1 << std::endl
-        << "      k2 " << params.m_k2 << std::endl
-        << "      p1 " << params.m_p1 << std::endl
-        << "      p2 " << params.m_p2 << std::endl;
+    out << "            k1 " << params.m_k1 << std::endl
+        << "            k2 " << params.m_k2 << std::endl
+        << "            p1 " << params.m_p1 << std::endl
+        << "            p2 " << params.m_p2 << std::endl;
 
     // projection: fx, fy, cx, cy
     out << "Projection Parameters" << std::endl;
-    out << "      fx " << params.m_fx << std::endl
-        << "      fy " << params.m_fy << std::endl
-        << "      cx " << params.m_cx << std::endl
-        << "      cy " << params.m_cy << std::endl;
+    out << "            fx " << params.m_fx << std::endl
+        << "            fy " << params.m_fy << std::endl
+        << "            cx " << params.m_cx << std::endl
+        << "            cy " << params.m_cy << std::endl;
 
     return out;
 }
