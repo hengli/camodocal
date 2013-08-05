@@ -60,6 +60,8 @@ public:
     void start(void);
     void run(void);
 
+    bool running(void) const;
+
     const CameraRigExtrinsics& extrinsics(void) const;
 
 private:
@@ -95,6 +97,7 @@ private:
 
     Options mOptions;
 
+    bool mRunning;
     static bool mStop;
 };
 

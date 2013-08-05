@@ -31,6 +31,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
  , mSketches(cameras.size())
  , mCamOdoCompleted(boost::extents[cameras.size()])
  , mOptions(options)
+ , mRunning(false)
 {
     for (size_t i = 0; i < mCamOdoThreads.size(); ++i)
     {
@@ -135,6 +136,8 @@ CamRigOdoCalibration::start(void)
         Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreads));
         mMainLoop->run();
 
+        mRunning = true;
+
         std::cout << "# INFO: Completed odometer-camera calibration for all cameras." << std::endl;
 
         if (mOptions.saveWorkingData)
@@ -205,12 +208,20 @@ CamRigOdoCalibration::start(void)
     std::cout << "# INFO: Camera rig calibration took " << timeInSeconds() - tsStart << "s." << std::endl;
 
     std::cout << "# INFO: Completed camera rig calibration." << std::endl;
+
+    mRunning = false;
 }
 
 void
 CamRigOdoCalibration::run(void)
 {
     mStop = true;
+}
+
+bool
+CamRigOdoCalibration::running(void) const
+{
+    return mRunning;
 }
 
 const CameraRigExtrinsics&

@@ -145,7 +145,13 @@ main(int argc, char** argv)
     //****************
     //
     // IMPORTANT: Create a thread, and in this thread,
-    //            add data in the order of increasing timestamp.
+    //            add data in the order of increasing timestamp
+    //            with one important exception for offline mode:
+    //            ensure that before you add a frame with timestamp t,
+    //            you have already added either odometry or GPS/INS data
+    //            with a timestamp greater than t, depending on the
+    //            pose source you are calibrating against.
+    //
     // Add odometry and image data here.
     // camRigOdoCalib.addOdometry(x, y, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
@@ -168,10 +174,12 @@ main(int argc, char** argv)
     //
     //****************
 
-    // Receive incoming data. Calibration automatically runs once minimum
-    // number of motions has been reached for all cameras. Alternatively,
-    // call camRigOdoCalib.run() to run the calibration with the data
-    // collected so far.
+    // Receive and process incoming data. Calibration automatically runs
+    // once minimum number of motions has been reached for all cameras.
+    // Check camRigOdoCalib.running() to see if the calibration is running.
+    // If so, you can stop adding data. To run the calibration without
+    // waiting for the minimum motion requirement to be met,
+    // call camRigOdoCalib.run().
     camRigOdoCalib.start();
 
     CameraRigExtrinsics extrinsics = camRigOdoCalib.extrinsics();
