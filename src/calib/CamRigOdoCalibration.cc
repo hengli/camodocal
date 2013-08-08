@@ -79,6 +79,8 @@ CamRigOdoCalibration::addFrame(int cameraIdx, const cv::Mat& image,
 
     frame->unlockData();
 
+    frame->notifyData();
+
     if (mOptions.mode == OFFLINE)
     {
         frame->waitForProcessingDone();
@@ -219,7 +221,7 @@ CamRigOdoCalibration::run(void)
 }
 
 bool
-CamRigOdoCalibration::running(void) const
+CamRigOdoCalibration::isRunning(void) const
 {
     return mRunning;
 }

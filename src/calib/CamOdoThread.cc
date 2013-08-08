@@ -174,9 +174,7 @@ CamOdoThread::threadFunction(void)
                                    SURF_DETECTOR, SURF_DESCRIPTOR, RATIO, false);
     tracker.setVerbose(mCamOdoCalib.getVerbose());
 
-    uint64_t prevTimeStamp = 0;
-    Eigen::Vector2d prevPos(0.0, 0.0);
-    bool receivedOdometer = false;
+    FramePtr framePrev;
 
     cv::Mat image;
     cv::Mat colorImage;
@@ -195,12 +193,13 @@ CamOdoThread::threadFunction(void)
 
     while (!halt)
     {
-        while (!mImage->tryLockData())
-        {
-            usleep(100);
-        }
+        mImage->waitForData();
 
-        if (!mImage->available() || mImage->timeStamp() == prevTimeStamp)
+        mImage->lockData();
+
+        uint64_t timeStamp = mImage->timeStamp();
+
+        if (framePrev.get() != 0 && timeStamp == framePrev->camera()->timeStamp())
         {
             mImage->unlockData();
             mImage->notifyProcessingDone();
@@ -208,13 +207,9 @@ CamOdoThread::threadFunction(void)
             continue;
         }
 
-        uint64_t timeStamp = mImage->timeStamp();
-
         mImage->data().copyTo(image);
 
         mImage->unlockData();
-
-        double ts0 = timeInSeconds();
 
         if (image.channels() == 1)
         {
@@ -225,11 +220,10 @@ CamOdoThread::threadFunction(void)
             image.copyTo(colorImage);
         }
 
-        double ts1 = timeInSeconds();
-
         // skip if current car position is too near previous position
         OdometerPtr currOdometer;
         PosePtr currGpsIns;
+        Eigen::Vector2d pos;
 
         if (mPoseSource == ODOMETRY && !mOdometerBuffer.current(currOdometer))
         {
@@ -239,36 +233,8 @@ CamOdoThread::threadFunction(void)
         {
             std::cout << "# WARNING: No data in GPS/INS buffer." << std::endl;
         }
-        else if (mPoseSource == ODOMETRY && !receivedOdometer)
+        else
         {
-            prevPos = currOdometer->position();
-            receivedOdometer = true;
-        }
-        else if (mPoseSource == GPS_INS && !receivedOdometer)
-        {
-            prevPos = currGpsIns->translation().block<2,1>(0,0);
-            receivedOdometer = true;
-        }
-        else if ((mPoseSource == ODOMETRY && (currOdometer->position() - prevPos).norm() > kKeyFrameDistance) ||
-                 (mPoseSource == GPS_INS && (currGpsIns->translation().block<2,1>(0,0) - prevPos).norm() > kKeyFrameDistance))
-        {
-            Eigen::Vector2d currPos;
-            if (mPoseSource == ODOMETRY)
-            {
-                currPos = currOdometer->position();
-            }
-            else
-            {
-                currPos = currGpsIns->translation().block<2,1>(0,0);
-            }
-
-            FramePtr frame(new Frame);
-            image.copyTo(frame->image());
-
-            Eigen::Matrix3d R;
-            Eigen::Vector3d t;
-            bool camValid = tracker.addFrame(frame, cv::Mat(), R, t);
-
             mOdometerBufferMutex.lock();
 
             OdometerPtr interpOdo;
@@ -313,6 +279,31 @@ CamOdoThread::threadFunction(void)
 
             mGpsInsBufferMutex.unlock();
 
+            Eigen::Vector2d pos;
+            if (mPoseSource == ODOMETRY)
+            {
+                pos = interpOdo->position();
+            }
+            else
+            {
+                pos(0) = interpGpsIns->translation()(1);
+                pos(1) = -interpGpsIns->translation()(0);
+            }
+
+            if (framePrev.get() != 0 &&
+                (pos - framePrev->odometer()->position()).norm() < kKeyFrameDistance)
+            {
+                mImage->notifyProcessingDone();
+                continue;
+            }
+
+            FramePtr frame(new Frame);
+            image.copyTo(frame->image());
+
+            Eigen::Matrix3d R;
+            Eigen::Vector3d t;
+            bool camValid = tracker.addFrame(frame, cv::Mat(), R, t);
+
             // tag frame with odometer and GPS/INS data
             frame->odometer() = interpOdo;
 
@@ -344,9 +335,9 @@ CamOdoThread::threadFunction(void)
             if (camValid)
             {
                 odometerPoses.push_back(frame->odometer());
-
-                prevPos = currPos;
             }
+
+            framePrev = frame;
 
             if (mStop || !camValid)
 //                 mCamOdoCalib.getCurrentMotionCount() + odometerPoses.size() > mCamOdoCalib.getMotionCount()))
@@ -474,8 +465,6 @@ CamOdoThread::threadFunction(void)
                 overlay.publish();
             }
 #endif
-
-            prevTimeStamp = timeStamp;
         }
 
         int currentMotionCount = 0;

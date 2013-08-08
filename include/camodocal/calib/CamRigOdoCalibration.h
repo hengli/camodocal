@@ -60,7 +60,7 @@ public:
     void start(void);
     void run(void);
 
-    bool running(void) const;
+    bool isRunning(void) const;
 
     const CameraRigExtrinsics& extrinsics(void) const;
 
