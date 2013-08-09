@@ -54,7 +54,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
 
     for (size_t i = 0; i < mSketches.size(); ++i)
     {
-        mSketches.at(i) = cv::Mat(1280, 800, CV_8UC3);
+        mSketches.at(i) = cv::Mat(cameras.at(i)->imageHeight(), cameras.at(i)->imageWidth(), CV_8UC3);
         mSketches.at(i) = cv::Scalar(0);
     }
 }
