@@ -20,8 +20,9 @@ enum
     CAMERA_EXTRINSICS = 0x2,
     POINT_3D = 0x4,
     ODOMETRY_INTRINSICS = 0x8,
-    ODOMETRY_EXTRINSICS = 0x10,
-    CAMERA_ODOMETRY_EXTRINSICS = 0x20
+    ODOMETRY_3D_EXTRINSICS = 0x10,
+    ODOMETRY_6D_EXTRINSICS = 0x20,
+    CAMERA_ODOMETRY_EXTRINSICS = 0x40
 };
 
 class CostFunctionFactory
@@ -41,8 +42,8 @@ public:
                                               int flags, bool optimize_cam_odo_z = true) const;
 
     ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
-                                              const Eigen::Vector2d& odo_pos,
-                                              double odo_yaw,
+                                              const Eigen::Vector3d& odo_pos,
+                                              const Eigen::Vector3d& odo_att,
                                               const Eigen::Vector2d& observed_p,
                                               int flags, bool optimize_cam_odo_z = true) const;
 

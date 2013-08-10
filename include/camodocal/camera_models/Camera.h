@@ -55,6 +55,9 @@ public:
     virtual int imageWidth(void) const = 0;
     virtual int imageHeight(void) const = 0;
 
+    virtual cv::Mat& mask(void);
+    virtual const cv::Mat& mask(void) const;
+
     virtual void estimateIntrinsics(const cv::Size& boardSize,
                                     const std::vector< std::vector<cv::Point3f> >& objectPoints,
                                     const std::vector< std::vector<cv::Point2f> >& imagePoints) = 0;
@@ -117,6 +120,8 @@ public:
                        const cv::Mat& rvec,
                        const cv::Mat& tvec,
                        std::vector<cv::Point2f>& imagePoints) const;
+protected:
+    cv::Mat m_mask;
 };
 
 typedef boost::shared_ptr<Camera> CameraPtr;

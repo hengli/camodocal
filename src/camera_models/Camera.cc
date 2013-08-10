@@ -100,6 +100,18 @@ Camera::Parameters::nIntrinsics(void) const
     return m_nIntrinsics;
 }
 
+cv::Mat&
+Camera::mask(void)
+{
+    return m_mask;
+}
+
+const cv::Mat&
+Camera::mask(void) const
+{
+    return m_mask;
+}
+
 void
 Camera::estimateExtrinsics(const std::vector<cv::Point3f>& objectPoints,
                            const std::vector<cv::Point2f>& imagePoints,

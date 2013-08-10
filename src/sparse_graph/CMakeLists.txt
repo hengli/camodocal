@@ -1,5 +1,5 @@
 camodocal_library(camodocal_sparse_graph SHARED
-  Odometer.cc
+  Odometry.cc
   SparseGraph.cc
 )
 

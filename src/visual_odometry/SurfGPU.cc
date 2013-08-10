@@ -156,7 +156,9 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
 
 void
 SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
+               const cv::Mat& mask1,
                const cv::Mat& image2, std::vector<cv::KeyPoint>& keypoints2,
+               const cv::Mat& mask2,
                std::vector<cv::DMatch>& matches,
                float maxDistanceRatio)
 {
@@ -167,15 +169,17 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
     cv::gpu::GpuMat kptsGPU[2];
     cv::gpu::GpuMat dtorsGPU[2];
 
-    cv::Mat mask[2];
-    mask[0] = image1 > 0;
-    mask[1] = image2 > 0;
-
     imageGPU[0].upload(image1);
     imageGPU[1].upload(image2);
 
-    maskGPU[0].upload(mask[0]);
-    maskGPU[1].upload(mask[1]);
+    if (!mask1.empty())
+    {
+        maskGPU[0].upload(mask1);
+    }
+    if (!mask2.empty())
+    {
+        maskGPU[1].upload(mask2);
+    }
 
     try
     {

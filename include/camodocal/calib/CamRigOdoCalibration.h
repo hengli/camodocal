@@ -83,9 +83,9 @@ private:
 
     std::vector<AtomicData<cv::Mat>* > mImages;
     std::vector<CameraPtr> mCameras;
-    SensorDataBuffer<OdometerPtr> mOdometerBuffer;
-    SensorDataBuffer<OdometerPtr> mInterpOdometerBuffer;
-    boost::mutex mOdometerBufferMutex;
+    SensorDataBuffer<OdometryPtr> mOdometryBuffer;
+    SensorDataBuffer<OdometryPtr> mInterpOdometryBuffer;
+    boost::mutex mOdometryBufferMutex;
     SensorDataBuffer<PosePtr> mGpsInsBuffer;
     SensorDataBuffer<PosePtr> mInterpGpsInsBuffer;
     boost::mutex mGpsInsBufferMutex;

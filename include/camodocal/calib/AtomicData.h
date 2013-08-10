@@ -24,6 +24,7 @@ public:
     void unlockData(void);
 
     void notifyData(void);
+    bool timedWaitForData(const boost::system_time& timeout);
     void waitForData(void);
 
     void notifyProcessingDone(void);
@@ -119,6 +120,17 @@ AtomicData<T>::waitForData(void)
     {
         mDataCond.wait(lock);
     }
+}
+
+template<class T>
+bool
+AtomicData<T>::timedWaitForData(const boost::system_time& timeout)
+{
+    boost::unique_lock<boost::mutex> lock(mDataMutex);
+
+    bool ret = mDataCond.timed_wait(lock, timeout);
+
+    return mAvailable;
 }
 
 template<class T>

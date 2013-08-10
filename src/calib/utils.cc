@@ -6,36 +6,45 @@ namespace camodocal
 {
 
 bool
-interpolateOdometer(SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                    uint64_t timestamp, OdometerPtr& interpOdo)
+interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                    uint64_t timestamp, OdometryPtr& interpOdo)
 {
-    OdometerPtr prev, next;
+    OdometryPtr prev, next;
 
-    if (!odometerBuffer.nearest(timestamp, prev, next))
+    if (!odometryBuffer.nearest(timestamp, prev, next))
     {
         return false;
     }
 
-    interpOdo = OdometerPtr(new Odometer);
+    interpOdo = OdometryPtr(new Odometry);
     interpOdo->timeStamp() = timestamp;
 
     if (prev->position() == next->position())
     {
         interpOdo->position() = prev->position();
-        interpOdo->yaw() = prev->yaw();
+        interpOdo->attitude() = prev->attitude();
 
         return true;
     }
 
     double t = static_cast<double>(timestamp - prev->timeStamp()) / (next->timeStamp() - prev->timeStamp());
 
-    interpOdo->position() = Eigen::Vector2d(t * (next->x() - prev->x()) + prev->x(),
-                                            t * (next->y() - prev->y()) + prev->y());
+    interpOdo->position() = t * (next->position() - prev->position()) + prev->position();
 
     prev->yaw() = normalizeTheta(prev->yaw());
     next->yaw() = normalizeTheta(next->yaw());
 
     interpOdo->yaw() = t * normalizeTheta(next->yaw() - prev->yaw()) + prev->yaw();
+
+    prev->pitch() = normalizeTheta(prev->pitch());
+    next->pitch() = normalizeTheta(next->pitch());
+
+    interpOdo->pitch() = t * normalizeTheta(next->pitch() - prev->pitch()) + prev->pitch();
+
+    prev->roll() = normalizeTheta(prev->roll());
+    next->roll() = normalizeTheta(next->roll());
+
+    interpOdo->roll() = t * normalizeTheta(next->roll() - prev->roll()) + prev->roll();
 
     return true;
 }

@@ -203,8 +203,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         {
             Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
 
-            Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometer()->pose().inverse();
-            Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometer()->pose().inverse();
+            Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometry()->pose().inverse();
+            Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometry()->pose().inverse();
 
             triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), imagePoints[0],
                               Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), imagePoints[1],
@@ -238,8 +238,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(feature3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              framePrev->odometer()->position(),
-                                              framePrev->odometer()->yaw(),
+                                              framePrev->odometry()->position(),
+                                              framePrev->odometry()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -281,8 +281,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(feature3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              frameCurr->odometer()->position(),
-                                              frameCurr->odometer()->yaw(),
+                                              frameCurr->odometry()->position(),
+                                              frameCurr->odometry()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -462,8 +462,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 error = reprojectionError(f0->feature3D()->point(),
                                           m_T_cam_odo.rotation(),
                                           m_T_cam_odo.translation(),
-                                          frameCurr->odometer()->position(),
-                                          frameCurr->odometer()->yaw(),
+                                          frameCurr->odometry()->position(),
+                                          frameCurr->odometry()->attitude(),
                                           Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
             }
 
@@ -506,8 +506,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(point3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              frameCurr->odometer()->position(),
-                                              frameCurr->odometer()->yaw(),
+                                              frameCurr->odometry()->position(),
+                                              frameCurr->odometry()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -554,8 +554,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             {
                 Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
 
-                Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometer()->pose().inverse();
-                Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometer()->pose().inverse();
+                Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometry()->pose().inverse();
+                Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometry()->pose().inverse();
 
                 triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), ipoints[0],
                                   Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), ipoints[1],
@@ -591,8 +591,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                             error = reprojectionError(feature3D,
                                                       m_T_cam_odo.rotation(),
                                                       m_T_cam_odo.translation(),
-                                                      framePrev->odometer()->position(),
-                                                      framePrev->odometer()->yaw(),
+                                                      framePrev->odometry()->position(),
+                                                      framePrev->odometry()->attitude(),
                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
@@ -634,8 +634,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                             error = reprojectionError(feature3D,
                                                       m_T_cam_odo.rotation(),
                                                       m_T_cam_odo.translation(),
-                                                      frameCurr->odometer()->position(),
-                                                      frameCurr->odometer()->yaw(),
+                                                      frameCurr->odometry()->position(),
+                                                      frameCurr->odometry()->attitude(),
                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
@@ -824,7 +824,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 Eigen::Vector4d P;
                 P << feature3D->point(), 1.0;
 
-                P = (m_T_cam_odo.pose().inverse() * frame->odometer()->pose().inverse()) * P;
+                P = (m_T_cam_odo.pose().inverse() * frame->odometry()->pose().inverse()) * P;
 
                 P_cam = P.block<3,1>(0,0);
             }
@@ -1008,8 +1008,8 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
             error = reprojectionError(feature3D->point(),
                                       m_T_cam_odo.rotation(),
                                       m_T_cam_odo.translation(),
-                                      frame->odometer()->position(),
-                                      frame->odometer()->yaw(),
+                                      frame->odometry()->position(),
+                                      frame->odometry()->attitude(),
                                       Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
 
@@ -1075,8 +1075,8 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
                 error = reprojectionError(feature3D->point(),
                                           m_T_cam_odo.rotation(),
                                           m_T_cam_odo.translation(),
-                                          frame->odometer()->position(),
-                                          frame->odometer()->yaw(),
+                                          frame->odometry()->position(),
+                                          frame->odometry()->attitude(),
                                           Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
             }
 
@@ -1109,12 +1109,16 @@ double
 SlidingWindowBA::reprojectionError(const Eigen::Vector3d& P,
                                    const Eigen::Quaterniond& cam_odo_q,
                                    const Eigen::Vector3d& cam_odo_t,
-                                   const Eigen::Vector2d& odo_p,
-                                   double odo_yaw,
+                                   const Eigen::Vector3d& odo_p,
+                                   const Eigen::Vector3d& odo_att,
                                    const Eigen::Vector2d& observed_p) const
 {
-    Eigen::Quaterniond odo_q(cos(odo_yaw / 2.0), 0.0, 0.0, sin(odo_yaw / 2.0));
-    Eigen::Vector3d odo_t(odo_p(0), odo_p(1), 0.0);
+    Eigen::Quaterniond q_z(cos(odo_att(0) / 2.0), 0.0, 0.0, sin(odo_att(0) / 2.0));
+    Eigen::Quaterniond q_y(cos(odo_att(1) / 2.0), 0.0, sin(odo_att(1) / 2.0), 0.0);
+    Eigen::Quaterniond q_x(cos(odo_att(2) / 2.0), sin(odo_att(2) / 2.0), 0.0, 0.0);
+
+    Eigen::Quaterniond odo_q = q_z * q_y * q_x;
+    Eigen::Vector3d odo_t = odo_p;
 
     Eigen::Quaterniond cam_q = cam_odo_q.conjugate() * odo_q.conjugate();
     Eigen::Vector3d cam_t = -cam_odo_q.conjugate().toRotationMatrix() * (-odo_q.conjugate().toRotationMatrix() * odo_t);
@@ -1445,13 +1449,13 @@ SlidingWindowBA::optimize(void)
                     CostFunctionFactory::instance()->generateCostFunction(kCamera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
                                                                                           feature2D->keypoint().pt.y),
-                                                                          CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_EXTRINSICS | POINT_3D);
+                                                                          CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          m_T_cam_odo.rotationData(),
                                          m_T_cam_odo.translationData(),
-                                         frame->odometer()->positionData(),
-                                         frame->odometer()->yawData(),
+                                         frame->odometry()->positionData(),
+                                         frame->odometry()->attitudeData(),
                                          feature2D->feature3D()->pointData());
             }
 
@@ -1468,24 +1472,16 @@ SlidingWindowBA::optimize(void)
                     new ceres::QuaternionParameterization;
 
                 problem.SetParameterization(frame->camera()->rotationData(), quaternionParameterization);
-
-                // the points come before the cameras
-//                ordering->AddElementToGroup(frame->camera()->rotationData(), 1);
-//                ordering->AddElementToGroup(frame->camera()->translationData(), 1);
             }
             else
             {
-                // the points come before the extrinsics
-//                ordering->AddElementToGroup(frame->odometer()->positionData(), 1);
-//                ordering->AddElementToGroup(frame->odometer()->yawData(), 1);
-
-                problem.SetParameterBlockConstant(frame->odometer()->positionData());
-                problem.SetParameterBlockConstant(frame->odometer()->yawData());
+                problem.SetParameterBlockConstant(frame->odometry()->positionData());
+                problem.SetParameterBlockConstant(frame->odometry()->attitudeData());
             }
         }
     }
 
-    if (mMode == ODOMETER)
+    if (mMode == ODOMETRY)
     {
         ceres::LocalParameterization* quaternionParameterization =
             new ceres::QuaternionParameterization;

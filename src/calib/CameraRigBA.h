@@ -21,11 +21,12 @@ class CameraRigBA
 public:
     enum
     {
-        ODOMETER = 0,
+        ODOMETRY = 0,
         CAMERA = 1,
-        ODOMETER_FIXED = 2,
-        ODOMETER_VARIABLE = 3,
-        CAMERA_ODOMETER = 4
+        ODOMETRY_FIXED = 2,
+        ODOMETRY_VARIABLE = 3,
+        CAMERA_ODOMETRY_3D = 4,
+        CAMERA_ODOMETRY_6D = 5
     };
 
     enum
@@ -59,8 +60,8 @@ private:
                              const Eigen::Vector3d& P,
                              const Eigen::Quaterniond& cam_odo_q,
                              const Eigen::Vector3d& cam_odo_t,
-                             const Eigen::Vector2d& odo_p,
-                             double odo_yaw,
+                             const Eigen::Vector3d& odo_p,
+                             const Eigen::Vector3d& odo_att,
                              const Eigen::Vector2d& observed_p) const;
 
     void triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& frame3,
@@ -132,7 +133,7 @@ private:
              std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
              std::vector<size_t>& inliers) const;
 
-    void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETER);
+    void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETRY);
 
     void optimize(int mode, bool optimizeZ = true, int nIterations = 500);
 

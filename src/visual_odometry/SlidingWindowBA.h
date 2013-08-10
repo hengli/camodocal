@@ -15,7 +15,7 @@ class SlidingWindowBA
 public:
     enum
     {
-        ODOMETER = 0,
+        ODOMETRY = 0,
         VO = 1
     };
 
@@ -49,8 +49,8 @@ private:
     double reprojectionError(const Eigen::Vector3d& P,
                              const Eigen::Quaterniond& cam_odo_q,
                              const Eigen::Vector3d& cam_odo_t,
-                             const Eigen::Vector2d& odo_p,
-                             double odo_yaw,
+                             const Eigen::Vector3d& odo_p,
+                             const Eigen::Vector3d& odo_att,
                              const Eigen::Vector2d& observed_p) const;
 
     void findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>& features,

@@ -141,16 +141,16 @@ Frame::cameraId(void) const
     return mCameraId;
 }
 
-OdometerPtr&
-Frame::odometer(void)
+OdometryPtr&
+Frame::odometry(void)
 {
-    return mOdometer;
+    return mOdometry;
 }
 
-OdometerConstPtr
-Frame::odometer(void) const
+OdometryConstPtr
+Frame::odometry(void) const
 {
-    return mOdometer;
+    return mOdometry;
 }
 
 PosePtr&
@@ -494,8 +494,8 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
     size_t nPoses;
     readData(ifs, nPoses);
 
-    size_t nOdometers;
-    readData(ifs, nOdometers);
+    size_t nOdometry;
+    readData(ifs, nOdometry);
 
     size_t nFeatures2D;
     readData(ifs, nFeatures2D);
@@ -515,10 +515,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         poseMap.at(i) = PosePtr(new Pose);
     }
 
-    std::vector<OdometerPtr> odometerMap(nOdometers);
-    for (size_t i = 0; i < nOdometers; ++i)
+    std::vector<OdometryPtr> odometryMap(nOdometry);
+    for (size_t i = 0; i < nOdometry; ++i)
     {
-        odometerMap.at(i) = OdometerPtr(new Odometer);
+        odometryMap.at(i) = OdometryPtr(new Odometry);
     }
 
     std::vector<Point2DFeaturePtr> feature2DMap(nFeatures2D);
@@ -565,11 +565,11 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
             frame->camera() = poseMap.at(poseIdx);
         }
 
-        size_t odometerIdx;
-        readData(ifs, odometerIdx);
-        if (odometerIdx != static_cast<size_t>(-1))
+        size_t odometryIdx;
+        readData(ifs, odometryIdx);
+        if (odometryIdx != static_cast<size_t>(-1))
         {
-            frame->odometer() = odometerMap.at(odometerIdx);
+            frame->odometry() = odometryMap.at(odometryIdx);
         }
 
         readData(ifs, poseIdx);
@@ -630,17 +630,20 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         memcpy(pose->translationData(), t, sizeof(double) * 3);
     }
 
-    for (size_t i = 0; i < nOdometers; ++i)
+    for (size_t i = 0; i < nOdometry; ++i)
     {
-        size_t odometerIdx;
-        readData(ifs, odometerIdx);
+        size_t odometryIdx;
+        readData(ifs, odometryIdx);
 
-        OdometerPtr& odometer = odometerMap.at(odometerIdx);
+        OdometryPtr& odometry = odometryMap.at(odometryIdx);
 
-        readData(ifs, odometer->timeStamp());
-        readData(ifs, odometer->x());
-        readData(ifs, odometer->y());
-        readData(ifs, odometer->yaw());
+        readData(ifs, odometry->timeStamp());
+        readData(ifs, odometry->x());
+        readData(ifs, odometry->y());
+        readData(ifs, odometry->z());
+        readData(ifs, odometry->yaw());
+        readData(ifs, odometry->pitch());
+        readData(ifs, odometry->roll());
     }
 
     std::vector<size_t> tmp;
@@ -830,7 +833,7 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
 
     boost::unordered_map<Frame*,size_t> frameMap;
     boost::unordered_map<Pose*,size_t> poseMap;
-    boost::unordered_map<Odometer*,size_t> odometerMap;
+    boost::unordered_map<Odometry*,size_t> odometryMap;
     boost::unordered_map<Point2DFeature*,size_t> feature2DMap;
     boost::unordered_map<Point3DFeature*,size_t> feature3DMap;
 
@@ -854,11 +857,11 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
                         poseMap.insert(std::make_pair(frame->camera().get(), poseMap.size()));
                     }
                 }
-                if (frame->odometer().get() != 0)
+                if (frame->odometry().get() != 0)
                 {
-                    if (odometerMap.find(frame->odometer().get()) == odometerMap.end())
+                    if (odometryMap.find(frame->odometry().get()) == odometryMap.end())
                     {
-                        odometerMap.insert(std::make_pair(frame->odometer().get(), odometerMap.size()));
+                        odometryMap.insert(std::make_pair(frame->odometry().get(), odometryMap.size()));
                     }
                 }
                 if (frame->gps_ins().get() != 0)
@@ -918,7 +921,7 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
 
     writeData(ofs, frameMap.size());
     writeData(ofs, poseMap.size());
-    writeData(ofs, odometerMap.size());
+    writeData(ofs, odometryMap.size());
     writeData(ofs, feature2DMap.size());
     writeData(ofs, feature3DMap.size());
 
@@ -967,9 +970,9 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             writeData(ofs, invalidIdx);
         }
 
-        if (frame->odometer().get() != 0)
+        if (frame->odometry().get() != 0)
         {
-            writeData(ofs, odometerMap[frame->odometer().get()]);
+            writeData(ofs, odometryMap[frame->odometry().get()]);
         }
         else
         {
@@ -1040,17 +1043,20 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         writeData(ofs, t[2]);
     }
 
-    for (boost::unordered_map<Odometer*, size_t>::iterator it = odometerMap.begin();
-            it != odometerMap.end(); ++it)
+    for (boost::unordered_map<Odometry*, size_t>::iterator it = odometryMap.begin();
+            it != odometryMap.end(); ++it)
     {
-        Odometer* odometer = it->first;
+        Odometry* odometry = it->first;
 
         writeData(ofs, it->second);
 
-        writeData(ofs, odometer->timeStamp());
-        writeData(ofs, odometer->x());
-        writeData(ofs, odometer->y());
-        writeData(ofs, odometer->yaw());
+        writeData(ofs, odometry->timeStamp());
+        writeData(ofs, odometry->x());
+        writeData(ofs, odometry->y());
+        writeData(ofs, odometry->z());
+        writeData(ofs, odometry->yaw());
+        writeData(ofs, odometry->pitch());
+        writeData(ofs, odometry->roll());
     }
 
     for (boost::unordered_map<Point2DFeature*,size_t>::iterator it = feature2DMap.begin();
@@ -1280,7 +1286,7 @@ SparseGraph::readFromXMLFile(const std::string& filename)
 
     // parse xml file
 
-    // odometer and 3D feature structures are in global scope as
+    // odometry and 3D feature structures are in global scope as
     // multiple frames from multiple cameras reference these structures
     pugi::xml_node eRoot = doc.child("root");
     unsigned int nCameras = eRoot.attribute("cameras_size").as_uint();
@@ -1290,7 +1296,7 @@ SparseGraph::readFromXMLFile(const std::string& filename)
     FrameSegment frameMap;
     std::vector<pugi::xml_node> frameXMLMap;
     std::vector<PosePtr> poseMap;
-    std::vector<OdometerPtr> odometerMap;
+    std::vector<OdometryPtr> odometryMap;
     std::vector<Point2DFeaturePtr> feature2DMap;
     std::vector<pugi::xml_node> feature2DXMLMap;
     std::vector<Point3DFeaturePtr> feature3DMap;
@@ -1298,7 +1304,7 @@ SparseGraph::readFromXMLFile(const std::string& filename)
 
     pugi::xml_node eFrames = eRoot.child("frames");
     pugi::xml_node ePoses = eRoot.child("poses");
-    pugi::xml_node eOdometers = eRoot.child("odometers");
+    pugi::xml_node eOdometry = eRoot.child("odometry");
     pugi::xml_node eFeatures2D = eRoot.child("features2D");
     pugi::xml_node eFeatures3D = eRoot.child("features3D");
 
@@ -1308,8 +1314,8 @@ SparseGraph::readFromXMLFile(const std::string& filename)
     unsigned int nPoses = ePoses.attribute("size").as_uint();
     XMLToPoses(ePoses, nPoses, poseMap);
 
-    unsigned int nOdometers = eOdometers.attribute("size").as_uint();
-    XMLToOdometers(eOdometers, nOdometers, odometerMap);
+    unsigned int nOdometry = eOdometry.attribute("size").as_uint();
+    XMLToOdometry(eOdometry, nOdometry, odometryMap);
 
     unsigned int nFeatures2D = eFeatures2D.attribute("size").as_uint();
     XMLToPoint2DFeatures(eFeatures2D, nFeatures2D, feature2DMap, feature2DXMLMap);
@@ -1368,13 +1374,13 @@ SparseGraph::readFromXMLFile(const std::string& filename)
             frame->camera() = poseMap.at(poseIdx);
         }
 
-        pugi::xml_attribute aOdometer = eFrame.attribute("odometer");
-        if (!aOdometer.empty())
+        pugi::xml_attribute aOdometry = eFrame.attribute("odometry");
+        if (!aOdometry.empty())
         {
-            size_t odometerIdx;
-            sscanf(aOdometer.value(), "odometer%lu", &odometerIdx);
+            size_t odometryIdx;
+            sscanf(aOdometry.value(), "odometry%lu", &odometryIdx);
 
-            frame->odometer() = odometerMap.at(odometerIdx);
+            frame->odometry() = odometryMap.at(odometryIdx);
         }
 
         pugi::xml_attribute aGpsIns = eFrame.attribute("gps_ins");
@@ -1536,7 +1542,7 @@ SparseGraph::writeToXMLFile(const std::string& filename) const
 
     boost::unordered_map<Frame*,size_t> frameMap;
     boost::unordered_map<Pose*,size_t> poseMap;
-    boost::unordered_map<Odometer*,size_t> odometerMap;
+    boost::unordered_map<Odometry*,size_t> odometryMap;
     boost::unordered_map<Point2DFeature*,size_t> feature2DMap;
     boost::unordered_map<Point3DFeature*,size_t> feature3DMap;
 
@@ -1581,11 +1587,11 @@ SparseGraph::writeToXMLFile(const std::string& filename) const
                         poseMap.insert(std::make_pair(frame->camera().get(), poseMap.size()));
                     }
                 }
-                if (frame->odometer().get() != 0)
+                if (frame->odometry().get() != 0)
                 {
-                    if (odometerMap.find(frame->odometer().get()) == odometerMap.end())
+                    if (odometryMap.find(frame->odometry().get()) == odometryMap.end())
                     {
-                        odometerMap.insert(std::make_pair(frame->odometer().get(), odometerMap.size()));
+                        odometryMap.insert(std::make_pair(frame->odometry().get(), odometryMap.size()));
                     }
                 }
                 if (frame->gps_ins().get() != 0)
@@ -1636,13 +1642,13 @@ SparseGraph::writeToXMLFile(const std::string& filename) const
 
     pugi::xml_node eFrames = eRoot.append_child("frames");
     pugi::xml_node ePoses = eRoot.append_child("poses");
-    pugi::xml_node eOdometers = eRoot.append_child("odometers");
+    pugi::xml_node eOdometry = eRoot.append_child("odometry");
     pugi::xml_node eFeatures2D = eRoot.append_child("features2D");
     pugi::xml_node eFeatures3D = eRoot.append_child("features3D");
 
     eFrames.append_attribute("size") = static_cast<unsigned int>(frameMap.size());
     ePoses.append_attribute("size") = static_cast<unsigned int>(poseMap.size());
-    eOdometers.append_attribute("size") = static_cast<unsigned int>(odometerMap.size());
+    eOdometry.append_attribute("size") = static_cast<unsigned int>(odometryMap.size());
     eFeatures2D.append_attribute("size") = static_cast<unsigned int>(feature2DMap.size());
     eFeatures3D.append_attribute("size") = static_cast<unsigned int>(feature3DMap.size());
 
@@ -1680,11 +1686,11 @@ SparseGraph::writeToXMLFile(const std::string& filename) const
             eFrame.append_attribute("camera") = poseName;
         }
 
-        if (frame->odometer().get() != 0)
+        if (frame->odometry().get() != 0)
         {
-            char odometerName[255];
-            sprintf(odometerName, "odometer%lu", odometerMap[frame->odometer().get()]);
-            eFrame.append_attribute("odometer") = odometerName;
+            char odometryName[255];
+            sprintf(odometryName, "odometry%lu", odometryMap[frame->odometry().get()]);
+            eFrame.append_attribute("odometry") = odometryName;
         }
 
         if (frame->gps_ins().get() != 0)
@@ -1773,22 +1779,25 @@ SparseGraph::writeToXMLFile(const std::string& filename) const
         ePose.append_attribute("t_z") = oss.str().c_str();
     }
 
-    for (boost::unordered_map<Odometer*, size_t>::iterator it = odometerMap.begin();
-            it != odometerMap.end(); ++it)
+    for (boost::unordered_map<Odometry*, size_t>::iterator it = odometryMap.begin();
+            it != odometryMap.end(); ++it)
     {
-        Odometer* odometer = it->first;
+        Odometry* odometry = it->first;
 
-        char odometerName[255];
-        sprintf(odometerName, "odometer%lu", it->second);
-        pugi::xml_node eOdometer = eOdometers.append_child(odometerName);
+        char odometryName[255];
+        sprintf(odometryName, "odometry%lu", it->second);
+        pugi::xml_node eOdometry = eOdometry.append_child(odometryName);
 
         std::ostringstream oss;
-        oss << odometer->timeStamp();
-        eOdometer.append_attribute("timestamp") = oss.str().c_str();
+        oss << odometry->timeStamp();
+        eOdometry.append_attribute("timestamp") = oss.str().c_str();
 
-        eOdometer.append_attribute("x") = odometer->x();
-        eOdometer.append_attribute("y") = odometer->y();
-        eOdometer.append_attribute("yaw") = odometer->yaw();
+        eOdometry.append_attribute("x") = odometry->x();
+        eOdometry.append_attribute("y") = odometry->y();
+        eOdometry.append_attribute("z") = odometry->z();
+        eOdometry.append_attribute("yaw") = odometry->yaw();
+        eOdometry.append_attribute("pitch") = odometry->pitch();
+        eOdometry.append_attribute("roll") = odometry->roll();
     }
 
     for (boost::unordered_map<Point2DFeature*,size_t>::iterator it = feature2DMap.begin();
@@ -2196,30 +2205,33 @@ SparseGraph::XMLToPoses(pugi::xml_node& parent, unsigned int count,
 }
 
 void
-SparseGraph::XMLToOdometers(pugi::xml_node& parent, unsigned int count,
-                            std::vector<OdometerPtr>& map) const
+SparseGraph::XMLToOdometry(pugi::xml_node& parent, unsigned int count,
+                           std::vector<OdometryPtr>& map) const
 {
     map.resize(count);
 
-    pugi::xml_node eOdometer = parent.first_child();
+    pugi::xml_node eOdometry = parent.first_child();
 
     for (unsigned int i = 0; i < count; ++i)
     {
-        unsigned int odometerIdx;
-        sscanf(eOdometer.name(), "odometer%u", &odometerIdx);
+        unsigned int odometryIdx;
+        sscanf(eOdometry.name(), "odometry%u", &odometryIdx);
 
-        OdometerPtr odometer(new Odometer);
+        OdometryPtr odometry(new Odometry);
 
-        std::istringstream iss(eOdometer.attribute("timestamp").value());
-        iss >> odometer->timeStamp();
+        std::istringstream iss(eOdometry.attribute("timestamp").value());
+        iss >> odometry->timeStamp();
 
-        odometer->x() = eOdometer.attribute("x").as_double();
-        odometer->y() = eOdometer.attribute("y").as_double();
-        odometer->yaw() = eOdometer.attribute("yaw").as_double();
+        odometry->x() = eOdometry.attribute("x").as_double();
+        odometry->y() = eOdometry.attribute("y").as_double();
+        odometry->z() = eOdometry.attribute("z").as_double();
+        odometry->yaw() = eOdometry.attribute("yaw").as_double();
+        odometry->pitch() = eOdometry.attribute("pitch").as_double();
+        odometry->roll() = eOdometry.attribute("roll").as_double();
 
-        map.at(odometerIdx) = odometer;
+        map.at(odometryIdx) = odometry;
 
-        eOdometer = eOdometer.next_sibling();
+        eOdometry = eOdometry.next_sibling();
     }
 }
 

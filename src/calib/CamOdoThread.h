@@ -19,9 +19,9 @@ public:
     explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
                           AtomicData<cv::Mat>* image,
                           const CameraConstPtr& camera,
-                          SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                          SensorDataBuffer<OdometerPtr>& interpOdometerBuffer,
-                          boost::mutex& odometerBufferMutex,
+                          SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                          SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
+                          boost::mutex& odometryBufferMutex,
                           SensorDataBuffer<PosePtr>& gpsInsBuffer,
                           SensorDataBuffer<PosePtr>& interpGpsInsBuffer,
                           boost::mutex& gpsInsBufferMutex,
@@ -48,7 +48,7 @@ private:
     void threadFunction(void);
 
     void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
-                            const std::vector<OdometerPtr>& odoPoses,
+                            const std::vector<OdometryPtr>& odoPoses,
                             FrameSegment& frameSegment);
 
     PoseSource mPoseSource;
@@ -63,9 +63,9 @@ private:
 
     AtomicData<cv::Mat>* mImage;
     const CameraConstPtr mCamera;
-    SensorDataBuffer<OdometerPtr>& mOdometerBuffer;
-    SensorDataBuffer<OdometerPtr>& mInterpOdometerBuffer;
-    boost::mutex& mOdometerBufferMutex;
+    SensorDataBuffer<OdometryPtr>& mOdometryBuffer;
+    SensorDataBuffer<OdometryPtr>& mInterpOdometryBuffer;
+    boost::mutex& mOdometryBufferMutex;
     SensorDataBuffer<PosePtr>& mGpsInsBuffer;
     SensorDataBuffer<PosePtr>& mInterpGpsInsBuffer;
     boost::mutex& mGpsInsBufferMutex;
@@ -75,7 +75,7 @@ private:
 
     const double kKeyFrameDistance;
     const int kMinTrackLength;
-    const double kOdometerTimeout;
+    const double kOdometryTimeout;
 
     bool& mCompleted;
     bool& mStop;

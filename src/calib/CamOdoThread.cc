@@ -17,9 +17,9 @@ namespace camodocal
 CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
                            AtomicData<cv::Mat>* image,
                            const CameraConstPtr& camera,
-                           SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                           SensorDataBuffer<OdometerPtr>& interpOdometerBuffer,
-                           boost::mutex& odometerBufferMutex,
+                           SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                           SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
+                           boost::mutex& odometryBufferMutex,
                            SensorDataBuffer<PosePtr>& gpsInsBuffer,
                            SensorDataBuffer<PosePtr>& interpGpsInsBuffer,
                            boost::mutex& gpsInsBufferMutex,
@@ -35,9 +35,9 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
  , mRunning(false)
  , mImage(image)
  , mCamera(camera)
- , mOdometerBuffer(odometerBuffer)
- , mInterpOdometerBuffer(interpOdometerBuffer)
- , mOdometerBufferMutex(odometerBufferMutex)
+ , mOdometryBuffer(odometryBuffer)
+ , mInterpOdometryBuffer(interpOdometryBuffer)
+ , mOdometryBufferMutex(odometryBufferMutex)
  , mGpsInsBuffer(gpsInsBuffer)
  , mInterpGpsInsBuffer(interpGpsInsBuffer)
  , mGpsInsBufferMutex(gpsInsBufferMutex)
@@ -45,7 +45,7 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
  , mSketch(sketch)
  , kKeyFrameDistance(0.25)
  , kMinTrackLength(15)
- , kOdometerTimeout(4.0)
+ , kOdometryTimeout(4.0)
  , mCompleted(completed)
  , mStop(stop)
  , mSaveImages(saveImages)
@@ -181,7 +181,7 @@ CamOdoThread::threadFunction(void)
 
     int trackBreaks = 0;
 
-    std::vector<OdometerPtr> odometerPoses;
+    std::vector<OdometryPtr> odometryPoses;
 
 #ifdef VCHARGE_VIZ
     std::ostringstream oss;
@@ -193,185 +193,206 @@ CamOdoThread::threadFunction(void)
 
     while (!halt)
     {
-        mImage->waitForData();
-
-        mImage->lockData();
-
-        uint64_t timeStamp = mImage->timeStamp();
-
-        if (framePrev.get() != 0 && timeStamp == framePrev->camera()->timeStamp())
+        boost::system_time timeout = boost::get_system_time() + boost::posix_time::milliseconds(10);
+        while (!mImage->timedWaitForData(timeout) && !mStop)
         {
-            mImage->unlockData();
-            mImage->notifyProcessingDone();
-
-            continue;
+            timeout = boost::get_system_time() + boost::posix_time::milliseconds(10);
         }
 
-        mImage->data().copyTo(image);
-
-        mImage->unlockData();
-
-        if (image.channels() == 1)
+        if (mStop)
         {
-            cv::cvtColor(image, colorImage, CV_GRAY2BGR);
+            std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
+
+            if (odometryPoses.size() >= kMinTrackLength)
+            {
+                addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
+            }
+
+            if (!odometryPoses.empty())
+            {
+                odometryPoses.erase(odometryPoses.begin(), odometryPoses.begin() + voPoses.size() - 1);
+            }
+
+            ++trackBreaks;
+
+            halt = true;
         }
         else
         {
-            image.copyTo(colorImage);
-        }
+            mImage->lockData();
 
-        // skip if current car position is too near previous position
-        OdometerPtr currOdometer;
-        PosePtr currGpsIns;
-        Eigen::Vector2d pos;
+            uint64_t timeStamp = mImage->timeStamp();
 
-        if (mPoseSource == ODOMETRY && !mOdometerBuffer.current(currOdometer))
-        {
-            std::cout << "# WARNING: No data in odometer buffer." << std::endl;
-        }
-        else if (mPoseSource == GPS_INS && !mGpsInsBuffer.current(currGpsIns))
-        {
-            std::cout << "# WARNING: No data in GPS/INS buffer." << std::endl;
-        }
-        else
-        {
-            mOdometerBufferMutex.lock();
-
-            OdometerPtr interpOdo;
-            if (mPoseSource == ODOMETRY && !mInterpOdometerBuffer.find(timeStamp, interpOdo))
+            if (framePrev.get() != 0 && timeStamp == framePrev->camera()->timeStamp())
             {
-                double timeStart = timeInSeconds();
-                while (!interpolateOdometer(mOdometerBuffer, timeStamp, interpOdo))
-                {
-                    if (timeInSeconds() - timeStart > kOdometerTimeout)
-                    {
-                        std::cout << "# ERROR: No odometer data for " << kOdometerTimeout << "s. Exiting..." << std::endl;
-                        exit(1);
-                    }
-
-                    usleep(1000);
-                }
-
-                mInterpOdometerBuffer.push(timeStamp, interpOdo);
-            }
-
-            mOdometerBufferMutex.unlock();
-
-            mGpsInsBufferMutex.lock();
-
-            PosePtr interpGpsIns;
-            if ((mPoseSource == GPS_INS || !mGpsInsBuffer.empty()) && !mInterpGpsInsBuffer.find(timeStamp, interpGpsIns))
-            {
-                double timeStart = timeInSeconds();
-                while (!interpolatePose(mGpsInsBuffer, timeStamp, interpGpsIns))
-                {
-                    if (timeInSeconds() - timeStart > kOdometerTimeout)
-                    {
-                        std::cout << "# ERROR: No GPS/INS data for " << kOdometerTimeout << "s. Exiting..." << std::endl;
-                        exit(1);
-                    }
-
-                    usleep(1000);
-                }
-
-                mInterpGpsInsBuffer.push(timeStamp, interpGpsIns);
-            }
-
-            mGpsInsBufferMutex.unlock();
-
-            Eigen::Vector2d pos;
-            if (mPoseSource == ODOMETRY)
-            {
-                pos = interpOdo->position();
-            }
-            else
-            {
-                pos(0) = interpGpsIns->translation()(1);
-                pos(1) = -interpGpsIns->translation()(0);
-            }
-
-            if (framePrev.get() != 0 &&
-                (pos - framePrev->odometer()->position()).norm() < kKeyFrameDistance)
-            {
+                mImage->unlockData();
                 mImage->notifyProcessingDone();
+
                 continue;
             }
 
-            FramePtr frame(new Frame);
-            image.copyTo(frame->image());
+            mImage->data().copyTo(image);
 
-            Eigen::Matrix3d R;
-            Eigen::Vector3d t;
-            bool camValid = tracker.addFrame(frame, cv::Mat(), R, t);
+            mImage->unlockData();
 
-            // tag frame with odometer and GPS/INS data
-            frame->odometer() = interpOdo;
-
-            if (interpGpsIns.get() != 0)
+            if (image.channels() == 1)
             {
-                frame->gps_ins() = interpGpsIns;
+                cv::cvtColor(image, colorImage, CV_GRAY2BGR);
             }
-
-            if (mPoseSource == GPS_INS)
-            {
-                OdometerPtr gpsIns(new Odometer);
-                gpsIns->timeStamp() = interpGpsIns->timeStamp();
-                gpsIns->x() = interpGpsIns->translation()(1);
-                gpsIns->y() = -interpGpsIns->translation()(0);
-
-                Eigen::Matrix3d R = interpGpsIns->rotation().toRotationMatrix();
-                double roll, pitch, yaw;
-                mat2RPY(R, roll, pitch, yaw);
-                gpsIns->yaw() = -yaw;
-
-                frame->odometer() = gpsIns;
-            }
-
-            if (!mSaveImages)
-            {
-                frame->image() = cv::Mat();
-            }
-
-            if (camValid)
-            {
-                odometerPoses.push_back(frame->odometer());
-            }
-
-            framePrev = frame;
-
-            if (mStop || !camValid)
-//                 mCamOdoCalib.getCurrentMotionCount() + odometerPoses.size() > mCamOdoCalib.getMotionCount()))
-            {
-                std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
-
-                if (odometerPoses.size() >= kMinTrackLength)
-                {
-                    addCamOdoCalibData(voPoses, odometerPoses, tracker.getFrames());
-                }
-
-                if (!odometerPoses.empty())
-                {
-                    odometerPoses.erase(odometerPoses.begin(), odometerPoses.begin() + voPoses.size() - 1);
-                }
-
-                ++trackBreaks;
-
-                if (mStop)
-                {
-                    halt = true;
-                }
-            }
-#ifdef VCHARGE_VIZ
             else
             {
-                // visualize camera poses and 3D scene points
-                const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& poses = tracker.getPoses();
+                image.copyTo(colorImage);
+            }
 
-                overlay.clear();
-                overlay.pointSize(2.0f);
-                overlay.lineWidth(1.0f);
+            // skip if current car position is too near previous position
+            OdometryPtr currOdometry;
+            PosePtr currGpsIns;
+            Eigen::Vector2d pos;
 
-                // draw 3D scene points
+            if (mPoseSource == ODOMETRY && !mOdometryBuffer.current(currOdometry))
+            {
+                std::cout << "# WARNING: No data in odometry buffer." << std::endl;
+            }
+            else if (mPoseSource == GPS_INS && !mGpsInsBuffer.current(currGpsIns))
+            {
+                std::cout << "# WARNING: No data in GPS/INS buffer." << std::endl;
+            }
+            else
+            {
+                mOdometryBufferMutex.lock();
+
+                OdometryPtr interpOdo;
+                if (mPoseSource == ODOMETRY && !mInterpOdometryBuffer.find(timeStamp, interpOdo))
+                {
+                    double timeStart = timeInSeconds();
+                    while (!interpolateOdometry(mOdometryBuffer, timeStamp, interpOdo))
+                    {
+                        if (timeInSeconds() - timeStart > kOdometryTimeout)
+                        {
+                            std::cout << "# ERROR: No odometry data for " << kOdometryTimeout << "s. Exiting..." << std::endl;
+                            exit(1);
+                        }
+
+                        usleep(1000);
+                    }
+
+                    mInterpOdometryBuffer.push(timeStamp, interpOdo);
+                }
+
+                mOdometryBufferMutex.unlock();
+
+                mGpsInsBufferMutex.lock();
+
+                PosePtr interpGpsIns;
+                if ((mPoseSource == GPS_INS || !mGpsInsBuffer.empty()) && !mInterpGpsInsBuffer.find(timeStamp, interpGpsIns))
+                {
+                    double timeStart = timeInSeconds();
+                    while (!interpolatePose(mGpsInsBuffer, timeStamp, interpGpsIns))
+                    {
+                        if (timeInSeconds() - timeStart > kOdometryTimeout)
+                        {
+                            std::cout << "# ERROR: No GPS/INS data for " << kOdometryTimeout << "s. Exiting..." << std::endl;
+                            exit(1);
+                        }
+
+                        usleep(1000);
+                    }
+
+                    mInterpGpsInsBuffer.push(timeStamp, interpGpsIns);
+                }
+
+                mGpsInsBufferMutex.unlock();
+
+                Eigen::Vector3d pos;
+                if (mPoseSource == ODOMETRY)
+                {
+                    pos = interpOdo->position();
+                }
+                else
+                {
+                    pos(0) = interpGpsIns->translation()(1);
+                    pos(1) = -interpGpsIns->translation()(0);
+                    pos(2) = interpGpsIns->translation()(2);
+                }
+
+                if (framePrev.get() != 0 &&
+                    (pos - framePrev->odometry()->position()).norm() < kKeyFrameDistance)
+                {
+                    mImage->notifyProcessingDone();
+                    continue;
+                }
+
+                FramePtr frame(new Frame);
+                image.copyTo(frame->image());
+
+                Eigen::Matrix3d R;
+                Eigen::Vector3d t;
+                bool camValid = tracker.addFrame(frame, mCamera->mask(), R, t);
+
+                // tag frame with odometry and GPS/INS data
+                frame->odometry() = interpOdo;
+
+                if (interpGpsIns.get() != 0)
+                {
+                    frame->gps_ins() = interpGpsIns;
+                }
+
+                if (mPoseSource == GPS_INS)
+                {
+                    OdometryPtr gpsIns(new Odometry);
+                    gpsIns->timeStamp() = interpGpsIns->timeStamp();
+                    gpsIns->x() = interpGpsIns->translation()(1);
+                    gpsIns->y() = -interpGpsIns->translation()(0);
+
+                    Eigen::Matrix3d R = interpGpsIns->rotation().toRotationMatrix();
+                    double roll, pitch, yaw;
+                    mat2RPY(R, roll, pitch, yaw);
+                    gpsIns->yaw() = -yaw;
+
+                    frame->odometry() = gpsIns;
+                }
+
+                if (!mSaveImages)
+                {
+                    frame->image() = cv::Mat();
+                }
+
+                if (camValid)
+                {
+                    odometryPoses.push_back(frame->odometry());
+                }
+
+                framePrev = frame;
+
+                if (!camValid)
+                {
+                    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
+
+                    if (odometryPoses.size() >= kMinTrackLength)
+                    {
+                        addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
+                    }
+
+                    if (!odometryPoses.empty())
+                    {
+                        odometryPoses.erase(odometryPoses.begin(), odometryPoses.begin() + voPoses.size() - 1);
+                    }
+
+                    ++trackBreaks;
+                }
+            }
+        }
+
+#ifdef VCHARGE_VIZ
+        {
+            // visualize camera poses and 3D scene points
+            const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& poses = tracker.getPoses();
+
+            overlay.clear();
+            overlay.pointSize(2.0f);
+            overlay.lineWidth(1.0f);
+
+            // draw 3D scene points
 //                switch (cameraIdx)
 //                {
 //                case CAMERA_FRONT:
@@ -402,75 +423,74 @@ CamOdoThread::threadFunction(void)
 //
 //                overlay.end();
 
-                // draw cameras
-                for (size_t j = 0; j < poses.size(); ++j)
+            // draw cameras
+            for (size_t j = 0; j < poses.size(); ++j)
+            {
+                Eigen::Matrix4d H = poses.at(j).inverse();
+
+                double xBound = 0.1;
+                double yBound = 0.1;
+                double zFar = 0.2;
+
+                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
+                frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
+                frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
+                frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
+                frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
+                frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
+
+                for (size_t k = 0; k < frustum.size(); ++k)
                 {
-                    Eigen::Matrix4d H = poses.at(j).inverse();
-
-                    double xBound = 0.1;
-                    double yBound = 0.1;
-                    double zFar = 0.2;
-
-                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-                    frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-                    frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-                    frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-                    for (size_t k = 0; k < frustum.size(); ++k)
-                    {
-                        frustum.at(k) = H.block<3,3>(0,0) * frustum.at(k) + H.block<3,1>(0,3);
-                    }
-
-                    overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-                    overlay.begin(VCharge::LINES);
-
-                    for (int k = 1; k < 5; ++k)
-                    {
-                        overlay.vertex3f(frustum.at(0)(2), -frustum.at(0)(0), -frustum.at(0)(1));
-                        overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                    }
-
-                    overlay.end();
-
-                    switch (mCameraIdx)
-                    {
-                    case vcharge::CAMERA_FRONT:
-                        overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-                        break;
-                    case vcharge::CAMERA_LEFT:
-                        overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-                        break;
-                    case vcharge::CAMERA_REAR:
-                        overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
-                        break;
-                    case vcharge::CAMERA_RIGHT:
-                        overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-                        break;
-                    default:
-                        overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-                    }
-
-                    overlay.begin(VCharge::POLYGON);
-
-                    for (int k = 1; k < 5; ++k)
-                    {
-                        overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                    }
-
-                    overlay.end();
+                    frustum.at(k) = H.block<3,3>(0,0) * frustum.at(k) + H.block<3,1>(0,3);
                 }
 
-                overlay.publish();
+                overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
+                overlay.begin(VCharge::LINES);
+
+                for (int k = 1; k < 5; ++k)
+                {
+                    overlay.vertex3f(frustum.at(0)(2), -frustum.at(0)(0), -frustum.at(0)(1));
+                    overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
+                }
+
+                overlay.end();
+
+                switch (mCameraIdx)
+                {
+                case vcharge::CAMERA_FRONT:
+                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
+                    break;
+                case vcharge::CAMERA_LEFT:
+                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
+                    break;
+                case vcharge::CAMERA_REAR:
+                    overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
+                    break;
+                case vcharge::CAMERA_RIGHT:
+                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
+                    break;
+                default:
+                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
+                }
+
+                overlay.begin(VCharge::POLYGON);
+
+                for (int k = 1; k < 5; ++k)
+                {
+                    overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
+                }
+
+                overlay.end();
             }
-#endif
+
+            overlay.publish();
         }
+#endif
 
         int currentMotionCount = 0;
-        if (odometerPoses.size() >= kMinTrackLength)
+        if (odometryPoses.size() >= kMinTrackLength)
         {
-            currentMotionCount = odometerPoses.size() - 1;
+            currentMotionCount = odometryPoses.size() - 1;
         }
 
         std::ostringstream oss;
@@ -494,22 +514,22 @@ CamOdoThread::threadFunction(void)
         CalibrationWindow::instance()->dataMutex().unlock();
 #endif
 
+        mImage->notifyProcessingDone();
+
         if (mCamOdoCalib.getCurrentMotionCount() + currentMotionCount >= mCamOdoCalib.getMotionCount())
         {
             mCompleted = true;
         }
-
-        mImage->notifyProcessingDone();
     }
 
-    std::cout << "# INFO: Calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
+    std::cout << "# INFO: Calibrating odometry - camera " << mCameraIdx << "..." << std::endl;
 
 //    mCamOdoCalib.writeMotionSegmentsToFile(filename);
 
     Eigen::Matrix4d H_cam_odo;
     mCamOdoCalib.calibrate(H_cam_odo);
 
-    std::cout << "# INFO: Finished calibrating odometer - camera " << mCameraIdx << "..." << std::endl;
+    std::cout << "# INFO: Finished calibrating odometry - camera " << mCameraIdx << "..." << std::endl;
     std::cout << "Rotation: " << std::endl << H_cam_odo.block<3,3>(0,0) << std::endl;
     std::cout << "Translation: " << std::endl << H_cam_odo.block<3,1>(0,3).transpose() << std::endl;
 
@@ -522,12 +542,12 @@ CamOdoThread::threadFunction(void)
 
 void
 CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
-                                 const std::vector<OdometerPtr>& odoPoses,
+                                 const std::vector<OdometryPtr>& odoPoses,
                                  FrameSegment& frameSegment)
 {
     if (odoPoses.size() != camPoses.size())
     {
-        std::cout << "# WARNING: Numbers of odometer (" << odoPoses.size()
+        std::cout << "# WARNING: Numbers of odometry (" << odoPoses.size()
                   << ") and camera poses (" << camPoses.size() << ") differ. Aborting..." << std::endl;
 
         return;
@@ -545,8 +565,8 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
 
     for (size_t i = 1; i < odoPoses.size(); ++i)
     {
-        Eigen::Matrix4d relativeOdometerPose = odoPoses.at(i)->pose().inverse() * odoPoses.at(i - 1)->pose();
-        odoMotions.push_back(relativeOdometerPose);
+        Eigen::Matrix4d relativeOdometryPose = odoPoses.at(i)->pose().inverse() * odoPoses.at(i - 1)->pose();
+        odoMotions.push_back(relativeOdometryPose);
 
         Eigen::Matrix4d relativeCameraPose = camPoses.at(i) * camPoses.at(i - 1).inverse();
         camMotions.push_back(relativeCameraPose);

@@ -7,7 +7,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
-#include "Odometer.h"
+#include "Odometry.h"
 
 // forward declarations
 namespace pugi
@@ -73,8 +73,8 @@ public:
     int& cameraId(void);
     int cameraId(void) const;
 
-    OdometerPtr& odometer(void);
-    OdometerConstPtr odometer(void) const;
+    OdometryPtr& odometry(void);
+    OdometryConstPtr odometry(void) const;
 
     PosePtr& gps_ins(void);
     PoseConstPtr gps_ins(void) const;
@@ -94,7 +94,7 @@ public:
 private:
     PosePtr mCamera;
     int mCameraId;
-    OdometerPtr mOdometer;
+    OdometryPtr mOdometry;
     PosePtr mGpsIns;
 
     std::vector<Point2DFeaturePtr> mFeatures2D;
@@ -238,7 +238,7 @@ public:
      *   </camera0>
      *   ...
      *   <frames size=nFrames>
-     *     <frame0 image=? id=? camera=pose? odometer=odometer? gps_ins=pose? features2D_size=? features3D_size=?>
+     *     <frame0 image=? id=? camera=pose? odometry=odometry? gps_ins=pose? features2D_size=? features3D_size=?>
      *       <features2D features2D_0=F2D-? ...>
      *       </features2D>
      *       <features3D features3D_0=F3D-? ...>
@@ -251,11 +251,11 @@ public:
      *     </pose0>
      *     ...
      *   </poses>
-     *   <odometers size=nOdometers>
-     *     <odometer0 timestamp=? x=? y=? yaw=?>
-     *     </odometer0>
+     *   <odometry size=nOdometry>
+     *     <odometry0 timestamp=? x=? y=? yaw=?>
+     *     </odometry0>
      *     ...
-     *   </odometers>
+     *   </odometry>
      *   <features2D=nFeatures2D>
      *     <F2D-0 kp_angle=? kp_class_id=? kp_octave=? kp_x=? kp_y=? kp_response=? kp_size=? index=? best_prev_match_idx=? best_next_match_idx=? feature3D=F3D-? frame=frame_?>
      *       <dtor type=? rows=? cols=?>
@@ -305,8 +305,8 @@ private:
                               std::vector<pugi::xml_node>& xmlMap) const;
     void XMLToPoses(pugi::xml_node& parent, unsigned int count,
                     std::vector<PosePtr>& map) const;
-    void XMLToOdometers(pugi::xml_node& parent, unsigned int count,
-                        std::vector<OdometerPtr>& map) const;
+    void XMLToOdometry(pugi::xml_node& parent, unsigned int count,
+                       std::vector<OdometryPtr>& map) const;
 
     std::vector<std::vector<FrameSegment> > mFrameSegments;
 };

@@ -34,7 +34,9 @@ public:
                      const cv::Mat& mask = cv::Mat(), bool compactResult = false);
 
     void match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
+               const cv::Mat& mask1,
                const cv::Mat& image2, std::vector<cv::KeyPoint>& keypoints2,
+               const cv::Mat& mask2,
                std::vector<cv::DMatch>& matches,
                float maxDistanceRatio = 0.7f);
 

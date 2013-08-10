@@ -2,15 +2,15 @@
 #define UTILS_H
 
 #include "camodocal/calib/SensorDataBuffer.h"
-#include "camodocal/sparse_graph/Odometer.h"
+#include "camodocal/sparse_graph/Odometry.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
 namespace camodocal
 {
 
 bool
-interpolateOdometer(SensorDataBuffer<OdometerPtr>& odometerBuffer,
-                    uint64_t timestamp, OdometerPtr& interpOdo);
+interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                    uint64_t timestamp, OdometryPtr& interpOdo);
 
 bool
 interpolatePose(SensorDataBuffer<PosePtr>& poseBuffer,

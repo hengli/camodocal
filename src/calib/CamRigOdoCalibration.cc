@@ -24,7 +24,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
  , mCamOdoThreads(cameras.size())
  , mImages(cameras.size())
  , mCameras(cameras)
- , mOdometerBuffer(1000)
+ , mOdometryBuffer(1000)
  , mGpsInsBuffer(1000)
  , mExtrinsics(cameras.size())
  , mStatuses(cameras.size())
@@ -39,7 +39,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
         mCamOdoCompleted[i] = false;
 
         CamOdoThread* thread = new CamOdoThread(options.poseSource, options.nMotions, i, mImages.at(i), mCameras.at(i),
-                                                mOdometerBuffer, mInterpOdometerBuffer, mOdometerBufferMutex,
+                                                mOdometryBuffer, mInterpOdometryBuffer, mOdometryBufferMutex,
                                                 mGpsInsBuffer, mInterpGpsInsBuffer, mGpsInsBufferMutex,
                                                 mStatuses.at(i), mSketches.at(i), mCamOdoCompleted[i], mStop,
                                                 options.saveImages, options.verbose);
@@ -91,13 +91,13 @@ void
 CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
                                   uint64_t timestamp)
 {
-    OdometerPtr odometer(new Odometer);
-    odometer->x() = x;
-    odometer->y() = y;
-    odometer->yaw() = yaw;
-    odometer->timeStamp() = timestamp;
+    OdometryPtr odometry(new Odometry);
+    odometry->x() = x;
+    odometry->y() = y;
+    odometry->yaw() = yaw;
+    odometry->timeStamp() = timestamp;
 
-    mOdometerBuffer.push(timestamp, odometer);
+    mOdometryBuffer.push(timestamp, odometry);
 }
 
 void
@@ -132,15 +132,15 @@ CamRigOdoCalibration::start(void)
         Glib::signal_timeout().connect(sigc::mem_fun(*this, &CamRigOdoCalibration::displayHandler), 100);
 #endif
 
-        std::cout << "# INFO: Running odometer-camera calibration for each of the " << mCameras.size() << " cameras." << std::endl;
+        std::cout << "# INFO: Running odometry-camera calibration for each of the " << mCameras.size() << " cameras." << std::endl;
 
-        // run odometer-camera calibration for each camera
+        // run odometry-camera calibration for each camera
         Glib::signal_idle().connect_once(sigc::mem_fun(*this, &CamRigOdoCalibration::launchCamOdoThreads));
         mMainLoop->run();
 
         mRunning = true;
 
-        std::cout << "# INFO: Completed odometer-camera calibration for all cameras." << std::endl;
+        std::cout << "# INFO: Completed odometry-camera calibration for all cameras." << std::endl;
 
         if (mOptions.saveWorkingData)
         {
