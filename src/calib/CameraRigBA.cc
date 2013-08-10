@@ -35,7 +35,7 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
  , kMaxPoint3DDistance(20.0)
  , kMaxReprojErr(2.0)
  , kMinLoopCorrespondences2D2D(50)
- , kMinInterCorrespondences2D2D(15)
+ , kMinInterCorrespondences2D2D(10)
  , kNearestImageMatches(15)
  , kNominalFocalLength(300.0)
  , mVerbose(false)
@@ -1436,12 +1436,11 @@ CameraRigBA::matchFrameToWindow(int cameraIdx1, int cameraIdx2,
             corr2D2DBest = corr2D2D[windowIdx];
         }
 
-//        if (mVerbose && !corr3D3D[windowIdx].empty())
+//        if (mVerbose && !corr2D2D[windowIdx].empty())
 //        {
 //            std::cout << "# INFO:   cam " << cameraIdx1 << " - cam " << cameraIdx2
 //                      << ": window " << windowIdx
-//                      << " | " << corr2D2D[windowIdx].size() << " 2D-2D"
-//                      << " | " << corr3D3D[windowIdx].size() << " 3D-3D" << std::endl;
+//                      << " | " << corr2D2D[windowIdx].size() << " 2D-2D" << std::endl;
 //        }
     }
 
@@ -1471,8 +1470,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                                std::vector<Correspondence2D2D>* corr2D2D,
                                double reprojErrorThresh)
 {
-    reprojErrorThresh /= kNominalFocalLength;
-
     std::vector<size_t> inliers2D2D;
 
     if (frame2.get() == 0)
@@ -1513,14 +1510,34 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
     cv::eigen2cv(R2, R2_cv);
 
     cv::Mat mapX1, mapY1, mapX2, mapY2;
-    mCameras.at(cameraIdx1)->initUndistortRectifyMap(mapX1, mapY1,
-                                                     kNominalFocalLength, kNominalFocalLength,
-                                                     cv::Size(0, 0),
-                                                     -1.0f, -1.0f, R1_cv);
-    mCameras.at(cameraIdx2)->initUndistortRectifyMap(mapX2, mapY2,
-                                                     kNominalFocalLength, kNominalFocalLength,
-                                                     cv::Size(0, 0),
-                                                     -1.0f, -1.0f, R2_cv);
+    if (mCameras.at(cameraIdx1)->modelType() == Camera::PINHOLE)
+    {
+        mCameras.at(cameraIdx1)->initUndistortRectifyMap(mapX1, mapY1,
+                                                         -1.0f, -1.0f,
+                                                         cv::Size(0, 0),
+                                                         -1.0f, -1.0f, R1_cv);
+    }
+    else
+    {
+        mCameras.at(cameraIdx1)->initUndistortRectifyMap(mapX1, mapY1,
+                                                         kNominalFocalLength, kNominalFocalLength,
+                                                         cv::Size(0, 0),
+                                                         -1.0f, -1.0f, R1_cv);
+    }
+    if (mCameras.at(cameraIdx2)->modelType() == Camera::PINHOLE)
+    {
+        mCameras.at(cameraIdx2)->initUndistortRectifyMap(mapX2, mapY2,
+                                                         -1.0f, -1.0f,
+                                                         cv::Size(0, 0),
+                                                         -1.0f, -1.0f, R2_cv);
+    }
+    else
+    {
+        mCameras.at(cameraIdx2)->initUndistortRectifyMap(mapX2, mapY2,
+                                                         kNominalFocalLength, kNominalFocalLength,
+                                                         cv::Size(0, 0),
+                                                         -1.0f, -1.0f, R2_cv);
+    }
 
     cv::Mat rimg1, rimg2;
     cv::remap(frame1->image(), rimg1, mapX1, mapY1, cv::INTER_LINEAR);
@@ -1558,7 +1575,7 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
     }
 
     cv::Mat E, inlierMat;
-    E = findEssentialMat(rpoints1, rpoints2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
+    E = findEssentialMat(rpoints1, rpoints2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh / kNominalFocalLength, 1000, inlierMat);
 
     if (cv::countNonZero(inlierMat) < kMinInterCorrespondences2D2D)
     {
