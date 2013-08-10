@@ -25,6 +25,13 @@ enum
     CAMERA_ODOMETRY_EXTRINSICS = 0x40
 };
 
+enum
+{
+    OPTIMIZE_CAMERA_ODOMETRY_Z = 0x1,
+    OPTIMIZE_ODOMETRY_3D = 0x2,
+    OPTIMIZE_ODOMETRY_6D = 0x4
+};
+
 class CostFunctionFactory
 {
 public:

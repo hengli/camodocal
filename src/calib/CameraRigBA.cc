@@ -315,7 +315,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
             std::cout << "# INFO: Running BA on odometry data..." << std::endl;
 
             // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
-            optimize(CAMERA_ODOMETRY_3D, true);
+            optimize(CAMERA_ODOMETRY_6D, true);
 
             prune(PRUNE_BEHIND_CAMERA);// | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
@@ -412,7 +412,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
         }
 
         // perform BA to optimize intrinsics, extrinsics and scene points
-        optimize(CAMERA_ODOMETRY_3D, true);
+        optimize(CAMERA_ODOMETRY_6D, true);
 
         prune(PRUNE_BEHIND_CAMERA);
 
@@ -1471,6 +1471,8 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                                std::vector<Correspondence2D2D>* corr2D2D,
                                double reprojErrorThresh)
 {
+    reprojErrorThresh /= kNominalFocalLength;
+
     std::vector<size_t> inliers2D2D;
 
     if (frame2.get() == 0)
