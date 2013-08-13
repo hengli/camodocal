@@ -21,12 +21,8 @@ class CameraRigBA
 public:
     enum
     {
-        ODOMETRY = 0,
-        CAMERA = 1,
-        ODOMETRY_FIXED = 2,
-        ODOMETRY_VARIABLE = 3,
-        CAMERA_ODOMETRY_3D = 4,
-        CAMERA_ODOMETRY_6D = 5
+        CAMERA,
+        ODOMETRY
     };
 
     enum
@@ -41,6 +37,7 @@ public:
                 CameraRigExtrinsics& extrinsics);
 
     void run(int beginStage = 1, bool findLoopClosures = true,
+             bool optimizeIntrinsics = true,
              bool saveWorkingData = false, std::string dataDir = "data");
 
     void setVerbose(bool verbose);
@@ -95,16 +92,16 @@ private:
                                           const std::vector<Point2DFeaturePtr>& features2) const;
 
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
-                                              double reprojErrorThresh = 5.0);
+                                              double reprojErrorThresh = 3.0);
     void matchFrameToWindow(int cameraIdx1, int cameraIdx2,
                             FramePtr& frame1,
                             std::vector<FramePtr>& window,
                             std::vector<Correspondence2D2D>* correspondences2D2D,
-                            double reprojErrorThresh = 5.0);
+                            double reprojErrorThresh = 3.0);
     void matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                            FramePtr& frame1, FramePtr& frame2,
                            std::vector<Correspondence2D2D>* corr2D2D,
-                           double reprojErrorThresh = 5.0);
+                           double reprojErrorThresh = 3.0);
 
     cv::Mat buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
                                std::vector<size_t>& indices) const;
@@ -135,7 +132,7 @@ private:
 
     void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETRY);
 
-    void optimize(int mode, bool optimizeZ = true, int nIterations = 500);
+    void optimize(int flags, bool optimizeZ = true, int nIterations = 500);
 
     bool seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& features2D) const;
 

@@ -31,7 +31,16 @@ public:
     class Options
     {
     public:
-        Options() : mode(OFFLINE), poseSource(ODOMETRY), nMotions(200), findLoopClosures(true), saveWorkingData(true), beginStage(0), saveImages(false), verbose(false) {};
+        Options()
+         : mode(OFFLINE)
+         , poseSource(ODOMETRY)
+         , nMotions(200)
+         , findLoopClosures(true)
+         , saveWorkingData(true)
+         , beginStage(0)
+         , optimizeIntrinsics(true)
+         , saveImages(false)
+         , verbose(false) {};
 
         Mode mode;
         PoseSource poseSource;
@@ -40,6 +49,7 @@ public:
         bool findLoopClosures;
         bool saveWorkingData;
         int beginStage;
+        bool optimizeIntrinsics;
         std::string dataDir;
         bool saveImages;
         bool verbose;

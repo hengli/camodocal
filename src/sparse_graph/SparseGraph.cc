@@ -447,6 +447,12 @@ SparseGraph::SparseGraph()
 
 }
 
+int
+SparseGraph::cameraCount(void) const
+{
+    return mFrameSegments.size();
+}
+
 std::vector<FrameSegment>&
 SparseGraph::frameSegments(int cameraIdx)
 {

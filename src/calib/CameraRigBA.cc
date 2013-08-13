@@ -10,11 +10,11 @@
 #include "ceres/covariance.h"
 #include "camodocal/camera_models/EquidistantCamera.h"
 #include "../camera_models/CostFunctionFactory.h"
+#include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "../visual_odometry/SlidingWindowBA.h"
-#include "../visual_odometry/SurfGPU.h"
 
 #ifdef VCHARGE_VIZ
 #include "../../../../library/gpl/CameraEnums.h"
@@ -44,7 +44,8 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
 }
 
 void
-CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, std::string dataDir)
+CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
+                 bool saveWorkingData, std::string dataDir)
 {
     // stage 1 - triangulate 3D points with feature correspondences from mono VO and run BA
     // stage 2 - find local inter-camera 3D-3D correspondences and run BA
@@ -197,7 +198,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
         }
 
         // optimize camera extrinsics and 3D scene points
-        optimize(ODOMETRY_FIXED, false);
+        optimize(CAMERA_ODOMETRY_EXTRINSICS | POINT_3D, false);
 
         prune(PRUNE_BEHIND_CAMERA); // | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
@@ -314,8 +315,16 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
         {
             std::cout << "# INFO: Running BA on odometry data..." << std::endl;
 
-            // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
-            optimize(CAMERA_ODOMETRY_6D, true);
+            if (optimizeIntrinsics)
+            {
+                // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
+                optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
+            }
+            else
+            {
+                // perform BA to optimize extrinsics, odometry poses, and scene points
+                optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
+            }
 
             prune(PRUNE_BEHIND_CAMERA);// | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
@@ -412,7 +421,16 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool saveWorkingData, st
         }
 
         // perform BA to optimize intrinsics, extrinsics and scene points
-        optimize(CAMERA_ODOMETRY_6D, true);
+        if (optimizeIntrinsics)
+        {
+            // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
+            optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
+        }
+        else
+        {
+            // perform BA to optimize extrinsics, odometry poses, and scene points
+            optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
+        }
 
         prune(PRUNE_BEHIND_CAMERA);
 
@@ -845,7 +863,6 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
     }
 
 //    if (mVerbose)
-//    {
 //        double minError, maxError, avgError;
 //        size_t featureCount;
 //
@@ -2079,7 +2096,7 @@ CameraRigBA::prune(int flags, int poseType)
 }
 
 void
-CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
+CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
     // find number of points seen by more than 1 camera
     boost::unordered_set<Point3DFeature*> scenePointSet;
@@ -2168,24 +2185,24 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                     optimizeExtrinsics[i] = 1;
 
                     double weight = 1.0;
-//                    if (seenByMultipleCameras(feature3D->features2D()))
-//                    {
-//                        weight = weightM;
-//                    }
+                    if (seenByMultipleCameras(feature3D->features2D()))
+                    {
+                        weight = weightM;
+                    }
 
                     ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), 1.0, ceres::TAKE_OWNERSHIP);
 
                     ceres::CostFunction* costFunction;
-                    switch (mode)
+                    switch (flags)
                     {
-                    case ODOMETRY_FIXED:
+                    case CAMERA_ODOMETRY_EXTRINSICS | POINT_3D:
                     {
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
                                                                                     frame->odometry()->position(),
                                                                                     frame->odometry()->attitude(),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                    CAMERA_ODOMETRY_EXTRINSICS | POINT_3D,
+                                                                                    flags,
                                                                                     optimizeZ);
 
                         problem.AddResidualBlock(costFunction, lossFunction,
@@ -2195,12 +2212,13 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 
                         break;
                     }
-                    case ODOMETRY_VARIABLE:
+                    case CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D:
+                    case CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D:
                     {
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                    CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D,
+                                                                                    flags,
                                                                                     optimizeZ);
 
                         problem.AddResidualBlock(costFunction, lossFunction,
@@ -2212,12 +2230,13 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 
                         break;
                     }
-                    case CAMERA_ODOMETRY_3D:
+                    case CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D:
+                    case CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D:
                     {
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                    CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D,
+                                                                                    flags,
                                                                                     optimizeZ);
 
                         problem.AddResidualBlock(costFunction, lossFunction,
@@ -2230,30 +2249,12 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 
                         break;
                     }
-                    case CAMERA_ODOMETRY_6D:
+                    case CAMERA_EXTRINSICS | POINT_3D:
                     {
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                    CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D,
-                                                                                    optimizeZ);
-
-                        problem.AddResidualBlock(costFunction, lossFunction,
-                                                 intrinsicParams[i].data(),
-                                                 T_cam_odo.at(i).rotationData(),
-                                                 T_cam_odo.at(i).translationData(),
-                                                 frame->odometry()->positionData(),
-                                                 frame->odometry()->attitudeData(),
-                                                 feature3D->pointData());
-
-                        break;
-                    }
-                    case CAMERA:
-                    {
-                        costFunction
-                            = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
-                                                                                    Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                    CAMERA_EXTRINSICS | POINT_3D);
+                                                                                    flags);
 
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  frame->camera()->rotationData(),
@@ -2265,11 +2266,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                     }
                 }
 
-                switch (mode)
-                {
-                case ODOMETRY_VARIABLE:
-                case CAMERA_ODOMETRY_3D:
-                case CAMERA_ODOMETRY_6D:
+                if ((flags & ODOMETRY_3D_EXTRINSICS) || (flags & ODOMETRY_6D_EXTRINSICS))
                 {
                     if (odometryBegin.get() == 0)
                     {
@@ -2279,24 +2276,20 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                     {
                         odometryBegin = frame->odometry();
                     }
-
-                    break;
                 }
-                case CAMERA:
+
+                if (flags & CAMERA_EXTRINSICS)
                 {
                     ceres::LocalParameterization* quaternionParameterization =
                         new EigenQuaternionParameterization;
 
                     problem.SetParameterization(frame->camera()->rotationData(), quaternionParameterization);
-
-                    break;
-                }
                 }
             }
         }
     }
 
-    if (mode != CAMERA)
+    if (flags & CAMERA_ODOMETRY_EXTRINSICS)
     {
         for (size_t i = 0; i < mCameras.size(); ++i)
         {
@@ -2308,12 +2301,12 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
                 problem.SetParameterization(T_cam_odo.at(i).rotationData(), quaternionParameterization);
             }
         }
+    }
 
-        if (mode != ODOMETRY_FIXED)
-        {
-            problem.SetParameterBlockConstant(odometryBegin->positionData());
-            problem.SetParameterBlockConstant(odometryBegin->attitudeData());
-        }
+    if (odometryBegin.get())
+    {
+        problem.SetParameterBlockConstant(odometryBegin->positionData());
+        problem.SetParameterBlockConstant(odometryBegin->attitudeData());
     }
 
     ceres::Solver::Summary summary;
@@ -2361,7 +2354,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
 //        T_cam_odo.at(i).covariance().block<3,4>(4,0) = T_cam_odo.at(i).covariance().block<4,3>(0,4).transpose();
 //    }
 
-    if (mode != CAMERA)
+    if (flags & CAMERA_ODOMETRY_EXTRINSICS)
     {
         for (size_t i = 0; i < mCameras.size(); ++i)
         {
@@ -2369,7 +2362,7 @@ CameraRigBA::optimize(int mode, bool optimizeZ, int nIterations)
         }
     }
 
-    if (mode == CAMERA_ODOMETRY_3D || mode == CAMERA_ODOMETRY_6D)
+    if (flags & CAMERA_INTRINSICS)
     {
         for (int i = 0; i < mCameras.size(); ++i)
         {

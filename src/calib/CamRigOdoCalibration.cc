@@ -49,7 +49,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
 
     mCamOdoWatchdogThread = new CamOdoWatchdogThread(mCamOdoCompleted, mStop);
 
-    mCamRigThread = new CamRigThread(mCameras, mExtrinsics, mGraph, options.beginStage, options.findLoopClosures, options.saveWorkingData, options.dataDir, options.verbose);
+    mCamRigThread = new CamRigThread(mCameras, mExtrinsics, mGraph, options.beginStage, options.findLoopClosures, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
     mCamRigThread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamRigThreadFinished), mCamRigThread));
 
     for (size_t i = 0; i < mSketches.size(); ++i)

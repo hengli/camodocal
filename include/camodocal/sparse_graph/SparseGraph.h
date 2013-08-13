@@ -18,6 +18,13 @@ class xml_node;
 namespace camodocal
 {
 
+typedef struct
+{
+    int cameraIdx;
+    int segmentIdx;
+    int frameIdx;
+} FrameID;
+
 class Point2DFeature;
 class Point3DFeature;
 
@@ -221,6 +228,8 @@ class SparseGraph
 {
 public:
     SparseGraph();
+
+    int cameraCount(void) const;
 
     std::vector<FrameSegment>& frameSegments(int cameraIdx);
     const std::vector<FrameSegment>& frameSegments(int cameraIdx) const;

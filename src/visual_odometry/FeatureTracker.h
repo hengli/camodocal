@@ -6,9 +6,9 @@
 
 #include "camodocal/camera_models/Camera.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
+#include "../features2d/ORBGPU.h"
+#include "../features2d/SurfGPU.h"
 #include "SlidingWindowBA.h"
-#include "ORBGPU.h"
-#include "SurfGPU.h"
 
 namespace camodocal
 {

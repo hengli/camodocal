@@ -21,6 +21,7 @@ main(int argc, char** argv)
     int nMotions;
     int beginStage;
     bool findLoopClosures;
+    bool optimizeIntrinsics;
     std::string dataDir;
     bool saveImages;
     bool debug;
@@ -37,6 +38,7 @@ main(int argc, char** argv)
         ("motions,m", boost::program_options::value<int>(&nMotions)->default_value(500), "Number of motions for calibration.")
         ("begin-stage", boost::program_options::value<int>(&beginStage)->default_value(0), "Stage to begin from")
         ("loop-closures", boost::program_options::bool_switch(&findLoopClosures)->default_value(false), "Find loop closures")
+        ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
         ("save-images", boost::program_options::bool_switch(&saveImages)->default_value(true), "Save images.")
         ("debug", boost::program_options::bool_switch(&debug)->default_value(false), "Debug mode")
@@ -127,11 +129,16 @@ main(int argc, char** argv)
     }
 
     //========================= Start Threads =========================
+
+
+    // optimize intrinsics only if features are well distributed across
+    // the entire image area.
     CamRigOdoCalibration::Options options;
 //    options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
     options.findLoopClosures = findLoopClosures;
+    options.optimizeIntrinsics = optimizeIntrinsics;
     options.saveWorkingData = true;
     options.beginStage = beginStage;
     options.dataDir = dataDir;

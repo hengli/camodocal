@@ -1,5 +1,5 @@
 if(CAMODOCAL_CAMERA_MODELS_FOUND)
-if(EXISTS ${OPENCV_GPU_LIBRARY})
+if(CAMODOCAL_FEATURES2D_FOUND)
 
 include_directories(
   ../ceres-solver/include
@@ -8,9 +8,7 @@ include_directories(
 
 camodocal_library(camodocal_visual_odometry SHARED
   FeatureTracker.cc
-  ORBGPU.cc
   SlidingWindowBA.cc
-  SurfGPU.cc
 )
 
 camodocal_link_libraries(camodocal_visual_odometry
@@ -25,6 +23,7 @@ camodocal_link_libraries(camodocal_visual_odometry
   ${GTHREAD2_LIBRARY}
   camodocal_brisk
   camodocal_camera_models
+  camodocal_features2d
   camodocal_fivepoint
   camodocal_gpl
   camodocal_sparse_graph
@@ -48,5 +47,5 @@ camodocal_link_libraries(SlidingWindowBA_sim
 
 endif(VCHARGE_VIZ)
 
-endif(EXISTS ${OPENCV_GPU_LIBRARY})
+endif(CAMODOCAL_FEATURES2D_FOUND)
 endif(CAMODOCAL_CAMERA_MODELS_FOUND)

@@ -18,6 +18,7 @@ public:
                           SparseGraph& graph,
                           int beginStage = 1,
                           bool findLoopClosures = true,
+                          bool optimizeIntrinsics = true,
                           bool saveWorkingData = false,
                           std::string dataDir = "data",
                           bool verbose = false);
@@ -41,6 +42,7 @@ private:
 
     int mBeginStage;
     bool mFindLoopClosures;
+    bool mOptimizeIntrinsics;
     bool mSaveWorkingData;
     std::string mDataDir;
     bool mVerbose;
