@@ -1504,8 +1504,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         return;
     }
 
-    Pose T_cam_odo1(mExtrinsics.getGlobalCameraPose(cameraIdx1));
-    Pose T_cam_odo2(mExtrinsics.getGlobalCameraPose(cameraIdx2));
     Pose T_odo_cam1(mExtrinsics.getGlobalCameraPose(cameraIdx1).inverse());
     Pose T_odo_cam2(mExtrinsics.getGlobalCameraPose(cameraIdx2).inverse());
 
@@ -1635,21 +1633,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         rmutex.unlock();
     }
 
-//    cv::Mat R_cv, t_cv;
-//    recoverPose(E, rpoints1, rpoints2, R_cv, t_cv, kNominalFocalLength, pp, inlierMat);
-//
-//    Eigen::Matrix3d R;
-//    cv::cv2eigen(R_cv, R);
-//
-//    // error quaternion
-//    Eigen::Quaterniond q(R);
-//    double theta = (Eigen::Vector3d(q.x(), q.y(), q.z()) * 2.0).norm();
-//
-//    if (fabs(theta) > kRelativeAngleThresh3D3D)
-//    {
-//        return;
-//    }
-
     Eigen::Matrix4d H1 = Eigen::Matrix4d::Identity();
     H1.block<3,3>(0,0) = R1;
     Eigen::Matrix4d H_rcam1 = H1 * H_cam1;
@@ -1668,6 +1651,18 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
 
         cv::Point2f& rp = rpoints1.at(i);
 
+        // compute corresponding image point in original image in camera 1
+        Eigen::Vector3d ray;
+        ray(0) = (rp.x - mCameras.at(cameraIdx1)->imageWidth() / 2.0) / kNominalFocalLength;
+        ray(1) = (rp.y - mCameras.at(cameraIdx1)->imageHeight() / 2.0) / kNominalFocalLength;
+        ray(2) = 1.0;
+
+        ray = R1.transpose() * ray;
+
+        Eigen::Vector2d ep;
+        mCameras.at(cameraIdx1)->spaceToPlane(ray, ep);
+
+        // find closest image point to computed image point
         float kpDistMin = std::numeric_limits<float>::max();
         Point2DFeaturePtr p2DBest;
         for (size_t j = 0; j < frame1->features2D().size(); ++j)
@@ -1680,19 +1675,8 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                 continue;
             }
 
-            Eigen::Vector3d P_rcam = transformPoint(H_rcam1, p3D->point());
-
-            Eigen::Vector2d p_rcam = (kNominalFocalLength / P_rcam(2)) * P_rcam.block<2,1>(0,0);
-            p_rcam += Eigen::Vector2d(mCameras.at(cameraIdx1)->imageWidth() / 2.0,
-                                      mCameras.at(cameraIdx1)->imageHeight() / 2.0);
-
-            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameras.at(cameraIdx1)->imageWidth() - 1 ||
-                p_rcam(1) < 0.0 || p_rcam(1) > mCameras.at(cameraIdx1)->imageHeight() - 1)
-            {
-                continue;
-            }
-
-            float kpDist = hypot(p_rcam(0) - rp.x, p_rcam(1) - rp.y);
+            float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
+                                 ep(1) - p2D->keypoint().pt.y);
             if (kpDist < kpDistMin)
             {
                 kpDistMin = kpDist;
@@ -1707,6 +1691,16 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
 
         rp = rpoints2.at(i);
 
+        // compute corresponding image point in original image in camera 2
+        ray(0) = (rp.x - mCameras.at(cameraIdx2)->imageWidth() / 2.0) / kNominalFocalLength;
+        ray(1) = (rp.y - mCameras.at(cameraIdx2)->imageHeight() / 2.0) / kNominalFocalLength;
+        ray(2) = 1.0;
+
+        ray = R2.transpose() * ray;
+
+        mCameras.at(cameraIdx2)->spaceToPlane(ray, ep);
+
+        // find closest image point to computed image point
         kpDistMin = std::numeric_limits<float>::max();
         for (size_t j = 0; j < frame2->features2D().size(); ++j)
         {
@@ -1718,19 +1712,8 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                 continue;
             }
 
-            Eigen::Vector3d P_rcam = transformPoint(H_rcam2, p3D->point());
-
-            Eigen::Vector2d p_rcam = (kNominalFocalLength / P_rcam(2)) * P_rcam.block<2,1>(0,0);
-            p_rcam += Eigen::Vector2d(mCameras.at(cameraIdx2)->imageWidth() / 2.0,
-                                      mCameras.at(cameraIdx2)->imageHeight() / 2.0);
-
-            if (p_rcam(0) < 0.0 || p_rcam(0) > mCameras.at(cameraIdx2)->imageWidth() - 1 ||
-                p_rcam(1) < 0.0 || p_rcam(1) > mCameras.at(cameraIdx2)->imageHeight() - 1)
-            {
-                continue;
-            }
-
-            float kpDist = hypot(p_rcam(0) - rp.x, p_rcam(1) - rp.y);
+            float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
+                                 ep(1) - p2D->keypoint().pt.y);
             if (kpDist < kpDistMin)
             {
                 kpDistMin = kpDist;
@@ -1792,7 +1775,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         mutex.unlock();
     }
 
-    Eigen::Matrix4d H_cam1_cam2 = H_cam2 * H_cam1.inverse();
     for (size_t i = 0; i < candidateCorr2D2D.size(); ++i)
     {
         Point2DFeaturePtr& p1 = candidateCorr2D2D.at(i).first;
@@ -1802,31 +1784,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         {
             continue;
         }
-
-//        cv::Point2f rp1_cv;
-//        rectifyImagePoint(*(mCameras.at(cameraIdx1)), mCameraParameters.at(cameraIdx1),
-//                          p1->keypoint().pt, rp1_cv);
-//        rp1_cv.x -= mCameraParameters.at(cameraIdx1).imageWidth() / 2.0f;
-//        rp1_cv.y -= mCameraParameters.at(cameraIdx1).imageHeight() / 2.0f;
-//
-//        Eigen::Vector3d rp1;
-//        rp1 << rp1_cv.x, rp1_cv.y, 1.0;
-//
-//        cv::Point2f rp2_cv;
-//        rectifyImagePoint(*(mCameras.at(cameraIdx2)), mCameraParameters.at(cameraIdx2),
-//                          p2->keypoint().pt, rp2_cv);
-//        rp2_cv.x -= mCameraParameters.at(cameraIdx2).imageWidth() / 2.0f;
-//        rp2_cv.y -= mCameraParameters.at(cameraIdx2).imageHeight() / 2.0f;
-//
-//        Eigen::Vector3d rp2;
-//        rp2 << rp2_cv.x, rp2_cv.y, 1.0;
-//
-//        double reprojErr = sqrt(sampsonError(H_cam1_cam2, rp1, rp2)) * kNominalFocalLength;
-//
-//        if (reprojErr > kMaxReprojErr)
-//        {
-//            continue;
-//        }
 
         corr2D2D->push_back(candidateCorr2D2D.at(i));
     }

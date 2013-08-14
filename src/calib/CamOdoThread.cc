@@ -15,6 +15,7 @@ namespace camodocal
 {
 
 CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
+                           bool preprocess,
                            AtomicData<cv::Mat>* image,
                            const CameraConstPtr& camera,
                            SensorDataBuffer<OdometryPtr>& odometryBuffer,
@@ -33,6 +34,7 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
  , mThread(0)
  , mCameraIdx(cameraIdx)
  , mRunning(false)
+ , mPreprocess(preprocess)
  , mImage(image)
  , mCamera(camera)
  , mOdometryBuffer(odometryBuffer)
@@ -171,7 +173,8 @@ CamOdoThread::threadFunction(void)
     mRunning = true;
 
     TemporalFeatureTracker tracker(mCamera,
-                                   SURF_DETECTOR, SURF_DESCRIPTOR, RATIO, false);
+                                   SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
+                                   RATIO_GPU, mPreprocess);
     tracker.setVerbose(mCamOdoCalib.getVerbose());
 
     FramePtr framePrev;

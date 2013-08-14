@@ -38,7 +38,8 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
         mImages.at(i) = new AtomicData<cv::Mat>();
         mCamOdoCompleted[i] = false;
 
-        CamOdoThread* thread = new CamOdoThread(options.poseSource, options.nMotions, i, mImages.at(i), mCameras.at(i),
+        CamOdoThread* thread = new CamOdoThread(options.poseSource, options.nMotions, i, options.preprocessImages,
+                                                mImages.at(i), mCameras.at(i),
                                                 mOdometryBuffer, mInterpOdometryBuffer, mOdometryBufferMutex,
                                                 mGpsInsBuffer, mInterpGpsInsBuffer, mGpsInsBufferMutex,
                                                 mStatuses.at(i), mSketches.at(i), mCamOdoCompleted[i], mStop,

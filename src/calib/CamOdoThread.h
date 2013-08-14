@@ -17,6 +17,7 @@ class CamOdoThread
 {
 public:
     explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
+                          bool preprocess,
                           AtomicData<cv::Mat>* image,
                           const CameraConstPtr& camera,
                           SensorDataBuffer<OdometryPtr>& odometryBuffer,
@@ -55,6 +56,7 @@ private:
 
     Glib::Threads::Thread* mThread;
     int mCameraIdx;
+    bool mPreprocess;
     bool mRunning;
     sigc::signal<void> mSignalFinished;
 

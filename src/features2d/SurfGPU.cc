@@ -160,13 +160,13 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
                const cv::Mat& image2, std::vector<cv::KeyPoint>& keypoints2,
                const cv::Mat& mask2,
                std::vector<cv::DMatch>& matches,
+               bool useProvidedKeypoints,
                float maxDistanceRatio)
 {
     boost::mutex::scoped_lock lock(mSURFMutex);
 
     cv::gpu::GpuMat imageGPU[2];
     cv::gpu::GpuMat maskGPU[2];
-    cv::gpu::GpuMat kptsGPU[2];
     cv::gpu::GpuMat dtorsGPU[2];
 
     imageGPU[0].upload(image1);
@@ -183,8 +183,8 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
 
     try
     {
-        mSURF_GPU(imageGPU[0], maskGPU[0], kptsGPU[0], dtorsGPU[0]);
-        mSURF_GPU(imageGPU[1], maskGPU[1], kptsGPU[1], dtorsGPU[1]);
+        mSURF_GPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
+        mSURF_GPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
 
         std::vector<std::vector<cv::DMatch> > candidateFwdMatches;
         mMatcher.knnMatch(dtorsGPU[0], dtorsGPU[1], candidateFwdMatches, 2);
@@ -252,9 +252,6 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
                 matches.push_back(fwdMatch);
             }
         }
-
-        mSURF_GPU.downloadKeypoints(kptsGPU[0], keypoints1);
-        mSURF_GPU.downloadKeypoints(kptsGPU[1], keypoints2);
     }
     catch (cv::Exception& exception)
     {

@@ -9,9 +9,9 @@
 #include "../brisk/include/brisk/brisk.h"
 #include "../gpl/gpl.h"
 #include "../gpl/EigenUtils.h"
+#include "../gpl/OpenCVUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "FeatureTracker.h"
-#include "OpenCVUtils.h"
 
 namespace camodocal
 {

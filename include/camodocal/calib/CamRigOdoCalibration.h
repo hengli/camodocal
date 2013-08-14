@@ -35,6 +35,7 @@ public:
          : mode(OFFLINE)
          , poseSource(ODOMETRY)
          , nMotions(200)
+         , preprocessImages(false)
          , findLoopClosures(true)
          , saveWorkingData(true)
          , beginStage(0)
@@ -46,6 +47,7 @@ public:
         PoseSource poseSource;
         int nMotions;
 
+        bool preprocessImages;
         bool findLoopClosures;
         bool saveWorkingData;
         int beginStage;
