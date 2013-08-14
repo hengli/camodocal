@@ -20,6 +20,7 @@ main(int argc, char** argv)
     std::string outputFilename;
     int nMotions;
     int beginStage;
+    bool preprocessImages;
     bool findLoopClosures;
     bool optimizeIntrinsics;
     std::string dataDir;
@@ -37,6 +38,7 @@ main(int argc, char** argv)
         ("output,o", boost::program_options::value<std::string>(&outputFilename)->default_value("extrinsic.txt"), "Filename for extrinsic file to be written.")
         ("motions,m", boost::program_options::value<int>(&nMotions)->default_value(500), "Number of motions for calibration.")
         ("begin-stage", boost::program_options::value<int>(&beginStage)->default_value(0), "Stage to begin from")
+        ("preprocess", boost::program_options::bool_switch(&preprocessImages)->default_value(false), "Preprocess images")
         ("loop-closures", boost::program_options::bool_switch(&findLoopClosures)->default_value(false), "Find loop closures")
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
@@ -137,6 +139,7 @@ main(int argc, char** argv)
 //    options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
+    options.preprocessImages = preprocessImages;
     options.findLoopClosures = findLoopClosures;
     options.optimizeIntrinsics = optimizeIntrinsics;
     options.saveWorkingData = true;
