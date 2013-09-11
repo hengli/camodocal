@@ -130,6 +130,11 @@ private:
              std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
              std::vector<size_t>& inliers) const;
 
+    bool triangulate3DPoint(const Point2DFeatureConstPtr& p1,
+                            const Point2DFeatureConstPtr& p2,
+                            Eigen::Vector3d& scenePoint,
+                            double reprojErrorThresh = 4.0) const;
+
     void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETRY);
 
     void optimize(int flags, bool optimizeZ = true, int nIterations = 500);

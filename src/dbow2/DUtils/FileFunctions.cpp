@@ -26,6 +26,7 @@
 #include <fstream>
 #include <cstdio>
 #include <algorithm>
+#include <unistd.h>
 
 #ifdef _WIN32
 #ifndef WIN32

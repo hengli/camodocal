@@ -6,6 +6,7 @@ namespace camodocal
 {
 
 cv::Ptr<SurfGPU> SurfGPU::mInstance;
+boost::mutex SurfGPU::mInstanceMutex;
 
 SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  int nOctaveLayers, bool extended,
@@ -31,6 +32,8 @@ SurfGPU::instance(double hessianThreshold, int nOctaves,
                   int nOctaveLayers, bool extended,
                   float keypointsRatio)
 {
+    boost::mutex::scoped_lock lock(mInstanceMutex);
+
     if (mInstance.empty())
     {
         mInstance = cv::Ptr<SurfGPU>(new SurfGPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio));

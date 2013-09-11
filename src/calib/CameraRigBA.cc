@@ -8,7 +8,6 @@
 
 #include "ceres/ceres.h"
 #include "ceres/covariance.h"
-#include "camodocal/camera_models/EquidistantCamera.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
@@ -326,9 +325,9 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
                 optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
             }
 
-            prune(PRUNE_BEHIND_CAMERA);// | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
-
             reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+            prune(PRUNE_BEHIND_CAMERA | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR);
 
             if (mVerbose)
             {
@@ -373,17 +372,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
     if (findLoopClosures && beginStage <= 3)
     {
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Building vocabulary tree... " << std::endl;
-        }
-
         buildVocTree();
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Done." << std::endl;
-        }
 
         if (mVerbose)
         {
@@ -438,6 +427,8 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         size_t featureCount;
 
         reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+        prune(PRUNE_BEHIND_CAMERA | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR);
 
         if (mVerbose)
         {
@@ -924,6 +915,27 @@ CameraRigBA::buildVocTree(void)
 {
     mVid2FidLUT.clear();
 
+    if (mVerbose)
+    {
+        std::cout << "# INFO: Loading vocabulary... " << std::flush;
+    }
+
+    Surf64Vocabulary voc;
+    voc.load("surf64.yml.gz");
+
+    if (mVerbose)
+    {
+        std::cout << "Finished." << std::endl;
+    }
+
+    if (mVerbose)
+    {
+        std::cout << "# INFO: Width = " << voc.getBranchingFactor() << std::endl;
+        std::cout << "# INFO: Depth = " << voc.getDepthLevels() << std::endl;
+    }
+
+    mDb.setVocabulary(voc);
+
     // build vocabulary tree
     std::vector<std::vector<std::vector<float> > > features;
 
@@ -933,6 +945,13 @@ CameraRigBA::buildVocTree(void)
 
         for (size_t segmentIdx = 0; segmentIdx < segments.size(); ++segmentIdx)
         {
+            if (mVerbose)
+            {
+                std::cout << "# INFO: Computing bags-of-words for segment "
+                          << segmentIdx + 1 << "/" << segments.size()
+                          << " (cam " << cameraIdx << ")" << std::endl;
+            }
+
             FrameSegment& segment = segments.at(segmentIdx);
 
             for (size_t frameIdx = 0; frameIdx < segment.size(); ++frameIdx)
@@ -950,16 +969,6 @@ CameraRigBA::buildVocTree(void)
         }
     }
 
-    // branching factor and depth levels
-    const int k = 9;
-    const int L = 3;
-    const DBoW2::WeightingType weight = DBoW2::TF_IDF;
-    const DBoW2::ScoringType score = DBoW2::L1_NORM;
-
-    Surf64Vocabulary voc(k, L, weight, score);
-    voc.create(features);
-
-    mDb.setVocabulary(voc);
     for (size_t i = 0; i < features.size(); ++i)
     {
         mDb.add(features.at(i));
@@ -975,12 +984,6 @@ CameraRigBA::frameToBOW(const FrameConstPtr& frame) const
     for (size_t i = 0; i < features2D.size(); ++i)
     {
         const Point2DFeatureConstPtr& feature2D = features2D.at(i);
-
-        if (feature2D->feature3D().get() == 0)
-        {
-            continue;
-        }
-
         const cv::Mat& dtor = feature2D->descriptor();
 
         std::vector<float> w(dtor.cols);
@@ -1114,24 +1117,10 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
                         Point3DFeaturePtr& p1 = corr2D2D.at(j).first->feature3D();
                         Point3DFeaturePtr& p2 = corr2D2D.at(j).second->feature3D();
 
-//                        Eigen::Vector3d p_cam1 = (frame1->odometry()->pose() * T_cam_odo.at(cameraIdx).pose()).block<3,1>(0,3);
-//                        Eigen::Vector3d p_cam2 = (frame2->odometry()->pose() * T_cam_odo.at(fid.cameraIdx).pose()).block<3,1>(0,3);
-//
-//                        Eigen::Vector3d dp_cam = p_cam2 - p_cam1;
-//                        Eigen::Vector3d dp = p2->point() - p1->point();
-//
-//                        double theta = acos(dp.normalized().dot(dp_cam.normalized()));
-//                        if (fabs(theta) > kRelativeAngleThresh3D3D)
-//                        {
-//                            continue;
-//                        }
-//
-//                        double relativeDistance = (p1->point() - p2->point()).norm() / (p_cam1 - p_cam2).norm();
-//
-//                        if (relativeDistance > kRelativeDistanceThresh3D3D)
-//                        {
-//                            continue;
-//                        }
+                        if (p1.get() == 0 || p2.get() == 0)
+                        {
+                            continue;
+                        }
 
                         corr3D3D.push_back(boost::make_tuple(cameraIdx, fid.cameraIdx,
                                                              frame1, frame2,
@@ -1465,14 +1454,56 @@ CameraRigBA::matchFrameToWindow(int cameraIdx1, int cameraIdx2,
     {
         FramePtr& frame2 = window.at(windowIdxBest);
 
-        correspondences2D2D->insert(correspondences2D2D->end(), corr2D2DBest.begin(), corr2D2DBest.end());
+        for (size_t i = 0; i < corr2D2DBest.size(); ++i)
+        {
+            Point2DFeaturePtr& p1 = corr2D2DBest.at(i).first;
+            Point2DFeaturePtr& p2 = corr2D2DBest.at(i).second;
+
+            if (p1->feature3D().get() == 0 && p2->feature3D().get() == 0)
+            {
+                Eigen::Vector3d scenePoint;
+                if (!triangulate3DPoint(p1, p2, scenePoint))
+                {
+                    continue;
+                }
+
+                Point3DFeaturePtr feature3D(new Point3DFeature);
+                feature3D->point() = scenePoint;
+                feature3D->features2D().push_back(p1);
+                feature3D->features2D().push_back(p2);
+
+                p1->feature3D() = feature3D;
+                p2->feature3D() = feature3D;
+            }
+            else
+            {
+                if (p1->feature3D().get() == 0)
+                {
+                    Point3DFeaturePtr feature3D(new Point3DFeature);
+                    feature3D->point() = p2->feature3D()->point();
+                    feature3D->features2D().push_back(p1);
+
+                    p1->feature3D() = feature3D;
+                }
+
+                if (p2->feature3D().get() == 0)
+                {
+                    Point3DFeaturePtr feature3D(new Point3DFeature);
+                    feature3D->point() = p1->feature3D()->point();
+                    feature3D->features2D().push_back(p2);
+
+                    p2->feature3D() = feature3D;
+                }
+            }
+
+            correspondences2D2D->push_back(corr2D2DBest.at(i));
+        }
 
         if (mVerbose)
         {
             std::cout << "# INFO: Best: cam " << cameraIdx1 << " - cam " << cameraIdx2
                       << ": window " << windowIdxBest
-                      << " | " << corr2D2DBest.size() << " 2D-2D" << std::endl;
-
+                      << " | " << corr2D2DBest.size() << " 3D-3D" << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -1668,12 +1699,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         for (size_t j = 0; j < frame1->features2D().size(); ++j)
         {
             Point2DFeaturePtr& p2D = frame1->features2D().at(j);
-            Point3DFeaturePtr& p3D = p2D->feature3D();
-
-            if (p3D.get() == 0)
-            {
-                continue;
-            }
 
             float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
                                  ep(1) - p2D->keypoint().pt.y);
@@ -1705,12 +1730,6 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
         for (size_t j = 0; j < frame2->features2D().size(); ++j)
         {
             Point2DFeaturePtr& p2D = frame2->features2D().at(j);
-            Point3DFeaturePtr& p3D = p2D->feature3D();
-
-            if (p3D.get() == 0)
-            {
-                continue;
-            }
 
             float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
                                  ep(1) - p2D->keypoint().pt.y);
@@ -1945,6 +1964,75 @@ CameraRigBA::tvt(const CameraConstPtr& camera,
     }
 }
 
+bool
+CameraRigBA::triangulate3DPoint(const Point2DFeatureConstPtr& p1,
+                                const Point2DFeatureConstPtr& p2,
+                                Eigen::Vector3d& scenePoint,
+                                double reprojErrorThresh) const
+{
+    const CameraPtr& cam1 = mCameras.at(p1->frame()->cameraId());
+    const CameraPtr& cam2 = mCameras.at(p2->frame()->cameraId());
+
+    const cv::Point2f& pt1 = p1->keypoint().pt;
+    const cv::Point2f& pt2 = p2->keypoint().pt;
+
+    // projective rays
+    Eigen::Vector3d ray1, ray2;
+    cam1->liftProjective(Eigen::Vector2d(pt1.x, pt1.y), ray1);
+    cam2->liftProjective(Eigen::Vector2d(pt2.x, pt2.y), ray2);
+
+    ray1 = mExtrinsics.getGlobalCameraPose(p1->frame()->cameraId()).block<3,3>(0,0) * ray1;
+    ray2 = mExtrinsics.getGlobalCameraPose(p2->frame()->cameraId()).block<3,3>(0,0) * ray2;
+
+    ray1.normalize();
+    ray2.normalize();
+
+    // compute Plucker line correspondence
+    Eigen::Matrix<double,6,1> l1, l2;
+    l1 << ray1, mExtrinsics.getGlobalCameraPose(p1->frame()->cameraId()).block<3,1>(0,3).cross(ray1);
+    l2 << ray2, mExtrinsics.getGlobalCameraPose(p2->frame()->cameraId()).block<3,1>(0,3).cross(ray2);
+
+    Eigen::Vector3d q1 = l1.head(3);
+    Eigen::Vector3d q1p = l1.tail(3);
+
+    Eigen::Vector3d q2 = l2.head(3);
+    Eigen::Vector3d q2p = l2.tail(3);
+
+    Eigen::Vector3d q1xq1p = q1.cross(q1p);
+
+    Eigen::Matrix4d H;
+    H = p2->frame()->odometry()->pose().inverse() *
+        p1->frame()->odometry()->pose();
+
+    Eigen::MatrixXd A(3,2);
+    A.col(0) = H.block<3,3>(0,0) * q1;
+    A.col(1) = -q2;
+
+    Eigen::Vector3d b = q2.cross(q2p) - H.block<3,3>(0,0) * q1xq1p - H.block<3,1>(0,3);
+
+    Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+
+    scenePoint = q1xq1p + gamma(0) * q1;
+    scenePoint = p1->frame()->odometry()->pose().block<3,3>(0,0) * scenePoint + p1->frame()->odometry()->pose().block<3,1>(0,3);
+
+    Pose T_cam1_odo(mExtrinsics.getGlobalCameraPose(p1->frame()->cameraId()));
+    double e1 = reprojectionError(cam1, scenePoint, T_cam1_odo.rotation(), T_cam1_odo.translation(),
+                                  p1->frame()->odometry()->position(), p1->frame()->odometry()->attitude(),
+                                  Eigen::Vector2d(pt1.x, pt1.y));
+
+    Pose T_cam2_odo(mExtrinsics.getGlobalCameraPose(p2->frame()->cameraId()));
+    double e2 = reprojectionError(cam2, scenePoint, T_cam2_odo.rotation(), T_cam2_odo.translation(),
+                                  p2->frame()->odometry()->position(), p2->frame()->odometry()->attitude(),
+                                  Eigen::Vector2d(pt2.x, pt2.y));
+
+    if (e1 > reprojErrorThresh || e2 > reprojErrorThresh)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 void
 CameraRigBA::prune(int flags, int poseType)
 {
@@ -2039,6 +2127,7 @@ CameraRigBA::prune(int flags, int poseType)
 
                     if (prune)
                     {
+                        // delete entire feature track
                         std::vector<Point2DFeaturePtr> features2D = pf->feature3D()->features2D();
 
                         for (size_t m = 0; m < features2D.size(); ++m)
@@ -2081,24 +2170,28 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
+    size_t nPoints = 0;
     size_t nPointsMultipleCams = 0;
     for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
          it != scenePointSet.end(); ++it)
     {
         if (seenByMultipleCameras((*it)->features2D()))
         {
-            ++nPointsMultipleCams;
+            nPointsMultipleCams += (*it)->features2D().size();
         }
+
+        nPoints += (*it)->features2D().size();
     }
 
-    double weightM = static_cast<double>(scenePointSet.size()) / static_cast<double>(nPointsMultipleCams);
+    double weightM = static_cast<double>(nPoints) / static_cast<double>(nPointsMultipleCams);
 
     ceres::Problem problem;
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = nIterations;
     options.num_threads = 8;
+    options.num_linear_solver_threads = 8;
 
     // intrinsics
     std::vector<double> intrinsicParams[mCameras.size()];
@@ -2116,8 +2209,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     }
 
     boost::dynamic_bitset<> optimizeExtrinsics(mCameras.size());
-
-    OdometryPtr odometryBegin;
 
     for (size_t i = 0; i < mCameras.size(); ++i)
     {
@@ -2147,7 +2238,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         weight = weightM;
                     }
 
-                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), 1.0, ceres::TAKE_OWNERSHIP);
+                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), weight, ceres::TAKE_OWNERSHIP);
 
                     ceres::CostFunction* costFunction;
                     switch (flags)
@@ -2223,18 +2314,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                     }
                 }
 
-                if ((flags & ODOMETRY_3D_EXTRINSICS) || (flags & ODOMETRY_6D_EXTRINSICS))
-                {
-                    if (odometryBegin.get() == 0)
-                    {
-                        odometryBegin = frame->odometry();
-                    }
-                    if (frame->odometry()->timeStamp() < odometryBegin->timeStamp())
-                    {
-                        odometryBegin = frame->odometry();
-                    }
-                }
-
                 if (flags & CAMERA_EXTRINSICS)
                 {
                     ceres::LocalParameterization* quaternionParameterization =
@@ -2260,12 +2339,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
-    if (odometryBegin.get())
-    {
-        problem.SetParameterBlockConstant(odometryBegin->positionData());
-        problem.SetParameterBlockConstant(odometryBegin->attitudeData());
-    }
-
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -2274,42 +2347,109 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         std::cout << summary.BriefReport() << std::endl;
     }
 
-//    ceres::Covariance::Options covOptions;
-//    ceres::Covariance covariance(covOptions);
-//
-//    std::vector<std::pair<const double*,const double*> > covarianceBlocks;
-//    for (size_t i = 0; i < mCameras.size(); ++i)
-//    {
-//        covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
-//                                                  T_cam_odo.at(i).rotationData()));
-//        covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
-//                                                  T_cam_odo.at(i).translationData()));
-//        covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).translationData(),
-//                                                  T_cam_odo.at(i).translationData()));
-//    }
-//
-//    covariance.Compute(covarianceBlocks, &problem);
-//
-//    double covariance_rr[mCameras.size()][4*4];
-//    double covariance_rt[mCameras.size()][4*3];
-//    double covariance_tt[mCameras.size()][3*3];
-//    for (size_t i = 0; i < mCameras.size(); ++i)
-//    {
-//        covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
-//                                      T_cam_odo.at(i).rotationData(),
-//                                      covariance_rr[i]);
-//        covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
-//                                      T_cam_odo.at(i).translationData(),
-//                                      covariance_rt[i]);
-//        covariance.GetCovarianceBlock(T_cam_odo.at(i).translationData(),
-//                                      T_cam_odo.at(i).translationData(),
-//                                      covariance_tt[i]);
-//
-//        memcpy(T_cam_odo.at(i).covariance().block<4,4>(0,0).data(), covariance_rr[i], sizeof(double) * 16);
-//        memcpy(T_cam_odo.at(i).covariance().block<4,3>(0,4).data(), covariance_rt[i], sizeof(double) * 12);
-//        memcpy(T_cam_odo.at(i).covariance().block<3,3>(4,4).data(), covariance_tt[i], sizeof(double) * 9);
-//        T_cam_odo.at(i).covariance().block<3,4>(4,0) = T_cam_odo.at(i).covariance().block<4,3>(0,4).transpose();
-//    }
+    bool computeCovariances = false;
+    if (flags & ODOMETRY_6D_EXTRINSICS)
+    {
+        computeCovariances = true;
+    }
+    if (flags & POINT_3D)
+    {
+        computeCovariances = true;
+    }
+
+    if (0)
+//    if (computeCovariances)
+    {
+        if (mVerbose)
+        {
+            std::cout << "# INFO: Computing covariances... " << std::flush;
+        }
+
+        // compute covariances
+        ceres::Covariance::Options covOptions;
+        covOptions.num_threads = 8;
+        covOptions.algorithm_type = ceres::SPARSE_QR;
+        covOptions.apply_loss_function = true;
+
+        ceres::Covariance covariance(covOptions);
+
+        std::vector<std::pair<const double*, const double*> > covarianceBlocks;
+
+        if (flags & ODOMETRY_6D_EXTRINSICS)
+        {
+            for (size_t i = 0; i < mCameras.size(); ++i)
+            {
+                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
+                                                          T_cam_odo.at(i).rotationData()));
+                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
+                                                          T_cam_odo.at(i).translationData()));
+                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).translationData(),
+                                                          T_cam_odo.at(i).translationData()));
+            }
+        }
+
+        if (flags & POINT_3D)
+        {
+            for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
+                    it != scenePointSet.end(); ++it)
+            {
+                covarianceBlocks.push_back(std::make_pair((*it)->pointData(),
+                                                          (*it)->pointData()));
+            }
+        }
+
+        if (covariance.Compute(covarianceBlocks, &problem))
+        {
+            if (flags & ODOMETRY_6D_EXTRINSICS)
+            {
+                for (size_t i = 0; i < mCameras.size(); ++i)
+                {
+                    double covariance_rr[4*4];
+                    double covariance_rt[4*3];
+                    double covariance_tt[3*3];
+
+                    covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
+                                                  T_cam_odo.at(i).rotationData(),
+                                                  covariance_rr);
+                    covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
+                                                  T_cam_odo.at(i).translationData(),
+                                                  covariance_rt);
+                    covariance.GetCovarianceBlock(T_cam_odo.at(i).translationData(),
+                                                  T_cam_odo.at(i).translationData(),
+                                                  covariance_tt);
+
+                    memcpy(T_cam_odo.at(i).covariance().block<4,4>(0,0).data(), covariance_rr, sizeof(double) * 16);
+                    memcpy(T_cam_odo.at(i).covariance().block<4,3>(0,4).data(), covariance_rt, sizeof(double) * 12);
+                    memcpy(T_cam_odo.at(i).covariance().block<3,3>(4,4).data(), covariance_tt, sizeof(double) * 9);
+                    T_cam_odo.at(i).covariance().block<3,4>(4,0) = T_cam_odo.at(i).covariance().block<4,3>(0,4).transpose();
+                }
+            }
+
+            if (flags & POINT_3D)
+            {
+                for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
+                        it != scenePointSet.end(); ++it)
+                {
+                    double covariance_PP[3*3];
+
+                    covariance.GetCovarianceBlock((*it)->pointData(),
+                                                  (*it)->pointData(),
+                                                  covariance_PP);
+
+                    memcpy((*it)->pointCovarianceData(), covariance_PP, sizeof(double) * 9);
+                }
+            }
+
+            if (mVerbose)
+            {
+                std::cout << "Finished." << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << std::endl << "# ERROR: Ceres was unable to compute the covariances." << std::endl;
+        }
+    }
 
     if (flags & CAMERA_ODOMETRY_EXTRINSICS)
     {
@@ -2922,6 +3062,11 @@ CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
     {
         const Point2DFeaturePtr& p1 = correspondences2D2D.at(i).first;
         const Point2DFeaturePtr& p2 = correspondences2D2D.at(i).second;
+
+        if (p1->feature3D().get() == 0 || p2->feature3D().get() == 0)
+        {
+            continue;
+        }
 
         correspondences3D3D.push_back(boost::make_tuple(p1->frame()->cameraId(), p2->frame()->cameraId(),
                                                         p1->frame(), p2->frame(),

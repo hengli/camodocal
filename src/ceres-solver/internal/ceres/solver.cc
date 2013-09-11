@@ -120,7 +120,8 @@ Solver::Summary::Summary()
       inner_iterations_used(false),
       preconditioner_type(IDENTITY),
       trust_region_strategy_type(LEVENBERG_MARQUARDT),
-      sparse_linear_algebra_library(SUITE_SPARSE),
+      dense_linear_algebra_library_type(EIGEN),
+      sparse_linear_algebra_library_type(SUITE_SPARSE),
       line_search_direction_type(LBFGS),
       line_search_type(ARMIJO) {
 }
@@ -152,6 +153,7 @@ string Solver::Summary::BriefReport() const {
 };
 
 using internal::StringAppendF;
+using internal::StringPrintf;
 
 string Solver::Summary::FullReport() const {
   string report =
@@ -191,6 +193,15 @@ string Solver::Summary::FullReport() const {
     // TRUST_SEARCH HEADER
     StringAppendF(&report, "\nMinimizer                 %19s\n",
                   "TRUST_REGION");
+
+    if (linear_solver_type_used == DENSE_NORMAL_CHOLESKY ||
+        linear_solver_type_used == DENSE_SCHUR ||
+        linear_solver_type_used == DENSE_QR) {
+      StringAppendF(&report, "\nDense linear algebra library  %15s\n",
+                    DenseLinearAlgebraLibraryTypeToString(
+                        dense_linear_algebra_library_type));
+    }
+
     if (linear_solver_type_used == SPARSE_NORMAL_CHOLESKY ||
         linear_solver_type_used == SPARSE_SCHUR ||
         (linear_solver_type_used == ITERATIVE_SCHUR &&
@@ -198,7 +209,7 @@ string Solver::Summary::FullReport() const {
           preconditioner_type == CLUSTER_TRIDIAGONAL))) {
       StringAppendF(&report, "\nSparse linear algebra library %15s\n",
                     SparseLinearAlgebraLibraryTypeToString(
-                                sparse_linear_algebra_library));
+                        sparse_linear_algebra_library_type));
     }
 
     StringAppendF(&report, "Trust region strategy     %19s",
@@ -224,9 +235,6 @@ string Solver::Summary::FullReport() const {
       StringAppendF(&report, "Preconditioner      %25s%25s\n",
                     PreconditionerTypeToString(preconditioner_type),
                     PreconditionerTypeToString(preconditioner_type));
-    } else {
-      StringAppendF(&report, "Preconditioner      %25s%25s\n",
-                    "N/A", "N/A");
     }
 
     StringAppendF(&report, "Threads             % 25d% 25d\n",
@@ -266,24 +274,35 @@ string Solver::Summary::FullReport() const {
   } else {
     // LINE_SEARCH HEADER
     StringAppendF(&report, "\nMinimizer                 %19s\n", "LINE_SEARCH");
-    if (line_search_direction_type == LBFGS) {
-      StringAppendF(&report, "Line search direction     %19s(%d)\n",
-                    LineSearchDirectionTypeToString(line_search_direction_type),
-                    max_lbfgs_rank);
-    } else {
-      StringAppendF(&report, "Line search direction     %19s\n",
-                    LineSearchDirectionTypeToString(
-                        line_search_direction_type));
-    }
-    StringAppendF(&report, "Line search type          %19s\n",
-                  LineSearchTypeToString(line_search_type));
 
+
+    string line_search_direction_string;
+    if (line_search_direction_type == LBFGS) {
+      line_search_direction_string = StringPrintf("LBFGS (%d)", max_lbfgs_rank);
+    } else if (line_search_direction_type == NONLINEAR_CONJUGATE_GRADIENT) {
+      line_search_direction_string =
+          NonlinearConjugateGradientTypeToString(
+              nonlinear_conjugate_gradient_type);
+    } else {
+      line_search_direction_string =
+          LineSearchDirectionTypeToString(line_search_direction_type);
+    }
+
+    StringAppendF(&report, "Line search direction     %19s\n",
+                  line_search_direction_string.c_str());
+
+    const string line_search_type_string =
+        StringPrintf("%s %s",
+                     LineSearchInterpolationTypeToString(
+                         line_search_interpolation_type),
+                     LineSearchTypeToString(line_search_type));
+    StringAppendF(&report, "Line search type          %19s\n",
+                  line_search_type_string.c_str());
     StringAppendF(&report, "\n");
 
     StringAppendF(&report, "%45s    %21s\n", "Given",  "Used");
     StringAppendF(&report, "Threads             % 25d% 25d\n",
                   num_threads_given, num_threads_used);
-
   }
 
   if (termination_type == DID_NOT_RUN) {
@@ -308,10 +327,16 @@ string Solver::Summary::FullReport() const {
 
   StringAppendF(&report, "\nMinimizer iterations         % 16d\n",
                 num_successful_steps + num_unsuccessful_steps);
-  StringAppendF(&report, "Successful steps               % 14d\n",
-                num_successful_steps);
-  StringAppendF(&report, "Unsuccessful steps             % 14d\n",
-                num_unsuccessful_steps);
+
+  // Successful/Unsuccessful steps only matter in the case of the
+  // trust region solver. Line search terminates when it encounters
+  // the first unsuccessful step.
+  if (minimizer_type == TRUST_REGION) {
+    StringAppendF(&report, "Successful steps               % 14d\n",
+                  num_successful_steps);
+    StringAppendF(&report, "Unsuccessful steps             % 14d\n",
+                  num_unsuccessful_steps);
+  }
   if (inner_iterations_used) {
     StringAppendF(&report, "Steps with inner iterations    % 14d\n",
                   num_inner_iteration_steps);

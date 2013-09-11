@@ -16,6 +16,8 @@ namespace camodocal
 class CamOdoThread
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
                           bool preprocess,
                           AtomicData<cv::Mat>* image,

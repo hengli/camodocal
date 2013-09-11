@@ -45,17 +45,19 @@ namespace internal {
 class CovarianceImpl;
 }  // namespace internal
 
-// WARNINGS
-// ========
+// WARNING
+// =======
+// It is very easy to use this class incorrectly without understanding
+// the underlying mathematics. Please read and understand the
+// documentation completely before attempting to use this class.
 //
-// 1. This is experimental code and the API WILL CHANGE before
-//    release.
 //
-// 2. WARNING: It is very easy to use this class incorrectly without
-//    understanding the underlying mathematics. Please read and
-//    understand the documentation completely before attempting to use
-//    this class.
+// This class allows the user to evaluate the covariance for a
+// non-linear least squares problem and provides random access to its
+// blocks
 //
+// Background
+// ==========
 // One way to assess the quality of the solution returned by a
 // non-linear least squares solve is to analyze the covariance of the
 // solution.
@@ -82,9 +84,6 @@ class CovarianceImpl;
 // also rank deficient and is given by
 //
 //  C(x*) =  pseudoinverse[J'(x*)J(x*)]
-//
-// WARNING
-// =======
 //
 // Note that in the above, we assumed that the covariance
 // matrix for y was identity. This is an important assumption. If this
@@ -113,7 +112,7 @@ class CovarianceImpl;
 // blocks. The computation assumes that the CostFunctions compute
 // residuals such that their covariance is identity.
 //
-// Since the computation of the covariance matrix involves computing
+// Since the computation of the covariance matrix requires computing
 // the inverse of a potentially large matrix, this can involve a
 // rather large amount of time and memory. However, it is usually the
 // case that the user is only interested in a small part of the
@@ -123,14 +122,16 @@ class CovarianceImpl;
 // and store those parts of the covariance matrix.
 //
 // Rank of the Jacobian
-// ====================
+// --------------------
 // As we noted above, if the jacobian is rank deficient, then the
 // inverse of J'J is not defined and instead a pseudo inverse needs to
 // be computed.
 //
 // The rank deficiency in J can be structural -- columns which are
 // always known to be zero or numerical -- depending on the exact
-// values in the Jacobian. This happens when the problem contains
+// values in the Jacobian.
+//
+// Structural rank deficiency occurs when the problem contains
 // parameter blocks that are constant. This class correctly handles
 // structural rank deficiency like that.
 //
@@ -159,8 +160,12 @@ class CovarianceImpl;
 // reconstruction is ambiguous upto a similarity transform. This is
 // known as a Gauge Ambiguity. Handling Gauges correctly requires the
 // use of SVD or custom inversion algorithms. For small problems the
-// user can use the dense algorithm. For more details see Morris,
-// Kanatani & Kanade's work the subject.
+// user can use the dense algorithm. For more details see
+//
+// Ken-ichi Kanatani, Daniel D. Morris: Gauges and gauge
+// transformations for uncertainty description of geometric structure
+// with indeterminacy. IEEE Transactions on Information Theory 47(5):
+// 2017-2028 (2001)
 //
 // Example Usage
 // =============
@@ -195,34 +200,162 @@ class Covariance {
  public:
   struct Options {
     Options()
-        : num_threads(1),
 #ifndef CERES_NO_SUITESPARSE
-          use_dense_linear_algebra(false),
+        : algorithm_type(SPARSE_QR),
 #else
-          use_dense_linear_algebra(true),
+        : algorithm_type(DENSE_SVD),
 #endif
-          min_singular_value_threshold(1e-8),
+          min_reciprocal_condition_number(1e-14),
           null_space_rank(0),
+          num_threads(1),
           apply_loss_function(true) {
     }
 
-    // Number of threads to be used for evaluating the Jacobian and
-    // estimation of covariance.
-    int num_threads;
+    // Ceres supports three different algorithms for covariance
+    // estimation, which represent different tradeoffs in speed,
+    // accuracy and reliability.
+    //
+    // 1. DENSE_SVD uses Eigen's JacobiSVD to perform the
+    //    computations. It computes the singular value decomposition
+    //
+    //      U * S * V' = J
+    //
+    //    and then uses it to compute the pseudo inverse of J'J as
+    //
+    //      pseudoinverse[J'J]^ = V * pseudoinverse[S] * V'
+    //
+    //    It is an accurate but slow method and should only be used
+    //    for small to moderate sized problems. It can handle
+    //    full-rank as well as rank deficient Jacobians.
+    //
+    // 2. SPARSE_CHOLESKY uses the CHOLMOD sparse Cholesky
+    //    factorization library to compute the decomposition :
+    //
+    //      R'R = J'J
+    //
+    //    and then
+    //
+    //      [J'J]^-1  = [R'R]^-1
+    //
+    //    It a fast algorithm for sparse matrices that should be used
+    //    when the Jacobian matrix J is well conditioned. For
+    //    ill-conditioned matrices, this algorithm can fail
+    //    unpredictabily. This is because Cholesky factorization is
+    //    not a rank-revealing factorization, i.e., it cannot reliably
+    //    detect when the matrix being factorized is not of full
+    //    rank. SuiteSparse/CHOLMOD supplies a heuristic for checking
+    //    if the matrix is rank deficient (cholmod_rcond), but it is
+    //    only a heuristic and can have both false positive and false
+    //    negatives.
+    //
+    //    Recent versions of SuiteSparse (>= 4.2.0) provide a much
+    //    more efficient method for solving for rows of the covariance
+    //    matrix. Therefore, if you are doing SPARSE_CHOLESKY, we
+    //    strongly recommend using a recent version of SuiteSparse.
+    //
+    // 3. SPARSE_QR uses the SuiteSparseQR sparse QR factorization
+    //    library to compute the decomposition
+    //
+    //      Q * R = J
+    //
+    //    [J'J]^-1 = [R*R']^-1
+    //
+    //    It is a moderately fast algorithm for sparse matrices, which
+    //    at the price of more time and memory than the
+    //    SPARSE_CHOLESKY algorithm is numerically better behaved and
+    //    is rank revealing, i.e., it can reliably detect when the
+    //    Jacobian matrix is rank deficient.
+    //
+    // Neither SPARSE_CHOLESKY or SPARSE_QR are capable of computing
+    // the covariance if the Jacobian is rank deficient.
 
-    // Use Eigen's JacobiSVD algorithm to compute the covariance. This
-    // is a very accurate but slow algorithm. The up side is that it
-    // can handle numerically rank deficient jacobians. This option
-    // only makes sense for small to moderate sized problems.
-    bool use_dense_linear_algebra;
+    CovarianceAlgorithmType algorithm_type;
 
-    // When use_dense_linear_algebra is true, singular values less
-    // than min_singular_value_threshold are set to zero.
-    double min_singular_value_threshold;
+    // If the Jacobian matrix is near singular, then inverting J'J
+    // will result in unreliable results, e.g, if
+    //
+    //   J = [1.0 1.0         ]
+    //       [1.0 1.0000001   ]
+    //
+    // which is essentially a rank deficient matrix, we have
+    //
+    //   inv(J'J) = [ 2.0471e+14  -2.0471e+14]
+    //              [-2.0471e+14   2.0471e+14]
+    //
+    // This is not a useful result. Therefore, by default
+    // Covariance::Compute will return false if a rank deficient
+    // Jacobian is encountered. How rank deficiency is detected
+    // depends on the algorithm being used.
+    //
+    // 1. DENSE_SVD
+    //
+    //      min_sigma / max_sigma < sqrt(min_reciprocal_condition_number)
+    //
+    //    where min_sigma and max_sigma are the minimum and maxiumum
+    //    singular values of J respectively.
+    //
+    // 2. SPARSE_CHOLESKY
+    //
+    //      cholmod_rcond < min_reciprocal_conditioner_number
+    //
+    //    Here cholmod_rcond is a crude estimate of the reciprocal
+    //    condition number of J'J by using the maximum and minimum
+    //    diagonal entries of the Cholesky factor R. There are no
+    //    theoretical guarantees associated with this test. It can
+    //    give false positives and negatives. Use at your own
+    //    risk. The default value of min_reciprocal_condition_number
+    //    has been set to a conservative value, and sometimes the
+    //    Covariance::Compute may return false even if it is possible
+    //    to estimate the covariance reliably. In such cases, the user
+    //    should exercise their judgement before lowering the value of
+    //    min_reciprocal_condition_number.
+    //
+    // 3. SPARSE_QR
+    //
+    //      rank(J) < num_col(J)
+    //
+    //   Here rank(J) is the estimate of the rank of J returned by the
+    //   SuiteSparseQR algorithm. It is a fairly reliable indication
+    //   of rank deficiency.
+    //
+    double min_reciprocal_condition_number;
 
-    // When use_dense_linear_algebra is true, the bottom
-    // null_space_rank singular values are set to zero.
+    // When using DENSE_SVD, the user has more control in dealing with
+    // singular and near singular covariance matrices.
+    //
+    // As mentioned above, when the covariance matrix is near
+    // singular, instead of computing the inverse of J'J, the
+    // Moore-Penrose pseudoinverse of J'J should be computed.
+    //
+    // If J'J has the eigen decomposition (lambda_i, e_i), where
+    // lambda_i is the i^th eigenvalue and e_i is the corresponding
+    // eigenvector, then the inverse of J'J is
+    //
+    //   inverse[J'J] = sum_i e_i e_i' / lambda_i
+    //
+    // and computing the pseudo inverse involves dropping terms from
+    // this sum that correspond to small eigenvalues.
+    //
+    // How terms are dropped is controlled by
+    // min_reciprocal_condition_number and null_space_rank.
+    //
+    // If null_space_rank is non-negative, then the smallest
+    // null_space_rank eigenvalue/eigenvectors are dropped
+    // irrespective of the magnitude of lambda_i. If the ratio of the
+    // smallest non-zero eigenvalue to the largest eigenvalue in the
+    // truncated matrix is still below
+    // min_reciprocal_condition_number, then the Covariance::Compute()
+    // will fail and return false.
+    //
+    // Setting null_space_rank = -1 drops all terms for which
+    //
+    //   lambda_i / lambda_max < min_reciprocal_condition_number.
+    //
+    // This option has no effect on the SPARSE_CHOLESKY or SPARSE_QR
+    // algorithms.
     int null_space_rank;
+
+    int num_threads;
 
     // Even though the residual blocks in the problem may contain loss
     // functions, setting apply_loss_function to false will turn off
@@ -254,20 +387,28 @@ class Covariance {
   // what parts of the covariance matrix are computed. The full
   // Jacobian is used to do the computation, i.e. they do not have an
   // impact on what part of the Jacobian is used for computation.
+  //
+  // The return value indicates the success or failure of the
+  // covariance computation. Please see the documentation for
+  // Covariance::Options for more on the conditions under which this
+  // function returns false.
   bool Compute(
       const vector<pair<const double*, const double*> >& covariance_blocks,
       Problem* problem);
 
-  // Compute must be called before the first call to
-  // GetCovarianceBlock. covariance_block must point to a memory
-  // location that can store a parameter_block1_size x
-  // parameter_block2_size matrix. The returned covariance will be a
-  // row-major matrix.
+  // Return the block of the covariance matrix corresponding to
+  // parameter_block1 and parameter_block2.
   //
-  // The pair <parameter_block1, parameter_block2> OR the pair
-  // <parameter_block2, parameter_block1> must have been present in
-  // the vector covariance_blocks when Compute was called. Otherwise
+  // Compute must be called before the first call to
+  // GetCovarianceBlock and the pair <parameter_block1,
+  // parameter_block2> OR the pair <parameter_block2,
+  // parameter_block1> must have been present in the vector
+  // covariance_blocks when Compute was called. Otherwise
   // GetCovarianceBlock will return false.
+  //
+  // covariance_block must point to a memory location that can store a
+  // parameter_block1_size x parameter_block2_size matrix. The
+  // returned covariance will be a row-major matrix.
   bool GetCovarianceBlock(const double* parameter_block1,
                           const double* parameter_block2,
                           double* covariance_block) const;

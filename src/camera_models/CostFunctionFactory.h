@@ -54,6 +54,14 @@ public:
                                               const Eigen::Vector2d& observed_p,
                                               int flags, bool optimize_cam_odo_z = true) const;
 
+    ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
+                                              const Eigen::Quaterniond& cam_odo_q,
+                                              const Eigen::Vector3d& cam_odo_t,
+                                              const Eigen::Vector3d& odo_pos,
+                                              const Eigen::Vector3d& odo_att,
+                                              const Eigen::Vector2d& observed_p,
+                                              int flags) const;
+
     ceres::CostFunction* generateCostFunction(const CameraConstPtr& cameraLeft,
                                               const CameraConstPtr& cameraRight,
                                               const Eigen::Vector3d& observed_P,

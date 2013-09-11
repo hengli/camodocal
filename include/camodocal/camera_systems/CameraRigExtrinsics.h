@@ -13,6 +13,10 @@ public:
     // cameras are assumed to be indexed in an anti-clockwise direction
     CameraRigExtrinsics(int cameraCount);
 
+    int cameraCount(void) const;
+
+    void reset(void);
+
     bool readFromFile(const std::string& filename);
     bool writeToFile(const std::string& filename) const;
 
@@ -38,10 +42,10 @@ public:
     CameraRigExtrinsics& operator=(const CameraRigExtrinsics& other);
 
 private:
-    int mCameraCount;
-    int mReferenceCameraIdx;
+    int m_cameraCount;
+    int m_referenceCameraIdx;
 
-    std::vector< Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > mGlobalPoses;
+    std::vector< Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_globalPoses;
 };
 
 }

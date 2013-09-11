@@ -255,8 +255,8 @@ void SolverImpl::TrustRegionMinimize(
   trust_region_strategy_options.initial_radius =
       options.initial_trust_region_radius;
   trust_region_strategy_options.max_radius = options.max_trust_region_radius;
-  trust_region_strategy_options.lm_min_diagonal = options.lm_min_diagonal;
-  trust_region_strategy_options.lm_max_diagonal = options.lm_max_diagonal;
+  trust_region_strategy_options.min_lm_diagonal = options.min_lm_diagonal;
+  trust_region_strategy_options.max_lm_diagonal = options.max_lm_diagonal;
   trust_region_strategy_options.trust_region_strategy_type =
       options.trust_region_strategy_type;
   trust_region_strategy_options.dogleg_type = options.dogleg_type;
@@ -391,9 +391,13 @@ void SolverImpl::TrustRegionSolve(const Solver::Options& original_options,
   summary->num_threads_given = original_options.num_threads;
   summary->num_threads_used = options.num_threads;
 
-  if (options.lsqp_iterations_to_dump.size() > 0) {
-    LOG(WARNING) << "Dumping linear least squares problems to disk is"
-        " currently broken. Ignoring Solver::Options::lsqp_iterations_to_dump";
+  if (options.trust_region_minimizer_iterations_to_dump.size() > 0 &&
+      options.trust_region_problem_dump_format_type != CONSOLE &&
+      options.trust_region_problem_dump_directory.empty()) {
+    summary->error =
+        "Solver::Options::trust_region_problem_dump_directory is empty.";
+    LOG(ERROR) << summary->error;
+    return;
   }
 
   event_logger.AddEvent("Init");
@@ -502,8 +506,10 @@ void SolverImpl::TrustRegionSolve(const Solver::Options& original_options,
       original_options.num_linear_solver_threads;
   summary->num_linear_solver_threads_used = options.num_linear_solver_threads;
 
-  summary->sparse_linear_algebra_library =
-      options.sparse_linear_algebra_library;
+  summary->dense_linear_algebra_library_type =
+      options.dense_linear_algebra_library_type;
+  summary->sparse_linear_algebra_library_type =
+      options.sparse_linear_algebra_library_type;
 
   summary->trust_region_strategy_type = options.trust_region_strategy_type;
   summary->dogleg_type = options.dogleg_type;
@@ -620,10 +626,98 @@ void SolverImpl::LineSearchSolve(const Solver::Options& original_options,
       original_options.line_search_direction_type;
   summary->max_lbfgs_rank = original_options.max_lbfgs_rank;
   summary->line_search_type = original_options.line_search_type;
-  summary->num_parameter_blocks = problem_impl->NumParameterBlocks();
-  summary->num_parameters = problem_impl->NumParameters();
-  summary->num_residual_blocks = problem_impl->NumResidualBlocks();
-  summary->num_residuals = problem_impl->NumResiduals();
+  summary->line_search_interpolation_type =
+      original_options.line_search_interpolation_type;
+  summary->nonlinear_conjugate_gradient_type =
+      original_options.nonlinear_conjugate_gradient_type;
+
+  summary->num_parameter_blocks = original_program->NumParameterBlocks();
+  summary->num_parameters = original_program->NumParameters();
+  summary->num_residual_blocks = original_program->NumResidualBlocks();
+  summary->num_residuals = original_program->NumResiduals();
+  summary->num_effective_parameters =
+      original_program->NumEffectiveParameters();
+
+  // Validate values for configuration parameters supplied by user.
+  if ((original_options.line_search_direction_type == ceres::BFGS ||
+       original_options.line_search_direction_type == ceres::LBFGS) &&
+      original_options.line_search_type != ceres::WOLFE) {
+    summary->error =
+        string("Invalid configuration: require line_search_type == "
+               "ceres::WOLFE when using (L)BFGS to ensure that underlying "
+               "assumptions are guaranteed to be satisfied.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.max_lbfgs_rank <= 0) {
+    summary->error =
+        string("Invalid configuration: require max_lbfgs_rank > 0");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.min_line_search_step_size <= 0.0) {
+    summary->error = "Invalid configuration: min_line_search_step_size <= 0.0.";
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.line_search_sufficient_function_decrease <= 0.0) {
+    summary->error =
+        string("Invalid configuration: require ") +
+        string("line_search_sufficient_function_decrease <= 0.0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.max_line_search_step_contraction <= 0.0 ||
+      original_options.max_line_search_step_contraction >= 1.0) {
+    summary->error = string("Invalid configuration: require ") +
+        string("0.0 < max_line_search_step_contraction < 1.0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.min_line_search_step_contraction <=
+      original_options.max_line_search_step_contraction ||
+      original_options.min_line_search_step_contraction > 1.0) {
+    summary->error = string("Invalid configuration: require ") +
+        string("max_line_search_step_contraction < ") +
+        string("min_line_search_step_contraction <= 1.0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  // Warn user if they have requested BISECTION interpolation, but constraints
+  // on max/min step size change during line search prevent bisection scaling
+  // from occurring. Warn only, as this is likely a user mistake, but one which
+  // does not prevent us from continuing.
+  LOG_IF(WARNING,
+         (original_options.line_search_interpolation_type == ceres::BISECTION &&
+          (original_options.max_line_search_step_contraction > 0.5 ||
+           original_options.min_line_search_step_contraction < 0.5)))
+      << "Line search interpolation type is BISECTION, but specified "
+      << "max_line_search_step_contraction: "
+      << original_options.max_line_search_step_contraction << ", and "
+      << "min_line_search_step_contraction: "
+      << original_options.min_line_search_step_contraction
+      << ", prevent bisection (0.5) scaling, continuing with solve regardless.";
+  if (original_options.max_num_line_search_step_size_iterations <= 0) {
+    summary->error = string("Invalid configuration: require ") +
+        string("max_num_line_search_step_size_iterations > 0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.line_search_sufficient_curvature_decrease <=
+      original_options.line_search_sufficient_function_decrease ||
+      original_options.line_search_sufficient_curvature_decrease > 1.0) {
+    summary->error = string("Invalid configuration: require ") +
+        string("line_search_sufficient_function_decrease < ") +
+        string("line_search_sufficient_curvature_decrease < 1.0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
+  if (original_options.max_line_search_step_expansion <= 1.0) {
+    summary->error = string("Invalid configuration: require ") +
+        string("max_line_search_step_expansion > 1.0.");
+    LOG(ERROR) << summary->error;
+    return;
+  }
 
   // Empty programs are usually a user error.
   if (summary->num_parameter_blocks == 0) {
@@ -713,6 +807,8 @@ void SolverImpl::LineSearchSolve(const Solver::Options& original_options,
   summary->num_parameter_blocks_reduced = reduced_program->NumParameterBlocks();
   summary->num_parameters_reduced = reduced_program->NumParameters();
   summary->num_residual_blocks_reduced = reduced_program->NumResidualBlocks();
+  summary->num_effective_parameters_reduced =
+      reduced_program->NumEffectiveParameters();
   summary->num_residuals_reduced = reduced_program->NumResiduals();
 
   if (summary->num_parameter_blocks_reduced == 0) {
@@ -998,7 +1094,7 @@ Program* SolverImpl::CreateReducedProgram(Solver::Options* options,
   if (IsSchurType(options->linear_solver_type)) {
     if (!ReorderProgramForSchurTypeLinearSolver(
             options->linear_solver_type,
-            options->sparse_linear_algebra_library,
+            options->sparse_linear_algebra_library_type,
             problem_impl->parameter_map(),
             linear_solver_ordering,
             transformed_program.get(),
@@ -1010,7 +1106,7 @@ Program* SolverImpl::CreateReducedProgram(Solver::Options* options,
 
   if (options->linear_solver_type == SPARSE_NORMAL_CHOLESKY) {
     if (!ReorderProgramForSparseNormalCholesky(
-            options->sparse_linear_algebra_library,
+            options->sparse_linear_algebra_library_type,
             linear_solver_ordering,
             transformed_program.get(),
             error)) {
@@ -1040,9 +1136,32 @@ LinearSolver* SolverImpl::CreateLinearSolver(Solver::Options* options,
     }
   }
 
+#ifdef CERES_NO_LAPACK
+  if (options->linear_solver_type == DENSE_NORMAL_CHOLESKY &&
+      options->dense_linear_algebra_library_type == LAPACK) {
+    *error = "Can't use DENSE_NORMAL_CHOLESKY with LAPACK because "
+        "LAPACK was not enabled when Ceres was built.";
+    return NULL;
+  }
+
+  if (options->linear_solver_type == DENSE_QR &&
+      options->dense_linear_algebra_library_type == LAPACK) {
+    *error = "Can't use DENSE_QR with LAPACK because "
+        "LAPACK was not enabled when Ceres was built.";
+    return NULL;
+  }
+
+  if (options->linear_solver_type == DENSE_SCHUR &&
+      options->dense_linear_algebra_library_type == LAPACK) {
+    *error = "Can't use DENSE_SCHUR with LAPACK because "
+        "LAPACK was not enabled when Ceres was built.";
+    return NULL;
+  }
+#endif
+
 #ifdef CERES_NO_SUITESPARSE
   if (options->linear_solver_type == SPARSE_NORMAL_CHOLESKY &&
-      options->sparse_linear_algebra_library == SUITE_SPARSE) {
+      options->sparse_linear_algebra_library_type == SUITE_SPARSE) {
     *error = "Can't use SPARSE_NORMAL_CHOLESKY with SUITESPARSE because "
              "SuiteSparse was not enabled when Ceres was built.";
     return NULL;
@@ -1063,7 +1182,7 @@ LinearSolver* SolverImpl::CreateLinearSolver(Solver::Options* options,
 
 #ifdef CERES_NO_CXSPARSE
   if (options->linear_solver_type == SPARSE_NORMAL_CHOLESKY &&
-      options->sparse_linear_algebra_library == CX_SPARSE) {
+      options->sparse_linear_algebra_library_type == CX_SPARSE) {
     *error = "Can't use SPARSE_NORMAL_CHOLESKY with CXSPARSE because "
              "CXSparse was not enabled when Ceres was built.";
     return NULL;
@@ -1078,30 +1197,32 @@ LinearSolver* SolverImpl::CreateLinearSolver(Solver::Options* options,
   }
 #endif
 
-  if (options->linear_solver_max_num_iterations <= 0) {
-    *error = "Solver::Options::linear_solver_max_num_iterations is 0.";
+  if (options->max_linear_solver_iterations <= 0) {
+    *error = "Solver::Options::max_linear_solver_iterations is not positive.";
     return NULL;
   }
-  if (options->linear_solver_min_num_iterations <= 0) {
-    *error = "Solver::Options::linear_solver_min_num_iterations is 0.";
+  if (options->min_linear_solver_iterations <= 0) {
+    *error = "Solver::Options::min_linear_solver_iterations is not positive.";
     return NULL;
   }
-  if (options->linear_solver_min_num_iterations >
-      options->linear_solver_max_num_iterations) {
-    *error = "Solver::Options::linear_solver_min_num_iterations > "
-        "Solver::Options::linear_solver_max_num_iterations.";
+  if (options->min_linear_solver_iterations >
+      options->max_linear_solver_iterations) {
+    *error = "Solver::Options::min_linear_solver_iterations > "
+        "Solver::Options::max_linear_solver_iterations.";
     return NULL;
   }
 
   LinearSolver::Options linear_solver_options;
   linear_solver_options.min_num_iterations =
-        options->linear_solver_min_num_iterations;
+        options->min_linear_solver_iterations;
   linear_solver_options.max_num_iterations =
-      options->linear_solver_max_num_iterations;
+      options->max_linear_solver_iterations;
   linear_solver_options.type = options->linear_solver_type;
   linear_solver_options.preconditioner_type = options->preconditioner_type;
-  linear_solver_options.sparse_linear_algebra_library =
-      options->sparse_linear_algebra_library;
+  linear_solver_options.sparse_linear_algebra_library_type =
+      options->sparse_linear_algebra_library_type;
+  linear_solver_options.dense_linear_algebra_library_type =
+      options->dense_linear_algebra_library_type;
   linear_solver_options.use_postordering = options->use_postordering;
 
   // Ignore user's postordering preferences and force it to be true if
@@ -1110,7 +1231,7 @@ LinearSolver* SolverImpl::CreateLinearSolver(Solver::Options* options,
   // done.
 #if !defined(CERES_NO_SUITESPARSE) && defined(CERES_NO_CAMD)
   if (IsSchurType(linear_solver_options.type) &&
-      linear_solver_options.sparse_linear_algebra_library == SUITE_SPARSE) {
+      options->sparse_linear_algebra_library_type == SUITE_SPARSE) {
     linear_solver_options.use_postordering = true;
   }
 #endif
@@ -1418,6 +1539,7 @@ TripletSparseMatrix* SolverImpl::CreateJacobianBlockSparsityTranspose(
 
       // Re-size the matrix if needed.
       if (num_nonzeros >= tsm->max_num_nonzeros()) {
+        tsm->set_num_nonzeros(num_nonzeros);
         tsm->Reserve(2 * num_nonzeros);
         rows = tsm->mutable_rows();
         cols = tsm->mutable_cols();
@@ -1452,8 +1574,8 @@ bool SolverImpl::ReorderProgramForSchurTypeLinearSolver(
     // this means that the user wishes for Ceres to identify the
     // e_blocks, which we do by computing a maximal independent set.
     vector<ParameterBlock*> schur_ordering;
-    const int num_eliminate_blocks = ComputeStableSchurOrdering(*program,
-                                                                &schur_ordering);
+    const int num_eliminate_blocks =
+        ComputeStableSchurOrdering(*program, &schur_ordering);
 
     CHECK_EQ(schur_ordering.size(), program->NumParameterBlocks())
         << "Congratulations, you found a Ceres bug! Please report this error "

@@ -7,10 +7,25 @@ namespace camodocal
 {
 
 CameraRigExtrinsics::CameraRigExtrinsics(int cameraCount)
- : mCameraCount(cameraCount)
- , mReferenceCameraIdx(-1)
+ : m_cameraCount(cameraCount)
+ , m_referenceCameraIdx(-1)
 {
-    mGlobalPoses.resize(cameraCount);
+    m_globalPoses.resize(cameraCount);
+}
+
+int
+CameraRigExtrinsics::cameraCount(void) const
+{
+    return m_cameraCount;
+}
+
+void
+CameraRigExtrinsics::reset(void)
+{
+    for (int i = 0; i < m_cameraCount; ++i)
+    {
+        setGlobalCameraPose(i, Eigen::Matrix4d::Identity());
+    }
 }
 
 bool
@@ -23,7 +38,7 @@ CameraRigExtrinsics::readFromFile(const std::string& filename)
         return false;
     }
 
-    for (int i = 0; i < mCameraCount; ++i)
+    for (int i = 0; i < m_cameraCount; ++i)
     {
         double H_data[12];
         for (int j = 0; j < 12; ++j)
@@ -61,9 +76,9 @@ CameraRigExtrinsics::writeToFile(const std::string& filename) const
 
     ofs << std::fixed << std::setprecision(10);
 
-    for (int i = 0; i < mCameraCount; ++i)
+    for (int i = 0; i < m_cameraCount; ++i)
     {
-        const Eigen::Matrix4d& globalPose = mGlobalPoses.at(i);
+        const Eigen::Matrix4d& globalPose = m_globalPoses.at(i);
 
         for (int j = 0; j < 3; ++j)
         {
@@ -89,12 +104,12 @@ CameraRigExtrinsics::writeToFile(const std::string& filename) const
 bool
 CameraRigExtrinsics::setReferenceCamera(int idx)
 {
-    if (idx < 0 || idx >= mCameraCount)
+    if (idx < 0 || idx >= m_cameraCount)
     {
         return false;
     }
 
-    mReferenceCameraIdx = idx;
+    m_referenceCameraIdx = idx;
 
     return true;
 }
@@ -102,42 +117,42 @@ CameraRigExtrinsics::setReferenceCamera(int idx)
 Eigen::Matrix4d
 CameraRigExtrinsics::getGlobalCameraPose(int idx) const
 {
-    return mGlobalPoses.at(idx);
+    return m_globalPoses.at(idx);
 }
 
 Eigen::Matrix4d
 CameraRigExtrinsics::getLocalCameraPose(int idx) const
 {
-    return mGlobalPoses.at(mReferenceCameraIdx).inverse() * mGlobalPoses.at(idx);
+    return m_globalPoses.at(m_referenceCameraIdx).inverse() * m_globalPoses.at(idx);
 }
 
 void
 CameraRigExtrinsics::setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose)
 {
-    mGlobalPoses.at(idx) = pose;
+    m_globalPoses.at(idx) = pose;
 }
 
 void
 CameraRigExtrinsics::setLocalCameraPose(int idx, const Eigen::Matrix4d& pose)
 {
-    mGlobalPoses.at(idx) = mGlobalPoses.at(mReferenceCameraIdx) * pose;
+    m_globalPoses.at(idx) = m_globalPoses.at(m_referenceCameraIdx) * pose;
 }
 
 int
 CameraRigExtrinsics::leftCameraIdx(int idx) const
 {
-    if (idx < 0 || idx >= mCameraCount)
+    if (idx < 0 || idx >= m_cameraCount)
     {
         return -1;
     }
 
-    return (idx + 1) % mCameraCount;
+    return (idx + 1) % m_cameraCount;
 }
 
 int
 CameraRigExtrinsics::rightCameraIdx(int idx) const
 {
-    if (idx < 0 || idx >= mCameraCount)
+    if (idx < 0 || idx >= m_cameraCount)
     {
         return -1;
     }
@@ -148,7 +163,7 @@ CameraRigExtrinsics::rightCameraIdx(int idx) const
 Eigen::Matrix4d
 CameraRigExtrinsics::relativeTransformBetweenCameraPair(int pairIdx) const
 {
-    return mGlobalPoses.at(rightCameraIdx(pairIdx)).inverse() * mGlobalPoses.at(leftCameraIdx(pairIdx));
+    return m_globalPoses.at(rightCameraIdx(pairIdx)).inverse() * m_globalPoses.at(leftCameraIdx(pairIdx));
 }
 
 double
@@ -164,10 +179,12 @@ CameraRigExtrinsics::operator=(const CameraRigExtrinsics& other)
 {
     if (this != &other) // protect against invalid self-assignment
     {
-        mCameraCount = other.mCameraCount;
-        mReferenceCameraIdx = other.mReferenceCameraIdx;
-        mGlobalPoses = other.mGlobalPoses;
+        m_cameraCount = other.m_cameraCount;
+        m_referenceCameraIdx = other.m_referenceCameraIdx;
+        m_globalPoses = other.m_globalPoses;
     }
+
+    return *this;
 }
 
 }

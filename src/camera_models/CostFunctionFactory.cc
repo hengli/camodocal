@@ -12,14 +12,14 @@ template<typename T>
 void
 worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
                        const T* const p_odo, const T* const att_odo,
-                       int optimize_flags,
+                       int flags,
                        T* q, T* t)
 {
     Eigen::Quaternion<T> q_z_inv(cos(att_odo[0] / T(2)), T(0), T(0), -sin(att_odo[0] / T(2)));
     Eigen::Quaternion<T> q_y_inv(T(1), T(0), T(0), T(0));
     Eigen::Quaternion<T> q_x_inv(T(1), T(0), T(0), T(0));
 
-    if (optimize_flags & OPTIMIZE_ODOMETRY_6D)
+    if (flags & OPTIMIZE_ODOMETRY_6D)
     {
         q_y_inv = Eigen::Quaternion<T>(cos(att_odo[1] / T(2)), T(0), -sin(att_odo[1] / T(2)), T(0));
         q_x_inv = Eigen::Quaternion<T>(cos(att_odo[2] / T(2)), -sin(att_odo[2] / T(2)), T(0), T(0));
@@ -37,7 +37,7 @@ worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
     T t0[3];
     T t_odo[3] = {p_odo[0], p_odo[1], T(0)};
 
-    if (optimize_flags & OPTIMIZE_ODOMETRY_6D)
+    if (flags & OPTIMIZE_ODOMETRY_6D)
     {
         t_odo[2] = p_odo[2];
     }
@@ -47,7 +47,7 @@ worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
     t0[0] += t_cam_odo[0];
     t0[1] += t_cam_odo[1];
 
-    if (optimize_flags & OPTIMIZE_CAMERA_ODOMETRY_Z)
+    if (flags & OPTIMIZE_CAMERA_ODOMETRY_Z)
     {
         t0[2] += t_cam_odo[2];
     }
@@ -60,7 +60,6 @@ worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
     q[0] = q0[1]; q[1] = q0[2]; q[2] = q0[3]; q[3] = q0[0];
 }
 
-// variables: camera intrinsics and camera extrinsics
 template<class CameraT>
 class ReprojectionError1
 {
@@ -69,16 +68,20 @@ public:
                        const Eigen::Vector2d& observed_p)
      : m_observed_P(observed_P), m_observed_p(observed_p) {}
 
+    ReprojectionError1(const std::vector<double>& intrinsic_params,
+                       const Eigen::Vector3d& observed_P,
+                       const Eigen::Vector2d& observed_p)
+     : m_intrinsic_params(intrinsic_params)
+     , m_observed_P(observed_P), m_observed_p(observed_p) {}
+
+    // variables: camera intrinsics and camera extrinsics
     template <typename T>
     bool operator()(const T* const intrinsic_params,
                     const T* const q,
                     const T* const t,
                     T* residuals) const
     {
-        Eigen::Matrix<T,3,1> P;
-        P(0) = T(m_observed_P(0));
-        P(1) = T(m_observed_P(1));
-        P(2) = T(m_observed_P(2));
+        Eigen::Matrix<T,3,1> P = m_observed_P.cast<T>();
 
         Eigen::Matrix<T,2,1> predicted_p;
         CameraT::spaceToPlane(intrinsic_params, q, t, P, predicted_p);
@@ -89,7 +92,33 @@ public:
         return true;
     }
 
+    // variables: camera intrinsics and camera extrinsics
+    template <typename T>
+    bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
+                    const T* const p_odo, const T* const att_odo,
+                    T* residuals) const
+    {
+        T q[4], t[3];
+        worldToCameraTransform(q_cam_odo, t_cam_odo, p_odo, att_odo, OPTIMIZE_ODOMETRY_6D | OPTIMIZE_CAMERA_ODOMETRY_Z, q, t);
+
+        Eigen::Matrix<T,3,1> P = m_observed_P.cast<T>();
+
+        std::vector<T> intrinsic_params(m_intrinsic_params.begin(), m_intrinsic_params.end());
+
+        // project 3D object point to the image plane
+        Eigen::Matrix<T,2,1> predicted_p;
+        CameraT::spaceToPlane(intrinsic_params.data(), q, t, P, predicted_p);
+
+        residuals[0] = predicted_p(0) - T(m_observed_p(0));
+        residuals[1] = predicted_p(1) - T(m_observed_p(1));
+
+        return true;
+    }
+
 private:
+    // camera intrinsics
+    std::vector<double> m_intrinsic_params;
+
     // observed 3D point
     Eigen::Vector3d m_observed_P;
 
@@ -152,6 +181,18 @@ public:
                        const Eigen::Vector3d& odo_att,
                        const Eigen::Vector2d& observed_p, int optimize_flags)
      : m_intrinsic_params(intrinsic_params)
+     , m_odo_pos(odo_pos), m_odo_att(odo_att)
+     , m_observed_p(observed_p)
+     , m_optimize_flags(optimize_flags) {}
+
+    ReprojectionError3(const std::vector<double>& intrinsic_params,
+                       const Eigen::Quaterniond& cam_odo_q,
+                       const Eigen::Vector3d& cam_odo_t,
+                       const Eigen::Vector3d& odo_pos,
+                       const Eigen::Vector3d& odo_att,
+                       const Eigen::Vector2d& observed_p, int optimize_flags)
+     : m_intrinsic_params(intrinsic_params)
+     , m_cam_odo_q(cam_odo_q), m_cam_odo_t(cam_odo_t)
      , m_odo_pos(odo_pos), m_odo_att(odo_att)
      , m_observed_p(observed_p)
      , m_optimize_flags(optimize_flags) {}
@@ -225,9 +266,38 @@ public:
         return true;
     }
 
+    // variables: 3D point
+    template <typename T>
+    bool operator()(const T* const point, T* residuals) const
+    {
+        T q_cam_odo[4] = {T(m_cam_odo_q.coeffs()(0)), T(m_cam_odo_q.coeffs()(1)), T(m_cam_odo_q.coeffs()(2)), T(m_cam_odo_q.coeffs()(3))};
+        T t_cam_odo[3] = {T(m_cam_odo_t(0)), T(m_cam_odo_t(1)), T(m_cam_odo_t(2))};
+        T p_odo[3] = {T(m_odo_pos(0)), T(m_odo_pos(1)), T(m_odo_pos(2))};
+        T att_odo[3] = {T(m_odo_att(0)), T(m_odo_att(1)), T(m_odo_att(2))};
+        T q[4], t[3];
+
+        worldToCameraTransform(q_cam_odo, t_cam_odo, p_odo, att_odo, m_optimize_flags, q, t);
+
+        std::vector<T> intrinsic_params(m_intrinsic_params.begin(), m_intrinsic_params.end());
+        Eigen::Matrix<T,3,1> P(point[0], point[1], point[2]);
+
+        // project 3D object point to the image plane
+        Eigen::Matrix<T,2,1> predicted_p;
+        CameraT::spaceToPlane(intrinsic_params.data(), q, t, P, predicted_p);
+
+        residuals[0] = predicted_p(0) - T(m_observed_p(0));
+        residuals[1] = predicted_p(1) - T(m_observed_p(1));
+
+        return true;
+    }
+
 private:
     // camera intrinsics
     std::vector<double> m_intrinsic_params;
+
+    // observed camera-odometry transform
+    Eigen::Quaterniond m_cam_odo_q;
+    Eigen::Vector3d m_cam_odo_t;
 
     // observed odometry
     Eigen::Vector3d m_odo_pos;
@@ -329,6 +399,9 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
 {
     ceres::CostFunction* costFunction = 0;
 
+    std::vector<double> intrinsic_params;
+    camera->writeParameters(intrinsic_params);
+
     switch (flags)
     {
     case CAMERA_INTRINSICS | CAMERA_EXTRINSICS:
@@ -351,9 +424,29 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             break;
         }
         break;
+    case CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS:
+        switch (camera->modelType())
+        {
+        case Camera::KANNALA_BRANDT:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<EquidistantCamera>, 2, 4, 3, 3, 3>(
+                    new ReprojectionError1<EquidistantCamera>(intrinsic_params, observed_P, observed_p));
+            break;
+        case Camera::PINHOLE:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<PinholeCamera>, 2, 4, 3, 3, 3>(
+                    new ReprojectionError1<PinholeCamera>(intrinsic_params, observed_P, observed_p));
+            break;
+        case Camera::MEI:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 2, 4, 3, 3, 3>(
+                    new ReprojectionError1<CataCamera>(intrinsic_params, observed_P, observed_p));
+            break;
+        }
+        break;
     }
 
-   return costFunction;
+    return costFunction;
 }
 
 ceres::CostFunction*
@@ -655,6 +748,49 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                     new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 4, 2, 3>(
                         new ReprojectionError3<CataCamera>(intrinsic_params, odo_pos, odo_att, observed_p, optimize_flags));
             }
+            break;
+        }
+        break;
+    }
+
+    return costFunction;
+}
+
+ceres::CostFunction*
+CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
+                                          const Eigen::Quaterniond& cam_odo_q,
+                                          const Eigen::Vector3d& cam_odo_t,
+                                          const Eigen::Vector3d& odo_pos,
+                                          const Eigen::Vector3d& odo_att,
+                                          const Eigen::Vector2d& observed_p,
+                                          int flags) const
+{
+    ceres::CostFunction* costFunction = 0;
+
+    std::vector<double> intrinsic_params;
+    camera->writeParameters(intrinsic_params);
+
+    int optimize_flags = OPTIMIZE_CAMERA_ODOMETRY_Z | OPTIMIZE_ODOMETRY_6D;
+
+    switch (flags)
+    {
+    case POINT_3D:
+        switch (camera->modelType())
+        {
+        case Camera::KANNALA_BRANDT:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError3<EquidistantCamera>, 2, 3>(
+                    new ReprojectionError3<EquidistantCamera>(intrinsic_params, cam_odo_q, cam_odo_t, odo_pos, odo_att, observed_p, optimize_flags));
+            break;
+        case Camera::PINHOLE:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 3>(
+                    new ReprojectionError3<PinholeCamera>(intrinsic_params, cam_odo_q, cam_odo_t, odo_pos, odo_att, observed_p, optimize_flags));
+            break;
+        case Camera::MEI:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 3>(
+                    new ReprojectionError3<CataCamera>(intrinsic_params, cam_odo_q, cam_odo_t, odo_pos, odo_att, observed_p, optimize_flags));
             break;
         }
         break;

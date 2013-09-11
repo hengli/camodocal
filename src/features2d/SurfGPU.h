@@ -43,6 +43,7 @@ public:
 
 private:
     static cv::Ptr<SurfGPU> mInstance;
+    static boost::mutex mInstanceMutex;
 
     cv::gpu::SURF_GPU mSURF_GPU;
     cv::gpu::GpuMat mImageGPU;

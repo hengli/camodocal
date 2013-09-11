@@ -90,9 +90,6 @@ include_directories(
   ${GLIBMM2_INTERNAL_INCLUDE_DIR}
   ${SIGC++_INCLUDE_DIR}
   ${OPENCV_INCLUDE_DIRS}
-  ${RTI_INCLUDE_DIR}
-  ${RTI_INCLUDE_DIR}/ndds
-  external/adtf/include
 
   # All library includes are prefixed with the path to avoid conflicts
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -106,25 +103,7 @@ include_directories(
 
 if(BUILD_SHARED_LIBS)
   add_definitions(-DCAMODOCAL_EXPORTS)
-  if(CAMODOCAL_PLATFORM_WINDOWS)
-    add_definitions(-DNDDS_USER_DLL_EXPORT)
-  endif(CAMODOCAL_PLATFORM_WINDOWS)
 endif(BUILD_SHARED_LIBS)
-
-if(CAMODOCAL_PLATFORM_WINDOWS)
-  add_definitions(-DRTI_WIN32 -DNDDS_DLL_VARIABLE)
-  # Windows 64-bit
-  set(CMAKE_CXX_FLAGS "/MD")
-elseif(CAMODOCAL_PLATFORM_UNIX)
-  add_definitions(-DRTI_UNIX)
-  if(CAMODOCAL_ARCH_32)
-    # Linux 32-bit
-    set(CMAKE_CXX_FLAGS "-m32")
-  else(CAMODOCAL_ARCH_32)
-    # Linux 64-bit
-    set(CMAKE_CXX_FLAGS "-m64")
-  endif(CAMODOCAL_ARCH_32)
-endif()
 
 # General linker flags
 if(MSVC)
@@ -136,11 +115,6 @@ if(CAMODOCAL_PLATFORM_UNIX)
   set_linker_flags("-Wl,--no-undefined -ldl -lnsl -lm -pthread -lrt" CACHE)
 endif(CAMODOCAL_PLATFORM_UNIX)
   
-if(PROTOBUF_FOUND)
-  include_directories(${PROTOBUF_INCLUDE_DIR})
-  add_definitions(-DPROTOBUF_FOUND)
-endif()
-
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
   link_directories(${Boost_LIBRARY_DIRS})
