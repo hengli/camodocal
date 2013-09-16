@@ -92,16 +92,16 @@ private:
                                           const std::vector<Point2DFeaturePtr>& features2) const;
 
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
-                                              double reprojErrorThresh = 3.0);
+                                              double reprojErrorThresh = 2.0);
     void matchFrameToWindow(int cameraIdx1, int cameraIdx2,
                             FramePtr& frame1,
                             std::vector<FramePtr>& window,
                             std::vector<Correspondence2D2D>* correspondences2D2D,
-                            double reprojErrorThresh = 3.0);
+                            double reprojErrorThresh = 2.0);
     void matchFrameToFrame(int cameraIdx1, int cameraIdx2,
                            FramePtr& frame1, FramePtr& frame2,
                            std::vector<Correspondence2D2D>* corr2D2D,
-                           double reprojErrorThresh = 3.0);
+                           double reprojErrorThresh = 2.0);
 
     cv::Mat buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
                                std::vector<size_t>& indices) const;

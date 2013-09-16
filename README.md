@@ -75,6 +75,10 @@ Go to the build folder where the executables corresponding to the examples are l
    Note: Extrinsic calibration requires the use of a vocabulary tree. The vocabulary data
          corresponding to 64-bit SURF descriptors can be found in data/vocabulary/surf64.yml.gz.
          This file has to be located in the directory from which you run the executable.
+
+4. Infrastructure-based calibration
+
+   Details to be released soon!
    
   [1]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
   [2]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"

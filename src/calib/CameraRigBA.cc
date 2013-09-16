@@ -34,7 +34,7 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
  , kMaxPoint3DDistance(20.0)
  , kMaxReprojErr(2.0)
  , kMinLoopCorrespondences2D2D(50)
- , kMinInterCorrespondences2D2D(10)
+ , kMinInterCorrespondences2D2D(8)
  , kNearestImageMatches(15)
  , kNominalFocalLength(300.0)
  , mVerbose(false)
@@ -310,35 +310,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
                       << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
         }
 
-        if (!findLoopClosures)
-        {
-            std::cout << "# INFO: Running BA on odometry data..." << std::endl;
-
-            if (optimizeIntrinsics)
-            {
-                // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
-                optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
-            }
-            else
-            {
-                // perform BA to optimize extrinsics, odometry poses, and scene points
-                optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
-            }
-
-            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
-            prune(PRUNE_BEHIND_CAMERA | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR);
-
-            if (mVerbose)
-            {
-                std::cout << "# INFO: Done." << std::endl;
-                std::cout << "# INFO: Reprojection error after inter-map linking: avg = " << avgError
-                          << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
-            }
-
-            std::cout << "# INFO: Done." << std::endl;
-        }
-
 #ifdef VCHARGE_VIZ
         visualize("opt2-BA-", ODOMETRY);
 
@@ -347,19 +318,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
         if (saveWorkingData)
         {
-            if (!findLoopClosures)
-            {
-                for (int i = 0; i < mCameras.size(); ++i)
-                {
-                    std::ostringstream oss;
-                    oss << "tmp_intrinsic_" << i << ".yaml";
-
-                    boost::filesystem::path intrinsicPath(dataDir);
-                    intrinsicPath /= oss.str();
-                    mCameras.at(i)->writeParameters(intrinsicPath.string());
-                }
-            }
-
             boost::filesystem::path extrinsicPath(dataDir);
             extrinsicPath /= "tmp_extrinsic_2.txt";
             mExtrinsics.writeToFile(extrinsicPath.string());
@@ -370,44 +328,48 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         }
     }
 
-    if (findLoopClosures && beginStage <= 3)
+    if (beginStage <= 3)
     {
-        buildVocTree();
-
-        if (mVerbose)
+        if (findLoopClosures)
         {
-            std::cout << "# INFO: Finding loop closures... " << std::endl;
-        }
+            buildVocTree();
 
-        std::vector<boost::tuple<int, int, FramePtr, FramePtr> > loopClosureFrameFrame;
-        std::vector<Correspondence3D3D> loopClosure3D3D;
-        findLoopClosure3D3D(loopClosureFrameFrame, loopClosure3D3D);
-
-        for (size_t i = 0; i < loopClosure3D3D.size(); ++i)
-        {
-            Point3DFeaturePtr p1 = loopClosure3D3D.at(i).get<4>();
-            Point3DFeaturePtr p2 = loopClosure3D3D.at(i).get<5>();
-
-            p2->features2D().insert(p2->features2D().end(), p1->features2D().begin(), p1->features2D().end());
-            std::sort(p2->features2D().begin(), p2->features2D().end());
-            p2->features2D().erase(std::unique(p2->features2D().begin(), p2->features2D().end()), p2->features2D().end());
-
-            std::vector<Point2DFeaturePtr> features2D = p2->features2D();
-            for (size_t j = 0; j < features2D.size(); ++j)
+            if (mVerbose)
             {
-                features2D.at(j)->feature3D() = p2;
+                std::cout << "# INFO: Finding loop closures... " << std::endl;
+            }
+
+            std::vector<boost::tuple<int, int, FramePtr, FramePtr> > loopClosureFrameFrame;
+            std::vector<Correspondence3D3D> loopClosure3D3D;
+            findLoopClosure3D3D(loopClosureFrameFrame, loopClosure3D3D);
+
+            for (size_t i = 0; i < loopClosure3D3D.size(); ++i)
+            {
+                Point3DFeaturePtr p1 = loopClosure3D3D.at(i).get<4>();
+                Point3DFeaturePtr p2 = loopClosure3D3D.at(i).get<5>();
+
+                p2->features2D().insert(p2->features2D().end(), p1->features2D().begin(), p1->features2D().end());
+                std::sort(p2->features2D().begin(), p2->features2D().end());
+                p2->features2D().erase(std::unique(p2->features2D().begin(), p2->features2D().end()), p2->features2D().end());
+
+                std::vector<Point2DFeaturePtr> features2D = p2->features2D();
+                for (size_t j = 0; j < features2D.size(); ++j)
+                {
+                    features2D.at(j)->feature3D() = p2;
+                }
+            }
+
+#ifdef VCHARGE_VIZ
+            visualizeFrameFrameCorrespondences("loop-p-p", loopClosureFrameFrame);
+#endif
+
+            if (mVerbose)
+            {
+                std::cout << "# INFO: Done." << std::endl;
             }
         }
 
-#ifdef VCHARGE_VIZ
-        visualizeFrameFrameCorrespondences("loop-p-p", loopClosureFrameFrame);
-#endif
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Running BA on odometry data... " << std::endl;
-        }
+        std::cout << "# INFO: Running BA on odometry data... " << std::endl;
 
         // perform BA to optimize intrinsics, extrinsics and scene points
         if (optimizeIntrinsics)
@@ -433,7 +395,18 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         if (mVerbose)
         {
             std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after loop closures: avg = " << avgError
+            std::cout << "# INFO: Reprojection error after ";
+
+            if (findLoopClosures)
+            {
+                std::cout << "loop closures";
+            }
+            else
+            {
+                std::cout << "inter-map linking";
+            }
+
+            std::cout << ": avg = " << avgError
                       << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
         }
 
@@ -1285,11 +1258,6 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             it != pathMap.end(); ++it)
     {
         ++pathNodeIdx;
-
-//        if (pathNodeIdx > 60)
-//        {
-//            return;
-//        }
 
         std::vector<FramePtr>& frames = it->second;
 

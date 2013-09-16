@@ -209,6 +209,8 @@ private:
 class Point3DFeature
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     Point3DFeature();
 
     Eigen::Vector3d& point(void);

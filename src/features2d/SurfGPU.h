@@ -38,8 +38,7 @@ public:
                const cv::Mat& image2, std::vector<cv::KeyPoint>& keypoints2,
                const cv::Mat& mask2,
                std::vector<cv::DMatch>& matches,
-               bool useProvidedKeypoints = false,
-               float maxDistanceRatio = 0.7f);
+               bool useProvidedKeypoints = false);
 
 private:
     static cv::Ptr<SurfGPU> mInstance;

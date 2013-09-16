@@ -24,7 +24,7 @@ CameraRigExtrinsics::reset(void)
 {
     for (int i = 0; i < m_cameraCount; ++i)
     {
-        setGlobalCameraPose(i, Eigen::Matrix4d::Identity());
+        m_globalPoses.at(i).setIdentity();
     }
 }
 

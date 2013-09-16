@@ -38,3 +38,19 @@ camodocal_link_libraries(extrinsic_calib
 )
 
 endif(CAMODOCAL_CALIB_FOUND)
+
+include_directories(
+  ../dbow2/DBoW2
+  ../dbow2/DUtils
+  ../dbow2/DUtils
+  ../dbow2/DUtilsCV
+  ../dbow2/DVision
+)
+
+camodocal_executable(train_voctree
+  train_voctree.cc
+)
+
+camodocal_link_libraries(train_voctree
+  camodocal_DBoW2
+)
