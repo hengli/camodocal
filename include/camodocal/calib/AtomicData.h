@@ -157,6 +157,8 @@ AtomicData<T>::waitForProcessingDone(void)
 
     mProcess = true;
 
+    notifyData();
+
     while (mProcess)
     {
         mProcessCond.wait(lock);

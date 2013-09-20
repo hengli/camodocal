@@ -76,11 +76,8 @@ CamRigOdoCalibration::addFrame(int cameraIdx, const cv::Mat& image,
     image.copyTo(frame->data());
 
     frame->timeStamp() = timestamp;
-    frame->available() = true;
 
     frame->unlockData();
-
-    frame->notifyData();
 
     if (mOptions.mode == OFFLINE)
     {
