@@ -639,7 +639,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     double tsStart = timeInSeconds();
 
     // compute keypoints and descriptors
-    cv::Ptr<SurfGPU> surf = SurfGPU::instance(200.0);
+    cv::Ptr<SurfGPU> surf = SurfGPU::instance(300.0);
 
     std::vector<cv::KeyPoint> keypoints;
     surf->detect(imageProc, keypoints);

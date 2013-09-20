@@ -104,9 +104,11 @@ template<class T>
 void
 AtomicData<T>::notifyData(void)
 {
-    boost::lock_guard<boost::mutex> lock(mDataMutex);
+    {
+        boost::lock_guard<boost::mutex> lock(mDataMutex);
 
-    mAvailable = true;
+        mAvailable = true;
+    }
 
     mDataCond.notify_one();
 }
@@ -116,6 +118,7 @@ void
 AtomicData<T>::waitForData(void)
 {
     boost::unique_lock<boost::mutex> lock(mDataMutex);
+
     while (!mAvailable)
     {
         mDataCond.wait(lock);

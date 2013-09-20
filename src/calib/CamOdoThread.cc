@@ -228,6 +228,7 @@ CamOdoThread::threadFunction(void)
 
             if (framePrev.get() != 0 && timeStamp == framePrev->camera()->timeStamp())
             {
+                mImage->available() = false;
                 mImage->unlockData();
                 mImage->notifyProcessingDone();
 
@@ -236,6 +237,7 @@ CamOdoThread::threadFunction(void)
 
             mImage->data().copyTo(image);
 
+            mImage->available() = false;
             mImage->unlockData();
 
             if (image.channels() == 1)
