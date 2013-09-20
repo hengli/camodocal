@@ -39,6 +39,8 @@ public:
     const double* const attitudeData(void) const;
     Eigen::Matrix4d pose(void) const;
 
+    Odometry& operator=(const Odometry& rhs);
+
 private:
     Eigen::Vector3d m_pos;
     Eigen::Vector3d m_att; // 0 - yaw, 1 - pitch, 2 - roll

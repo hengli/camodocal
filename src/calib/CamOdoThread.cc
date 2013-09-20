@@ -319,7 +319,7 @@ CamOdoThread::threadFunction(void)
                 }
 
                 if (framePrev.get() != 0 &&
-                    (pos - framePrev->odometry()->position()).norm() < kKeyFrameDistance)
+                    (pos - framePrev->odometryOpt()->position()).norm() < kKeyFrameDistance)
                 {
                     mImage->notifyProcessingDone();
                     continue;
@@ -333,7 +333,10 @@ CamOdoThread::threadFunction(void)
                 bool camValid = tracker.addFrame(frame, mCamera->mask(), R, t);
 
                 // tag frame with odometry and GPS/INS data
-                frame->odometry() = interpOdo;
+                frame->odometryUnopt().reset(new Odometry);
+                *(frame->odometryUnopt()) = *interpOdo;
+                frame->odometryOpt().reset(new Odometry);
+                *(frame->odometryOpt()) = *interpOdo;
 
                 if (interpGpsIns.get() != 0)
                 {
@@ -352,7 +355,10 @@ CamOdoThread::threadFunction(void)
                     mat2RPY(R, roll, pitch, yaw);
                     gpsIns->yaw() = -yaw;
 
-                    frame->odometry() = gpsIns;
+                    frame->odometryUnopt().reset(new Odometry);
+                    *(frame->odometryUnopt()) = *gpsIns;
+                    frame->odometryOpt().reset(new Odometry);
+                    *(frame->odometryOpt()) = *gpsIns;
                 }
 
                 if (!mSaveImages)
@@ -362,7 +368,7 @@ CamOdoThread::threadFunction(void)
 
                 if (camValid)
                 {
-                    odometryPoses.push_back(frame->odometry());
+                    odometryPoses.push_back(frame->odometryOpt());
                 }
 
                 framePrev = frame;

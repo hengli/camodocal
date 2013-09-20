@@ -169,4 +169,17 @@ Odometry::pose(void) const
     return odometryPose;
 }
 
+Odometry&
+Odometry::operator=(const Odometry& rhs)
+{
+    if (this != &rhs)
+    {
+        m_pos = rhs.m_pos;
+        m_att = rhs.m_att;
+        m_timeStamp = rhs.m_timeStamp;
+    }
+
+    return *this;
+}
+
 }

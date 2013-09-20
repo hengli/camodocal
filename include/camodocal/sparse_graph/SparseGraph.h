@@ -83,8 +83,11 @@ public:
     int& cameraId(void);
     int cameraId(void) const;
 
-    OdometryPtr& odometry(void);
-    OdometryConstPtr odometry(void) const;
+    OdometryPtr& odometryUnopt(void);
+    OdometryConstPtr odometryUnopt(void) const;
+
+    OdometryPtr& odometryOpt(void);
+    OdometryConstPtr odometryOpt(void) const;
 
     PosePtr& gps_ins(void);
     PoseConstPtr gps_ins(void) const;
@@ -104,7 +107,8 @@ public:
 private:
     PosePtr m_camera;
     int m_cameraId;
-    OdometryPtr m_odometry;
+    OdometryPtr m_odometryUnopt;
+    OdometryPtr m_odometryOpt;
     PosePtr m_gpsIns;
 
     std::vector<Point2DFeaturePtr> m_features2D;

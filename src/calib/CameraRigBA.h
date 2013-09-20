@@ -77,16 +77,17 @@ private:
     } FrameID;
 
     typedef std::pair<Point2DFeaturePtr, Point2DFeaturePtr> Correspondence2D2D;
+    typedef boost::tuple<int, int, FramePtr, FramePtr, Point2DFeaturePtr, Point3DFeaturePtr> Correspondence2D3D;
     typedef boost::tuple<int, int, FramePtr, FramePtr, Point3DFeaturePtr, Point3DFeaturePtr> Correspondence3D3D;
 
     void buildVocTree(void);
     std::vector<std::vector<float> > frameToBOW(const FrameConstPtr& frame) const;
-    void findLoopClosure3D3D(std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame,
-                             std::vector<Correspondence3D3D>& correspondences3D3D,
+    void findLoopClosure2D3D(std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame,
+                             std::vector<Correspondence2D3D>& correspondences2D3D,
                              double reprojErrorThresh = 1.0);
-    void findLoopClosure3D3DHelper(int cameraIdx,
+    void findLoopClosure2D3DHelper(int cameraIdx,
                                    std::vector<boost::tuple<int, int, FramePtr, FramePtr> >* corrFF,
-                                   std::vector<Correspondence3D3D>* corr3D3D,
+                                   std::vector<Correspondence2D3D>* corr2D3D,
                                    double reprojErrorThresh = 1.0);
     std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
                                           const std::vector<Point2DFeaturePtr>& features2) const;
@@ -141,7 +142,9 @@ private:
 
     bool seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& features2D) const;
 
-    bool findAbsoluteGroundHeight(double& zGround) const;
+    bool estimateCameraOdometryTransforms(void);
+
+    bool estimateAbsoluteGroundHeight(double& zGround) const;
 
 #ifdef VCHARGE_VIZ
     void visualize(const std::string& overlayPrefix, int type);
@@ -150,6 +153,9 @@ private:
 
     void visualizeFrameFrameCorrespondences(const std::string& overlayName,
                                             const std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame) const;
+
+    void visualize2D3DCorrespondences(const std::string& overlayName,
+                                      const std::vector<Correspondence2D3D>& correspondences) const;
 
     void visualize3D3DCorrespondences(const std::string& overlayName,
                                       const std::vector<Correspondence3D3D>& correspondences) const;
@@ -180,7 +186,7 @@ private:
     const float kMaxDistanceRatio;
     const double kMaxPoint3DDistance;
     const double kMaxReprojErr;
-    const size_t kMinLoopCorrespondences2D2D;
+    const size_t kMinLoopCorrespondences2D3D;
     const size_t kMinInterCorrespondences2D2D;
     const int kNearestImageMatches;
     const double kNominalFocalLength;

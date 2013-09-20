@@ -423,7 +423,7 @@ InfrastructureCalibration::run(void)
 
             for (size_t k = 0; k < m_framesets.at(j).frames.size(); ++k)
             {
-                m_framesets.at(j).frames.at(k)->odometry() = odometry;
+                m_framesets.at(j).frames.at(k)->odometryOpt() = odometry;
             }
         }
 
@@ -475,7 +475,7 @@ InfrastructureCalibration::run(void)
 
         pos /= frameset.frames.size();
 
-        OdometryPtr& odometry = frameset.frames.at(0)->odometry();
+        OdometryPtr& odometry = frameset.frames.at(0)->odometryOpt();
         odometry->position() = pos;
 
         Eigen::Quaterniond qAvg = quaternionAvg(att);
@@ -489,7 +489,7 @@ InfrastructureCalibration::run(void)
         {
             FramePtr& frame = frameset.frames.at(j);
 
-            frame->odometry() = odometry;
+            frame->odometryOpt() = odometry;
         }
     }
 
@@ -895,8 +895,8 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
                                              T_cam_ref.at(frame->cameraId()).translationData(),
-                                             frame->odometry()->positionData(),
-                                             frame->odometry()->attitudeData(),
+                                             frame->odometryOpt()->positionData(),
+                                             frame->odometryOpt()->attitudeData(),
                                              feature2D->feature3D()->pointData());
                 }
                 else
@@ -910,8 +910,8 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
                                              T_cam_ref.at(frame->cameraId()).translationData(),
-                                             frame->odometry()->positionData(),
-                                             frame->odometry()->attitudeData());
+                                             frame->odometryOpt()->positionData(),
+                                             frame->odometryOpt()->attitudeData());
                 }
             }
         }
@@ -1134,8 +1134,8 @@ InfrastructureCalibration::frameReprojectionError(const FramePtr& frame,
             = reprojectionError(camera, feature3D->point(),
                                 T_cam_ref.rotation(),
                                 T_cam_ref.translation(),
-                                frame->odometry()->position(),
-                                frame->odometry()->attitude(),
+                                frame->odometryOpt()->position(),
+                                frame->odometryOpt()->attitude(),
                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
 
         if (minError > error)
@@ -1699,7 +1699,7 @@ InfrastructureCalibration::visualizeOdometry(void) const
     {
         const FrameSet& frameset = m_framesets.at(i);
 
-        const OdometryPtr& odometry = frameset.frames.at(0)->odometry();
+        const OdometryPtr& odometry = frameset.frames.at(0)->odometryOpt();
 
         Eigen::Matrix4d H = odometry->pose();
 

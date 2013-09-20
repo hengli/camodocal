@@ -154,15 +154,27 @@ Frame::cameraId(void) const
 }
 
 OdometryPtr&
-Frame::odometry(void)
+Frame::odometryUnopt(void)
 {
-    return m_odometry;
+    return m_odometryUnopt;
 }
 
 OdometryConstPtr
-Frame::odometry(void) const
+Frame::odometryUnopt(void) const
 {
-    return m_odometry;
+    return m_odometryUnopt;
+}
+
+OdometryPtr&
+Frame::odometryOpt(void)
+{
+    return m_odometryOpt;
+}
+
+OdometryConstPtr
+Frame::odometryOpt(void) const
+{
+    return m_odometryOpt;
 }
 
 PosePtr&
@@ -612,7 +624,13 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         readData(ifs, odometryIdx);
         if (odometryIdx != static_cast<size_t>(-1))
         {
-            frame->odometry() = odometryMap.at(odometryIdx);
+            frame->odometryUnopt() = odometryMap.at(odometryIdx);
+        }
+
+        readData(ifs, odometryIdx);
+        if (odometryIdx != static_cast<size_t>(-1))
+        {
+            frame->odometryOpt() = odometryMap.at(odometryIdx);
         }
 
         readData(ifs, poseIdx);
@@ -918,11 +936,18 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
                         poseMap.insert(std::make_pair(frame->camera().get(), poseMap.size()));
                     }
                 }
-                if (frame->odometry().get() != 0)
+                if (frame->odometryUnopt().get() != 0)
                 {
-                    if (odometryMap.find(frame->odometry().get()) == odometryMap.end())
+                    if (odometryMap.find(frame->odometryUnopt().get()) == odometryMap.end())
                     {
-                        odometryMap.insert(std::make_pair(frame->odometry().get(), odometryMap.size()));
+                        odometryMap.insert(std::make_pair(frame->odometryUnopt().get(), odometryMap.size()));
+                    }
+                }
+                if (frame->odometryOpt().get() != 0)
+                {
+                    if (odometryMap.find(frame->odometryOpt().get()) == odometryMap.end())
+                    {
+                        odometryMap.insert(std::make_pair(frame->odometryOpt().get(), odometryMap.size()));
                     }
                 }
                 if (frame->gps_ins().get() != 0)
@@ -1031,9 +1056,19 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             writeData(ofs, invalidIdx);
         }
 
-        if (frame->odometry().get() != 0)
+        if (frame->odometryUnopt().get() != 0)
         {
-            writeData(ofs, odometryMap[frame->odometry().get()]);
+            writeData(ofs, odometryMap[frame->odometryUnopt().get()]);
+        }
+        else
+        {
+            size_t invalidIdx = -1;
+            writeData(ofs, invalidIdx);
+        }
+
+        if (frame->odometryOpt().get() != 0)
+        {
+            writeData(ofs, odometryMap[frame->odometryOpt().get()]);
         }
         else
         {

@@ -6,6 +6,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "camodocal/calib/PlanarHandEyeCalibration.h"
 #include "ceres/ceres.h"
 #include "ceres/covariance.h"
 #include "../camera_models/CostFunctionFactory.h"
@@ -33,7 +34,7 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
  , kMaxDistanceRatio(0.7f)
  , kMaxPoint3DDistance(20.0)
  , kMaxReprojErr(2.0)
- , kMinLoopCorrespondences2D2D(50)
+ , kMinLoopCorrespondences2D3D(25)
  , kMinInterCorrespondences2D2D(8)
  , kNearestImageMatches(15)
  , kNominalFocalLength(300.0)
@@ -340,13 +341,13 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
             }
 
             std::vector<boost::tuple<int, int, FramePtr, FramePtr> > loopClosureFrameFrame;
-            std::vector<Correspondence3D3D> loopClosure3D3D;
-            findLoopClosure3D3D(loopClosureFrameFrame, loopClosure3D3D);
+            std::vector<Correspondence2D3D> loopClosure2D3D;
+            findLoopClosure2D3D(loopClosureFrameFrame, loopClosure2D3D);
 
-            for (size_t i = 0; i < loopClosure3D3D.size(); ++i)
+            for (size_t i = 0; i < loopClosure2D3D.size(); ++i)
             {
-                Point3DFeaturePtr p1 = loopClosure3D3D.at(i).get<4>();
-                Point3DFeaturePtr p2 = loopClosure3D3D.at(i).get<5>();
+                Point3DFeaturePtr p1 = loopClosure2D3D.at(i).get<4>()->feature3D();
+                Point3DFeaturePtr p2 = loopClosure2D3D.at(i).get<5>();
 
                 p2->features2D().insert(p2->features2D().end(), p1->features2D().begin(), p1->features2D().end());
                 std::sort(p2->features2D().begin(), p2->features2D().end());
@@ -440,8 +441,10 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
     if (beginStage <= 4)
     {
+        estimateCameraOdometryTransforms();
+
         double zGround = 0.0;
-        if (findAbsoluteGroundHeight(zGround))
+        if (estimateAbsoluteGroundHeight(zGround))
         {
             if (mVerbose)
             {
@@ -505,8 +508,8 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
             error = reprojectionError(camera, feature3D->point(),
                                       T_cam_odo.rotation(),
                                       T_cam_odo.translation(),
-                                      frame->odometry()->position(),
-                                      frame->odometry()->attitude(),
+                                      frame->odometryOpt()->position(),
+                                      frame->odometryOpt()->attitude(),
                                       Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
         else
@@ -680,9 +683,9 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
 
         Eigen::Matrix4d H_odo_cam = T_cam_odo.pose().inverse();
 
-        Eigen::Matrix4d H1 = H_odo_cam * frame1->odometry()->pose().inverse();
-        Eigen::Matrix4d H2 = H_odo_cam * frame2->odometry()->pose().inverse();
-        Eigen::Matrix4d H3 = H_odo_cam * frame3->odometry()->pose().inverse();
+        Eigen::Matrix4d H1 = H_odo_cam * frame1->odometryOpt()->pose().inverse();
+        Eigen::Matrix4d H2 = H_odo_cam * frame2->odometryOpt()->pose().inverse();
+        Eigen::Matrix4d H3 = H_odo_cam * frame3->odometryOpt()->pose().inverse();
 
         tvt(camera,
             H1, ipoints[0],
@@ -712,8 +715,8 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
 //                    double residuals[2];
 //                    reprojErr(T_cam_odo.rotationData(),
 //                              T_cam_odo.translationData(),
-//                              frame1->odometry()->positionData(),
-//                              frame1->odometry()->attitudeData(),
+//                              frame1->odometryOpt()->positionData(),
+//                              frame1->odometryOpt()->attitudeData(),
 //                              feature3D.data(), residuals);
 //
 //                    double error = hypot(residuals[0], residuals[1]);
@@ -748,8 +751,8 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
 //                    double residuals[2];
 //                    reprojErr(T_cam_odo.rotationData(),
 //                              T_cam_odo.translationData(),
-//                              frame2->odometry()->positionData(),
-//                              frame2->odometry()->attitudeData(),
+//                              frame2->odometryOpt()->positionData(),
+//                              frame2->odometryOpt()->attitudeData(),
 //                              feature3D.data(), residuals);
 //
 //                    double error = hypot(residuals[0], residuals[1]);
@@ -784,8 +787,8 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
 //                    double residuals[2];
 //                    reprojErr(T_cam_odo.rotationData(),
 //                              T_cam_odo.translationData(),
-//                              frame3->odometry()->positionData(),
-//                              frame3->odometry()->attitudeData(),
+//                              frame3->odometryOpt()->positionData(),
+//                              frame3->odometryOpt()->attitudeData(),
 //                              feature3D.data(), residuals);
 //
 //                    double error = hypot(residuals[0], residuals[1]);
@@ -972,18 +975,18 @@ CameraRigBA::frameToBOW(const FrameConstPtr& frame) const
 }
 
 void
-CameraRigBA::findLoopClosure3D3D(std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame,
-                                 std::vector<Correspondence3D3D>& correspondences3D3D,
+CameraRigBA::findLoopClosure2D3D(std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame,
+                                 std::vector<Correspondence2D3D>& correspondences2D3D,
                                  double reprojErrorThresh)
 {
-    std::vector<Correspondence3D3D> corr3D3D[mCameras.size()];
+    std::vector<Correspondence2D3D> corr2D3D[mCameras.size()];
     std::vector<boost::tuple<int, int, FramePtr, FramePtr> > corrFF[mCameras.size()];
 
     Glib::Thread* threads[mCameras.size()];
     for (int i = 0; i < mCameras.size(); ++i)
     {
-        threads[i] = Glib::Thread::create(sigc::bind(sigc::mem_fun(*this, &CameraRigBA::findLoopClosure3D3DHelper),
-                                                     i, &corrFF[i], &corr3D3D[i], reprojErrorThresh));
+        threads[i] = Glib::Thread::create(sigc::bind(sigc::mem_fun(*this, &CameraRigBA::findLoopClosure2D3DHelper),
+                                                     i, &corrFF[i], &corr2D3D[i], reprojErrorThresh));
     }
 
     for (int i = 0; i < mCameras.size(); ++i)
@@ -991,14 +994,14 @@ CameraRigBA::findLoopClosure3D3D(std::vector<boost::tuple<int, int, FramePtr, Fr
         threads[i]->join();
 
         correspondencesFrameFrame.insert(correspondencesFrameFrame.end(), corrFF[i].begin(), corrFF[i].end());
-        correspondences3D3D.insert(correspondences3D3D.end(), corr3D3D[i].begin(), corr3D3D[i].end());
+        correspondences2D3D.insert(correspondences2D3D.end(), corr2D3D[i].begin(), corr2D3D[i].end());
     }
 }
 
 void
-CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
+CameraRigBA::findLoopClosure2D3DHelper(int cameraIdx,
                                        std::vector<boost::tuple<int, int, FramePtr, FramePtr> >* corrFF,
-                                       std::vector<Correspondence3D3D>* corr3D3D,
+                                       std::vector<Correspondence2D3D>* corr2D3D,
                                        double reprojErrorThresh)
 {
     reprojErrorThresh /= kNominalFocalLength;
@@ -1023,7 +1026,7 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
             DBoW2::QueryResults ret;
             mDb.query(frameToBOW(frame1), ret, kNearestImageMatches);
 
-            std::vector<Correspondence3D3D> corr3D3DBest;
+            std::vector<Correspondence2D3D> corr2D3DBest;
             FramePtr frame2Best;
             FrameID fidBest;
             int nInliersBest;
@@ -1043,89 +1046,91 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
                 // mark 3D-3D correspondences between maps
                 std::vector<cv::DMatch> matches = matchFeatures(frame1->features2D(), frame2->features2D());
 
-                std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > corr2D2D;
+                if (matches.size() < kMinLoopCorrespondences2D3D)
+                {
+                    continue;
+                }
+
+                // find camera pose from EPnP
+                std::vector<Correspondence2D3D> corr2D3D;
+                std::vector<cv::Point2f> imagePoints;
+                std::vector<cv::Point3f> scenePoints;
                 for (size_t j = 0; j < matches.size(); ++j)
                 {
                     cv::DMatch& match = matches.at(j);
 
-                    corr2D2D.push_back(std::make_pair(frame1->features2D().at(match.queryIdx),
-                                                      frame2->features2D().at(match.trainIdx)));
-                }
+                    Point3DFeaturePtr& p3D = frame1->features2D().at(match.queryIdx)->feature3D();
+                    Point2DFeaturePtr& p2D = frame2->features2D().at(match.trainIdx);
 
-                if (corr2D2D.size() < kMinLoopCorrespondences2D2D)
-                {
-                    continue;
-                }
-
-                std::vector<cv::Point2f> points1, points2;
-                points1.reserve(corr2D2D.size());
-                points2.reserve(corr2D2D.size());
-
-                for (size_t j = 0; j < corr2D2D.size(); ++j)
-                {
-                    Point2DFeaturePtr& pf1 = corr2D2D.at(j).first;
-                    Point2DFeaturePtr& pf2 = corr2D2D.at(j).second;
-
-                    cv::Point2f rectPt1, rectPt2;
-                    rectifyImagePoint(mCameras.at(cameraIdx), pf1->keypoint().pt, rectPt1);
-                    rectifyImagePoint(mCameras.at(fid.cameraIdx), pf2->keypoint().pt, rectPt2);
-
-                    points1.push_back(rectPt1);
-                    points2.push_back(rectPt2);
-                }
-
-                cv::Mat E, inlierMat;
-                E = findEssentialMat(points1, points2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
-
-                if (cv::countNonZero(inlierMat) < kMinLoopCorrespondences2D2D)
-                {
-                    continue;
-                }
-
-                std::vector<Correspondence3D3D> corr3D3D;
-                for (int j = 0; j < corr2D2D.size(); ++j)
-                {
-                    if (inlierMat.at<unsigned char>(0,j))
+                    if (p3D.get() == 0)
                     {
-                        Point3DFeaturePtr& p1 = corr2D2D.at(j).first->feature3D();
-                        Point3DFeaturePtr& p2 = corr2D2D.at(j).second->feature3D();
-
-                        if (p1.get() == 0 || p2.get() == 0)
-                        {
-                            continue;
-                        }
-
-                        corr3D3D.push_back(boost::make_tuple(cameraIdx, fid.cameraIdx,
-                                                             frame1, frame2,
-                                                             p1, p2));
+                        continue;
                     }
+
+                    corr2D3D.push_back(boost::make_tuple(fid.cameraIdx, cameraIdx,
+                                                         frame2, frame1,
+                                                         p2D, p3D));
+
+                    cv::Point2f rectPt;
+                    rectifyImagePoint(mCameras.at(fid.cameraIdx), p2D->keypoint().pt, rectPt);
+
+                    imagePoints.push_back(rectPt);
+
+                    const Eigen::Vector3d& p = p3D->point();
+                    scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
                 }
 
-                if (corr3D3D.size() > corr3D3DBest.size())
+                if (corr2D3D.size() < kMinLoopCorrespondences2D3D)
                 {
-                    corr3D3DBest = corr3D3D;
+                    continue;
+                }
+
+                cv::Mat rvec_cv, tvec_cv;
+                std::vector<int> inliers;
+
+                cv::solvePnPRansac(scenePoints, imagePoints,
+                                   cv::Mat::eye(3, 3, CV_32F),
+                                   cv::noArray(),
+                                   rvec_cv, tvec_cv, false, 200,
+                                   reprojErrorThresh, 100, inliers, CV_EPNP);
+
+                int nInliers = inliers.size();
+
+                if (nInliers < kMinLoopCorrespondences2D3D)
+                {
+                    continue;
+                }
+
+                if (nInliers > corr2D3DBest.size())
+                {
+                    corr2D3DBest.clear();
+                    for (size_t j = 0; j < inliers.size(); ++j)
+                    {
+                        corr2D3DBest.push_back(corr2D3D.at(inliers.at(j)));
+                    }
+
                     frame2Best = frame2;
                     fidBest = fid;
-                    nInliersBest = cv::countNonZero(inlierMat);
+                    nInliersBest = nInliers;
                 }
             }
 
-            if (!corr3D3DBest.empty())
+            if (!corr2D3DBest.empty())
             {
-                corrFF->push_back(boost::make_tuple(cameraIdx, cameraIdx, frame1, frame2Best));
+                corrFF->push_back(boost::make_tuple(cameraIdx, fidBest.cameraIdx, frame1, frame2Best));
 
                 if (mVerbose)
                 {
                     std::cout << "# INFO: Image match: " << cameraIdx << "," << segmentIdx << "," << frameIdx << " -> "
                               << fidBest.cameraIdx << "," << fidBest.segmentIdx << "," << fidBest.frameIdx << " with "
                               << nInliersBest << " 2D-2D correspondences and "
-                              << corr3D3DBest.size() << " 3D-3D correspondences." << std::endl;
+                              << corr2D3DBest.size() << " 2D-3D correspondences." << std::endl;
                 }
 
-                corr3D3D->insert(corr3D3D->end(), corr3D3DBest.begin(), corr3D3DBest.end());
+                corr2D3D->insert(corr2D3D->end(), corr2D3DBest.begin(), corr2D3DBest.end());
 
 #ifdef VCHARGE_VIZ
-                visualize3D3DCorrespondences("loop-3d-3d", corr3D3DBest);
+                visualize2D3DCorrespondences("loop-2d-3d", corr2D3DBest);
 #endif
             }
         }
@@ -1133,8 +1138,8 @@ CameraRigBA::findLoopClosure3D3DHelper(int cameraIdx,
 
     if (mVerbose)
     {
-        std::cout << "# INFO: # loop 3D-3D correspondences for camera "
-                  << cameraIdx << ": " << corr3D3D->size() << std::endl;
+        std::cout << "# INFO: # loop 2D-3D correspondences for camera "
+                  << cameraIdx << ": " << corr2D3D->size() << std::endl;
     }
 }
 
@@ -1240,7 +1245,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             {
                 FramePtr& frame = segment.at(frameIdx);
 
-                std::vector<FramePtr>& frames = pathMap[frame->odometry()->timeStamp()];
+                std::vector<FramePtr>& frames = pathMap[frame->odometryOpt()->timeStamp()];
 
                 if (frames.empty())
                 {
@@ -1280,7 +1285,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             {
                 if (!init)
                 {
-                    lastOdoPos = (*itWindow)->odometry()->position();
+                    lastOdoPos = (*itWindow)->odometryOpt()->position();
 
                     init = true;
 
@@ -1289,9 +1294,9 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
                     continue;
                 }
 
-                dist += ((*itWindow)->odometry()->position() - lastOdoPos).norm();
+                dist += ((*itWindow)->odometryOpt()->position() - lastOdoPos).norm();
 
-                lastOdoPos = (*itWindow)->odometry()->position();
+                lastOdoPos = (*itWindow)->odometryOpt()->position();
 
                 if (dist < kLocalMapWindowDistance)
                 {
@@ -1336,6 +1341,12 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             std::vector<Correspondence2D2D> subCorr2D2D[mCameras.size()];
             for (int cameraIdx2 = 0; cameraIdx2 < mCameras.size(); ++cameraIdx2)
             {
+//                int cameraIdxDiff = std::abs(cameraIdx1 - cameraIdx2);
+//                if (cameraIdxDiff != 1 && cameraIdxDiff != 3)
+//                {
+//                    continue;
+//                }
+
                 if (cameraIdx1 == cameraIdx2)
                 {
                     continue;
@@ -1352,6 +1363,12 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
             for (int cameraIdx2 = 0; cameraIdx2 < mCameras.size(); ++cameraIdx2)
             {
+//                int cameraIdxDiff = std::abs(cameraIdx1 - cameraIdx2);
+//                if (cameraIdxDiff != 1 && cameraIdxDiff != 3)
+//                {
+//                    continue;
+//                }
+
                 if (cameraIdx1 == cameraIdx2)
                 {
                     continue;
@@ -1506,8 +1523,8 @@ CameraRigBA::matchFrameToFrame(int cameraIdx1, int cameraIdx2,
     Pose T_odo_cam1(mExtrinsics.getGlobalCameraPose(cameraIdx1).inverse());
     Pose T_odo_cam2(mExtrinsics.getGlobalCameraPose(cameraIdx2).inverse());
 
-    Eigen::Matrix4d H_cam1 = T_odo_cam1.pose() * frame1->odometry()->pose().inverse();
-    Eigen::Matrix4d H_cam2 = T_odo_cam2.pose() * frame2->odometry()->pose().inverse();
+    Eigen::Matrix4d H_cam1 = T_odo_cam1.pose() * frame1->odometryOpt()->pose().inverse();
+    Eigen::Matrix4d H_cam2 = T_odo_cam2.pose() * frame2->odometryOpt()->pose().inverse();
 
     // compute average rotation between camera pair
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(H_cam1.block<3,3>(0,0) +
@@ -1969,8 +1986,8 @@ CameraRigBA::triangulate3DPoint(const Point2DFeatureConstPtr& p1,
     Eigen::Vector3d q1xq1p = q1.cross(q1p);
 
     Eigen::Matrix4d H;
-    H = p2->frame()->odometry()->pose().inverse() *
-        p1->frame()->odometry()->pose();
+    H = p2->frame()->odometryOpt()->pose().inverse() *
+        p1->frame()->odometryOpt()->pose();
 
     Eigen::MatrixXd A(3,2);
     A.col(0) = H.block<3,3>(0,0) * q1;
@@ -1981,16 +1998,16 @@ CameraRigBA::triangulate3DPoint(const Point2DFeatureConstPtr& p1,
     Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 
     scenePoint = q1xq1p + gamma(0) * q1;
-    scenePoint = p1->frame()->odometry()->pose().block<3,3>(0,0) * scenePoint + p1->frame()->odometry()->pose().block<3,1>(0,3);
+    scenePoint = p1->frame()->odometryOpt()->pose().block<3,3>(0,0) * scenePoint + p1->frame()->odometryOpt()->pose().block<3,1>(0,3);
 
     Pose T_cam1_odo(mExtrinsics.getGlobalCameraPose(p1->frame()->cameraId()));
     double e1 = reprojectionError(cam1, scenePoint, T_cam1_odo.rotation(), T_cam1_odo.translation(),
-                                  p1->frame()->odometry()->position(), p1->frame()->odometry()->attitude(),
+                                  p1->frame()->odometryOpt()->position(), p1->frame()->odometryOpt()->attitude(),
                                   Eigen::Vector2d(pt1.x, pt1.y));
 
     Pose T_cam2_odo(mExtrinsics.getGlobalCameraPose(p2->frame()->cameraId()));
     double e2 = reprojectionError(cam2, scenePoint, T_cam2_odo.rotation(), T_cam2_odo.translation(),
-                                  p2->frame()->odometry()->position(), p2->frame()->odometry()->attitude(),
+                                  p2->frame()->odometryOpt()->position(), p2->frame()->odometryOpt()->attitude(),
                                   Eigen::Vector2d(pt2.x, pt2.y));
 
     if (e1 > reprojErrorThresh || e2 > reprojErrorThresh)
@@ -2027,7 +2044,7 @@ CameraRigBA::prune(int flags, int poseType)
                     H_cam = frame->camera()->pose();
                 }
 
-                Eigen::Matrix4d H_odo_inv = frame->odometry()->pose().inverse();
+                Eigen::Matrix4d H_odo_inv = frame->odometryOpt()->pose().inverse();
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
@@ -2082,8 +2099,8 @@ CameraRigBA::prune(int flags, int poseType)
                                                       pf->feature3D()->point(),
                                                       T_cam_odo.rotation(),
                                                       T_cam_odo.translation(),
-                                                      frame->odometry()->position(),
-                                                      frame->odometry()->attitude(),
+                                                      frame->odometryOpt()->position(),
+                                                      frame->odometryOpt()->attitude(),
                                                       Eigen::Vector2d(pf->keypoint().pt.x, pf->keypoint().pt.y));
                         }
 
@@ -2211,12 +2228,28 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                     ceres::CostFunction* costFunction;
                     switch (flags)
                     {
+                    case POINT_3D:
+                    {
+                        costFunction
+                            = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
+                                                                                    T_cam_odo.at(i).rotation(),
+                                                                                    T_cam_odo.at(i).translation(),
+                                                                                    frame->odometryOpt()->position(),
+                                                                                    frame->odometryOpt()->attitude(),
+                                                                                    Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
+                                                                                    flags);
+
+                        problem.AddResidualBlock(costFunction, lossFunction,
+                                                 feature3D->pointData());
+
+                        break;
+                    }
                     case CAMERA_ODOMETRY_EXTRINSICS | POINT_3D:
                     {
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(mCameras.at(i),
-                                                                                    frame->odometry()->position(),
-                                                                                    frame->odometry()->attitude(),
+                                                                                    frame->odometryOpt()->position(),
+                                                                                    frame->odometryOpt()->attitude(),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                     flags,
                                                                                     optimizeZ);
@@ -2240,8 +2273,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  T_cam_odo.at(i).rotationData(),
                                                  T_cam_odo.at(i).translationData(),
-                                                 frame->odometry()->positionData(),
-                                                 frame->odometry()->attitudeData(),
+                                                 frame->odometryOpt()->positionData(),
+                                                 frame->odometryOpt()->attitudeData(),
                                                  feature3D->pointData());
 
                         break;
@@ -2259,8 +2292,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                  intrinsicParams[i].data(),
                                                  T_cam_odo.at(i).rotationData(),
                                                  T_cam_odo.at(i).translationData(),
-                                                 frame->odometry()->positionData(),
-                                                 frame->odometry()->attitudeData(),
+                                                 frame->odometryOpt()->positionData(),
+                                                 frame->odometryOpt()->attitudeData(),
                                                  feature3D->pointData());
 
                         break;
@@ -2461,7 +2494,71 @@ CameraRigBA::seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& feature
 }
 
 bool
-CameraRigBA::findAbsoluteGroundHeight(double& zGround) const
+CameraRigBA::estimateCameraOdometryTransforms(void)
+{
+    PlanarHandEyeCalibration calib;
+    calib.setVerbose(mVerbose);
+
+    for (int cameraIdx = 0; cameraIdx < mCameras.size(); ++cameraIdx)
+    {
+        std::vector<FrameSegment>& segments = mGraph.frameSegments(cameraIdx);
+
+        for (size_t segmentIdx = 0; segmentIdx < segments.size(); ++segmentIdx)
+        {
+            FrameSegment& segment = segments.at(segmentIdx);
+
+            bool init = false;
+            Eigen::Matrix4d odoUnoptPrev, odoOptPrev;
+            std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odoUnopt, H_odoOpt;
+
+            for (size_t frameIdx = 0; frameIdx < segment.size(); ++frameIdx)
+            {
+                FramePtr& frame = segment.at(frameIdx);
+
+                if (!init)
+                {
+                    odoUnoptPrev = frame->odometryUnopt()->pose();
+                    odoOptPrev = frame->odometryOpt()->pose();
+
+                    init = true;
+                }
+                else
+                {
+                    Eigen::Matrix4d odoUnopt = frame->odometryUnopt()->pose();
+                    Eigen::Matrix4d odoOpt = frame->odometryOpt()->pose();
+
+                    H_odoUnopt.push_back(odoUnopt.inverse() * odoUnoptPrev);
+                    H_odoOpt.push_back(odoOpt.inverse() * odoOptPrev);
+
+                    odoUnoptPrev = odoUnopt;
+                    odoOptPrev = odoOpt;
+                }
+            }
+
+            calib.addMotions(H_odoOpt, H_odoUnopt);
+        }
+    }
+
+    Eigen::Matrix4d H_odoOpt_odoUnopt;
+    if (!calib.calibrate(H_odoOpt_odoUnopt))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < mCameras.size(); ++i)
+    {
+        Eigen::Matrix4d H_cam_odoOpt = mExtrinsics.getGlobalCameraPose(i);
+
+        Eigen::Matrix4d H_cam_odoUnopt = H_odoOpt_odoUnopt * H_cam_odoOpt;
+
+        mExtrinsics.setGlobalCameraPose(i, H_cam_odoUnopt);
+    }
+
+    return true;
+}
+
+bool
+CameraRigBA::estimateAbsoluteGroundHeight(double& zGround) const
 {
     return false;
 }
@@ -2492,8 +2589,8 @@ CameraRigBA::visualize(const std::string& overlayPrefix, int type)
             {
                 if (type == ODOMETRY)
                 {
-                    odometry.push_back(segment.at(k)->odometry());
-                    odometrySet.insert(segment.at(k)->odometry().get());
+                    odometry.push_back(segment.at(k)->odometryOpt());
+                    odometrySet.insert(segment.at(k)->odometryOpt().get());
                 }
                 else
                 {
@@ -2887,8 +2984,8 @@ CameraRigBA::visualizeFrameFrameCorrespondences(const std::string& overlayName,
         const Eigen::Matrix4d& H_cam_odo1 = mExtrinsics.getGlobalCameraPose(cameraIdx1);
         const Eigen::Matrix4d& H_cam_odo2 = mExtrinsics.getGlobalCameraPose(cameraIdx2);
 
-        Eigen::Matrix4d H_cam1 = frame1->odometry()->pose() * H_cam_odo1;
-        Eigen::Matrix4d H_cam2 = frame2->odometry()->pose() * H_cam_odo2;
+        Eigen::Matrix4d H_cam1 = frame1->odometryOpt()->pose() * H_cam_odo1;
+        Eigen::Matrix4d H_cam2 = frame2->odometryOpt()->pose() * H_cam_odo2;
 
         overlay.begin(VCharge::LINES);
 
@@ -2938,6 +3035,80 @@ CameraRigBA::visualizeFrameFrameCorrespondences(const std::string& overlayName,
 }
 
 void
+CameraRigBA::visualize2D3DCorrespondences(const std::string& overlayName,
+                                          const std::vector<Correspondence2D3D>& correspondences) const
+{
+    vcharge::GLOverlayExtended overlay(overlayName, VCharge::COORDINATE_FRAME_GLOBAL);
+
+    // visualize 3D-3D correspondences
+    overlay.clear();
+    overlay.lineWidth(1.0f);
+
+    overlay.begin(VCharge::LINES);
+
+    for (size_t i = 0; i < correspondences.size(); ++i)
+    {
+        int cameraIdx1 = correspondences.at(i).get<0>();
+        int cameraIdx2 = correspondences.at(i).get<1>();
+
+        const FramePtr& frame1 = correspondences.at(i).get<2>();
+        const FramePtr& frame2 = correspondences.at(i).get<3>();
+
+        Eigen::Vector3d p2 = correspondences.at(i).get<5>()->point();
+
+        const Eigen::Matrix4d& H_cam_odo1 = mExtrinsics.getGlobalCameraPose(cameraIdx1);
+        const Eigen::Matrix4d& H_cam_odo2 = mExtrinsics.getGlobalCameraPose(cameraIdx2);
+
+        Eigen::Matrix4d H_cam1 = frame1->odometryOpt()->pose() * H_cam_odo1;
+        Eigen::Matrix4d H_cam2 = frame2->odometryOpt()->pose() * H_cam_odo2;
+
+        switch (cameraIdx1)
+        {
+        case vcharge::CAMERA_FRONT:
+            overlay.color4f(1.0f, 0.0f, 0.0f, 0.3f);
+            break;
+        case vcharge::CAMERA_LEFT:
+            overlay.color4f(0.0f, 1.0f, 0.0f, 0.3f);
+            break;
+        case vcharge::CAMERA_REAR:
+            overlay.color4f(0.0f, 1.0f, 1.0f, 0.3f);
+            break;
+        case vcharge::CAMERA_RIGHT:
+            overlay.color4f(1.0f, 1.0f, 0.0f, 0.3f);
+            break;
+        default:
+            overlay.color4f(1.0f, 1.0f, 1.0f, 0.3f);
+        }
+
+        overlay.vertex3d(H_cam1(0,3), H_cam1(1,3), H_cam1(2,3));
+
+        switch (cameraIdx2)
+        {
+        case vcharge::CAMERA_FRONT:
+            overlay.color4f(1.0f, 0.0f, 0.0f, 0.7f);
+            break;
+        case vcharge::CAMERA_LEFT:
+            overlay.color4f(0.0f, 1.0f, 0.0f, 0.7f);
+            break;
+        case vcharge::CAMERA_REAR:
+            overlay.color4f(0.0f, 1.0f, 1.0f, 0.7f);
+            break;
+        case vcharge::CAMERA_RIGHT:
+            overlay.color4f(1.0f, 1.0f, 0.0f, 0.7f);
+            break;
+        default:
+            overlay.color4f(1.0f, 1.0f, 1.0f, 0.7f);
+        }
+
+        overlay.vertex3d(p2(0), p2(1), p2(2));
+    }
+
+    overlay.end();
+
+    overlay.publish();
+}
+
+void
 CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
                                           const std::vector<Correspondence3D3D>& correspondences) const
 {
@@ -2963,8 +3134,8 @@ CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
         const Eigen::Matrix4d& H_cam_odo1 = mExtrinsics.getGlobalCameraPose(cameraIdx1);
         const Eigen::Matrix4d& H_cam_odo2 = mExtrinsics.getGlobalCameraPose(cameraIdx2);
 
-        Eigen::Matrix4d H_cam1 = frame1->odometry()->pose() * H_cam_odo1;
-        Eigen::Matrix4d H_cam2 = frame2->odometry()->pose() * H_cam_odo2;
+        Eigen::Matrix4d H_cam1 = frame1->odometryOpt()->pose() * H_cam_odo1;
+        Eigen::Matrix4d H_cam2 = frame2->odometryOpt()->pose() * H_cam_odo2;
 
         switch (cameraIdx1)
         {
