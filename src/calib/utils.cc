@@ -73,7 +73,7 @@ interpolatePose(SensorDataBuffer<PosePtr>& poseBuffer,
 
     double t = static_cast<double>(timestamp - prev->timeStamp()) / (next->timeStamp() - prev->timeStamp());
 
-    interpPose->rotation() = next->rotation().slerp(t, prev->rotation());
+    interpPose->rotation() = prev->rotation().slerp(t, next->rotation());
     interpPose->rotation().normalize();
 
     for (int i = 0; i < 3; ++i)

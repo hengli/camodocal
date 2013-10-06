@@ -1,144 +1,31 @@
-#include "camodocal/sparse_graph/SparseGraph.h"
+#include <camodocal/sparse_graph/SparseGraph.h>
 
-#include <opencv2/highgui/highgui.hpp>
-#include <cstdio>
+#include <boost/filesystem.hpp>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <opencv2/highgui/highgui.hpp>
 #include <sstream>
-
-#include "../pugixml/pugixml.hpp"
 
 namespace camodocal
 {
 
-Pose::Pose()
- : m_timeStamp(0)
-{
-    m_q.setIdentity();
-    m_t.setZero();
-    m_covariance.setZero();
-}
-
-Pose::Pose(const Eigen::Matrix4d& H)
-: m_timeStamp(0)
-{
-   m_q = Eigen::Quaterniond(H.block<3,3>(0,0));
-   m_t = H.block<3,1>(0,3);
-}
-
-uint64_t&
-Pose::timeStamp(void)
-{
-    return m_timeStamp;
-}
-
-uint64_t
-Pose::timeStamp(void) const
-{
-    return m_timeStamp;
-}
-
-Eigen::Quaterniond&
-Pose::rotation(void)
-{
-    return m_q;
-}
-
-const Eigen::Quaterniond&
-Pose::rotation(void) const
-{
-    return m_q;
-}
-
-double*
-Pose::rotationData(void)
-{
-    return m_q.coeffs().data();
-}
-
-const double* const
-Pose::rotationData(void) const
-{
-    return m_q.coeffs().data();
-}
-
-Eigen::Vector3d&
-Pose::translation(void)
-{
-    return m_t;
-}
-
-const Eigen::Vector3d&
-Pose::translation(void) const
-{
-    return m_t;
-}
-
-double*
-Pose::translationData(void)
-{
-    return m_t.data();
-}
-
-const double* const
-Pose::translationData(void) const
-{
-    return m_t.data();
-}
-
-Eigen::Matrix4d
-Pose::pose(void) const
-{
-    Eigen::Matrix4d H;
-    H.setIdentity();
-    H.block<3,3>(0,0) = m_q.toRotationMatrix();
-    H.block<3,1>(0,3) = m_t;
-
-    return H;
-}
-
-Eigen::Matrix<double,7,7>&
-Pose::covariance(void)
-{
-    return m_covariance;
-}
-
-const Eigen::Matrix<double,7,7>&
-Pose::covariance(void) const
-{
-    return m_covariance;
-}
-
-double*
-Pose::covarianceData(void)
-{
-    return m_covariance.data();
-}
-
-const double* const
-Pose::covarianceData(void) const
-{
-    return m_covariance.data();
-}
-
 Frame::Frame()
  : m_cameraId(-1)
- , m_id(0)
 {
 
 }
 
-PosePtr&
-Frame::camera(void)
+PoseEPtr&
+Frame::cameraPose(void)
 {
-    return m_camera;
+    return m_cameraPose;
 }
 
-PoseConstPtr
-Frame::camera(void) const
+PoseEConstPtr
+Frame::cameraPose(void) const
 {
-    return m_camera;
+    return m_cameraPose;
 }
 
 int&
@@ -154,39 +41,39 @@ Frame::cameraId(void) const
 }
 
 OdometryPtr&
-Frame::odometryUnopt(void)
+Frame::odometryMeasurement(void)
 {
-    return m_odometryUnopt;
+    return m_odometryMeasurement;
 }
 
 OdometryConstPtr
-Frame::odometryUnopt(void) const
+Frame::odometryMeasurement(void) const
 {
-    return m_odometryUnopt;
+    return m_odometryMeasurement;
 }
 
 OdometryPtr&
-Frame::odometryOpt(void)
+Frame::systemPose(void)
 {
-    return m_odometryOpt;
+    return m_systemPose;
 }
 
 OdometryConstPtr
-Frame::odometryOpt(void) const
+Frame::systemPose(void) const
 {
-    return m_odometryOpt;
+    return m_systemPose;
 }
 
 PosePtr&
-Frame::gps_ins(void)
+Frame::gpsInsMeasurement(void)
 {
-    return m_gpsIns;
+    return m_gpsInsMeasurement;
 }
 
 PoseConstPtr
-Frame::gps_ins(void) const
+Frame::gpsInsMeasurement(void) const
 {
-    return m_gpsIns;
+    return m_gpsInsMeasurement;
 }
 
 std::vector<Point2DFeaturePtr>&
@@ -199,30 +86,6 @@ const std::vector<Point2DFeaturePtr>&
 Frame::features2D(void) const
 {
     return m_features2D;
-}
-
-std::vector<Point3DFeaturePtr>&
-Frame::features3D(void)
-{
-    return m_features3D;
-}
-
-const std::vector<Point3DFeaturePtr>&
-Frame::features3D(void) const
-{
-    return m_features3D;
-}
-
-unsigned int&
-Frame::id(void)
-{
-    return m_id;
-}
-
-unsigned int
-Frame::id(void) const
-{
-    return m_id;
 }
 
 cv::Mat&
@@ -239,8 +102,8 @@ Frame::image(void) const
 
 Point2DFeature::Point2DFeature()
  : m_index(0)
- , m_bestPrevMatchIdx(-1)
- , m_bestNextMatchIdx(-1)
+ , m_bestPrevMatchId(-1)
+ , m_bestNextMatchId(-1)
 {
 
 }
@@ -281,76 +144,76 @@ Point2DFeature::index(void) const
     return m_index;
 }
 
-Point2DFeaturePtr&
+Point2DFeatureWPtr&
 Point2DFeature::prevMatch(void)
 {
-    return m_prevMatches.at(m_bestPrevMatchIdx);
+    return m_prevMatches.at(m_bestPrevMatchId);
 }
 
-Point2DFeatureConstPtr
+Point2DFeatureConstWPtr
 Point2DFeature::prevMatch(void) const
 {
-    return m_prevMatches.at(m_bestPrevMatchIdx);
+    return m_prevMatches.at(m_bestPrevMatchId);
 }
 
-std::vector<Point2DFeaturePtr>&
+std::vector<Point2DFeatureWPtr>&
 Point2DFeature::prevMatches(void)
 {
     return m_prevMatches;
 }
 
-const std::vector<Point2DFeaturePtr>&
+const std::vector<Point2DFeatureWPtr>&
 Point2DFeature::prevMatches(void) const
 {
     return m_prevMatches;
 }
 
 int&
-Point2DFeature::bestPrevMatchIdx(void)
+Point2DFeature::bestPrevMatchId(void)
 {
-    return m_bestPrevMatchIdx;
+    return m_bestPrevMatchId;
 }
 
 int
-Point2DFeature::bestPrevMatchIdx(void) const
+Point2DFeature::bestPrevMatchId(void) const
 {
-    return m_bestPrevMatchIdx;
+    return m_bestPrevMatchId;
 }
 
-Point2DFeaturePtr&
+Point2DFeatureWPtr&
 Point2DFeature::nextMatch(void)
 {
-    return m_nextMatches.at(m_bestNextMatchIdx);
+    return m_nextMatches.at(m_bestNextMatchId);
 }
 
-Point2DFeatureConstPtr
+Point2DFeatureConstWPtr
 Point2DFeature::nextMatch(void) const
 {
-    return m_nextMatches.at(m_bestNextMatchIdx);
+    return m_nextMatches.at(m_bestNextMatchId);
 }
 
-std::vector<Point2DFeaturePtr>&
+std::vector<Point2DFeatureWPtr>&
 Point2DFeature::nextMatches(void)
 {
     return m_nextMatches;
 }
 
-const std::vector<Point2DFeaturePtr>&
+const std::vector<Point2DFeatureWPtr>&
 Point2DFeature::nextMatches(void) const
 {
     return m_nextMatches;
 }
 
 int&
-Point2DFeature::bestNextMatchIdx(void)
+Point2DFeature::bestNextMatchId(void)
 {
-    return m_bestNextMatchIdx;
+    return m_bestNextMatchId;
 }
 
 int
-Point2DFeature::bestNextMatchIdx(void) const
+Point2DFeature::bestNextMatchId(void) const
 {
-    return m_bestNextMatchIdx;
+    return m_bestNextMatchId;
 }
 
 Point3DFeaturePtr&
@@ -365,67 +228,20 @@ Point2DFeature::feature3D(void) const
     return m_feature3D;
 }
 
-FramePtr&
+FrameWPtr&
 Point2DFeature::frame(void)
 {
     return m_frame;
 }
 
-FrameConstPtr
+FrameConstWPtr
 Point2DFeature::frame(void) const
 {
     return m_frame;
 }
 
-Point2DFeatureRightPtr&
-Point2DFeatureLeft::rightCorrespondence(void)
-{
-    return m_rightCorrespondence;
-}
-
-Point2DFeatureRightConstPtr
-Point2DFeatureLeft::rightCorrespondence(void) const
-{
-    return m_rightCorrespondence;
-}
-
-Point2DFeatureLeftPtr&
-Point2DFeatureLeft::prevCorrespondence(void)
-{
-    return m_prevCorrespondence;
-}
-
-Point2DFeatureLeftConstPtr
-Point2DFeatureLeft::prevCorrespondence(void) const
-{
-    return m_prevCorrespondence;
-}
-
-Point2DFeatureLeftPtr&
-Point2DFeatureRight::leftCorrespondence(void)
-{
-    return m_leftCorrespondence;
-}
-
-Point2DFeatureLeftConstPtr
-Point2DFeatureRight::leftCorrespondence(void) const
-{
-    return m_leftCorrespondence;
-}
-
-Point2DFeatureRightPtr&
-Point2DFeatureRight::prevCorrespondence(void)
-{
-    return m_prevCorrespondence;
-}
-
-Point2DFeatureRightConstPtr
-Point2DFeatureRight::prevCorrespondence(void) const
-{
-    return m_prevCorrespondence;
-}
-
 Point3DFeature::Point3DFeature(void)
+ : m_weight(1.0)
 {
     m_point.setZero();
     m_pointCovariance.setZero();
@@ -479,16 +295,98 @@ Point3DFeature::pointCovarianceData(void) const
     return m_pointCovariance.data();
 }
 
-std::vector<Point2DFeaturePtr>&
+double&
+Point3DFeature::weight(void)
+{
+    return m_weight;
+}
+
+double
+Point3DFeature::weight(void) const
+{
+    return m_weight;
+}
+
+std::vector<Point2DFeatureWPtr>&
 Point3DFeature::features2D(void)
 {
     return m_features2D;
 }
 
-const std::vector<Point2DFeaturePtr>&
+const std::vector<Point2DFeatureWPtr>&
 Point3DFeature::features2D(void) const
 {
     return m_features2D;
+}
+
+FrameSet::FrameSet()
+{
+
+}
+
+FramePtr&
+FrameSet::frame(int cameraId)
+{
+    if (cameraId >= m_frames.size())
+    {
+        m_frames.resize(cameraId + 1);
+    }
+
+    return m_frames.at(cameraId);
+}
+
+FrameConstPtr
+FrameSet::frame(int cameraId) const
+{
+    return m_frames.at(cameraId);
+}
+
+std::vector<FramePtr>&
+FrameSet::frames(void)
+{
+    return m_frames;
+}
+
+const std::vector<FramePtr>&
+FrameSet::frames(void) const
+{
+    return m_frames;
+}
+
+OdometryPtr&
+FrameSet::odometryMeasurement(void)
+{
+    return m_odometryMeasurement;
+}
+
+OdometryConstPtr
+FrameSet::odometryMeasurement(void) const
+{
+    return m_odometryMeasurement;
+}
+
+OdometryPtr&
+FrameSet::systemPose(void)
+{
+    return m_systemPose;
+}
+
+OdometryConstPtr
+FrameSet::systemPose(void) const
+{
+    return m_systemPose;
+}
+
+PosePtr&
+FrameSet::gpsInsMeasurement(void)
+{
+    return m_gpsInsMeasurement;
+}
+
+PoseConstPtr
+FrameSet::gpsInsMeasurement(void) const
+{
+    return m_gpsInsMeasurement;
 }
 
 SparseGraph::SparseGraph()
@@ -496,27 +394,33 @@ SparseGraph::SparseGraph()
 
 }
 
-int
-SparseGraph::cameraCount(void) const
+FrameSetSegment&
+SparseGraph::frameSetSegment(int segmentId)
 {
-    return m_frameSegments.size();
-}
-
-std::vector<FrameSegment>&
-SparseGraph::frameSegments(int cameraIdx)
-{
-    if (cameraIdx >= m_frameSegments.size())
+    if (segmentId >= m_frameSetSegments.size())
     {
-        m_frameSegments.resize(cameraIdx + 1);
+        m_frameSetSegments.resize(segmentId + 1);
     }
 
-    return m_frameSegments.at(cameraIdx);
+    return m_frameSetSegments.at(segmentId);
 }
 
-const std::vector<FrameSegment>&
-SparseGraph::frameSegments(int cameraIdx) const
+const FrameSetSegment&
+SparseGraph::frameSetSegment(int segmentId) const
 {
-    return m_frameSegments.at(cameraIdx);
+    return m_frameSetSegments.at(segmentId);
+}
+
+std::vector<FrameSetSegment>&
+SparseGraph::frameSetSegments(void)
+{
+    return m_frameSetSegments;
+}
+
+const std::vector<FrameSetSegment>&
+SparseGraph::frameSetSegments(void) const
+{
+    return m_frameSetSegments;
 }
 
 bool
@@ -534,7 +438,7 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         rootDir = boost::filesystem::path(".");
     }
 
-    m_frameSegments.clear();
+    m_frameSetSegments.clear();
 
     // parse binary file
     std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
@@ -558,16 +462,16 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
     size_t nFeatures3D;
     readData(ifs, nFeatures3D);
 
-    FrameSegment frameMap(nFrames);
+    std::vector<FramePtr> frameMap(nFrames);
     for (size_t i = 0; i < nFrames; ++i)
     {
         frameMap.at(i) = FramePtr(new Frame);
     }
 
-    std::vector<PosePtr> poseMap(nPoses);
+    std::vector<PoseEPtr> poseMap(nPoses);
     for (size_t i = 0; i < nPoses; ++i)
     {
-        poseMap.at(i) = PosePtr(new Pose);
+        poseMap.at(i) = PoseEPtr(new PoseE);
     }
 
     std::vector<OdometryPtr> odometryMap(nOdometry);
@@ -590,10 +494,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
     for (size_t i = 0; i < nFrames; ++i)
     {
-        size_t frameIdx;
-        readData(ifs, frameIdx);
+        size_t frameId;
+        readData(ifs, frameId);
 
-        FramePtr& frame = frameMap.at(frameIdx);
+        FramePtr& frame = frameMap.at(frameId);
 
         size_t imageFilenameLen;
         readData(ifs, imageFilenameLen);
@@ -611,32 +515,32 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
             delete imageFilename;
         }
 
-        readData(ifs, frame->id());
+        readData(ifs, frame->cameraId());
 
-        size_t poseIdx;
-        readData(ifs, poseIdx);
-        if (poseIdx != static_cast<size_t>(-1))
+        size_t poseId;
+        readData(ifs, poseId);
+        if (poseId != static_cast<size_t>(-1))
         {
-            frame->camera() = poseMap.at(poseIdx);
+            frame->cameraPose() = poseMap.at(poseId);
         }
 
-        size_t odometryIdx;
-        readData(ifs, odometryIdx);
-        if (odometryIdx != static_cast<size_t>(-1))
+        size_t odometryId;
+        readData(ifs, odometryId);
+        if (odometryId != static_cast<size_t>(-1))
         {
-            frame->odometryUnopt() = odometryMap.at(odometryIdx);
+            frame->systemPose() = odometryMap.at(odometryId);
         }
 
-        readData(ifs, odometryIdx);
-        if (odometryIdx != static_cast<size_t>(-1))
+        readData(ifs, odometryId);
+        if (odometryId != static_cast<size_t>(-1))
         {
-            frame->odometryOpt() = odometryMap.at(odometryIdx);
+            frame->odometryMeasurement() = odometryMap.at(odometryId);
         }
 
-        readData(ifs, poseIdx);
-        if (poseIdx != static_cast<size_t>(-1))
+        readData(ifs, poseId);
+        if (poseId != static_cast<size_t>(-1))
         {
-            frame->gps_ins() = poseMap.at(poseIdx);
+            frame->gpsInsMeasurement() = poseMap.at(poseId);
         }
 
         size_t nFeatures2D;
@@ -646,32 +550,19 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
         for (size_t j = 0; j < features2D.size(); ++j)
         {
-            size_t feature2DIdx;
-            readData(ifs, feature2DIdx);
+            size_t feature2DId;
+            readData(ifs, feature2DId);
 
-            features2D.at(j) = feature2DMap.at(feature2DIdx);
-        }
-
-        size_t nFeatures3D;
-        readData(ifs, nFeatures3D);
-        std::vector<Point3DFeaturePtr>& features3D = frame->features3D();
-        features3D.resize(nFeatures3D);
-
-        for (size_t j = 0; j < features3D.size(); ++j)
-        {
-            size_t feature3DIdx;
-            readData(ifs, feature3DIdx);
-
-            features3D.at(j) = feature3DMap.at(feature3DIdx);
+            features2D.at(j) = feature2DMap.at(feature2DId);
         }
     }
 
     for (size_t i = 0; i < nPoses; ++i)
     {
-        size_t poseIdx;
-        readData(ifs, poseIdx);
+        size_t poseId;
+        readData(ifs, poseId);
 
-        PosePtr& pose = poseMap.at(poseIdx);
+        PoseEPtr& pose = poseMap.at(poseId);
 
         readData(ifs, pose->timeStamp());
 
@@ -701,10 +592,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
     for (size_t i = 0; i < nOdometry; ++i)
     {
-        size_t odometryIdx;
-        readData(ifs, odometryIdx);
+        size_t odometryId;
+        readData(ifs, odometryId);
 
-        OdometryPtr& odometry = odometryMap.at(odometryIdx);
+        OdometryPtr& odometry = odometryMap.at(odometryId);
 
         readData(ifs, odometry->timeStamp());
         readData(ifs, odometry->x());
@@ -718,12 +609,12 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
     std::vector<size_t> tmp;
     for (size_t i = 0; i < nFeatures2D; ++i)
     {
-        size_t featureIdx;
-        readData(ifs, featureIdx);
+        size_t featureId;
+        readData(ifs, featureId);
 
-        tmp.push_back(featureIdx);
+        tmp.push_back(featureId);
 
-        Point2DFeaturePtr& feature2D = feature2DMap.at(featureIdx);
+        Point2DFeaturePtr& feature2D = feature2DMap.at(featureId);
 
         int type, rows, cols;
         readData(ifs, type);
@@ -773,8 +664,8 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         readData(ifs, feature2D->keypoint().response);
         readData(ifs, feature2D->keypoint().size);
         readData(ifs, feature2D->index());
-        readData(ifs, feature2D->bestPrevMatchIdx());
-        readData(ifs, feature2D->bestNextMatchIdx());
+        readData(ifs, feature2D->bestPrevMatchId());
+        readData(ifs, feature2D->bestNextMatchId());
 
         size_t nPrevMatches;
         readData(ifs, nPrevMatches);
@@ -782,9 +673,9 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
         for (size_t j = 0; j < feature2D->prevMatches().size(); ++j)
         {
-            readData(ifs, featureIdx);
+            readData(ifs, featureId);
 
-            feature2D->prevMatches().at(j) = feature2DMap.at(featureIdx);
+            feature2D->prevMatches().at(j) = feature2DMap.at(featureId);
         }
 
         size_t nNextMatches;
@@ -793,32 +684,32 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
         for (size_t j = 0; j < feature2D->nextMatches().size(); ++j)
         {
-            readData(ifs, featureIdx);
+            readData(ifs, featureId);
 
-            feature2D->nextMatches().at(j) = feature2DMap.at(featureIdx);
+            feature2D->nextMatches().at(j) = feature2DMap.at(featureId);
         }
 
-        size_t feature3DIdx;
-        readData(ifs, feature3DIdx);
-        if (feature3DIdx != static_cast<size_t>(-1))
+        size_t feature3DId;
+        readData(ifs, feature3DId);
+        if (feature3DId != static_cast<size_t>(-1))
         {
-            feature2D->feature3D() = feature3DMap.at(feature3DIdx);
+            feature2D->feature3D() = feature3DMap.at(feature3DId);
         }
 
-        size_t frameIdx;
-        readData(ifs, frameIdx);
-        if (frameIdx != static_cast<size_t>(-1))
+        size_t frameId;
+        readData(ifs, frameId);
+        if (frameId != static_cast<size_t>(-1))
         {
-            feature2D->frame() = frameMap.at(frameIdx);
+            feature2D->frame() = frameMap.at(frameId);
         }
     }
 
     for (size_t i = 0; i < nFeatures3D; ++i)
     {
-        size_t featureIdx;
-        readData(ifs, featureIdx);
+        size_t featureId;
+        readData(ifs, featureId);
 
-        Point3DFeaturePtr& feature3D = feature3DMap.at(featureIdx);
+        Point3DFeaturePtr& feature3D = feature3DMap.at(featureId);
 
         Eigen::Vector3d& P = feature3D->point();
         readData(ifs, P(0));
@@ -839,39 +730,63 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
 
         for (size_t j = 0; j < feature3D->features2D().size(); ++j)
         {
-            readData(ifs, featureIdx);
+            readData(ifs, featureId);
 
-            feature3D->features2D().at(j) = feature2DMap.at(featureIdx);
+            feature3D->features2D().at(j) = feature2DMap.at(featureId);
         }
     }
 
-    size_t nCameras;
-    readData(ifs, nCameras);
+    size_t nSegments;
+    readData(ifs, nSegments);
 
-    m_frameSegments.resize(nCameras);
+    m_frameSetSegments.resize(nSegments);
 
-    size_t frameCount = 0;
-    for (size_t cameraIdx = 0; cameraIdx < m_frameSegments.size(); ++cameraIdx)
+    for (size_t segmentId = 0; segmentId < m_frameSetSegments.size(); ++segmentId)
     {
-        size_t nSegments;
-        readData(ifs, nSegments);
-        m_frameSegments.at(cameraIdx).resize(nSegments);
+        size_t nFrameSets;
+        readData(ifs, nFrameSets);
+        m_frameSetSegments.at(segmentId).resize(nFrameSets);
 
-        for (size_t segmentIdx = 0; segmentIdx < m_frameSegments.at(cameraIdx).size(); ++segmentIdx)
+        FrameSetSegment& segment = m_frameSetSegments.at(segmentId);
+
+        for (size_t frameSetId = 0; frameSetId < segment.size(); ++frameSetId)
         {
-            size_t nFramesSegment;
-            readData(ifs, nFramesSegment);
+            size_t frameSetSize;
+            readData(ifs, frameSetSize);
 
-            FrameSegment& segment = m_frameSegments.at(cameraIdx).at(segmentIdx);
-            segment.resize(nFramesSegment);
+            segment.at(frameSetId).reset(new FrameSet);
+            FrameSetPtr& frameSet = segment.at(frameSetId);
+            frameSet->frames().resize(frameSetSize);
 
-            for (size_t i = 0; i < segment.size(); ++i)
+            for (size_t i = 0; i < frameSet->frames().size(); ++i)
             {
-                segment.at(i) = frameMap.at(frameCount);
+                size_t frameId;
+                readData(ifs, frameId);
 
-                segment.at(i)->cameraId() = cameraIdx;
+                if (frameId != static_cast<size_t>(-1))
+                {
+                    frameSet->frames().at(i) = frameMap.at(frameId);
+                }
+            }
 
-                ++frameCount;
+            size_t odometryId;
+            readData(ifs, odometryId);
+            if (odometryId != static_cast<size_t>(-1))
+            {
+                frameSet->systemPose() = odometryMap.at(odometryId);
+            }
+
+            readData(ifs, odometryId);
+            if (odometryId != static_cast<size_t>(-1))
+            {
+                frameSet->odometryMeasurement() = odometryMap.at(odometryId);
+            }
+
+            size_t poseId;
+            readData(ifs, poseId);
+            if (poseId != static_cast<size_t>(-1))
+            {
+                frameSet->gpsInsMeasurement() = poseMap.at(poseId);
             }
         }
     }
@@ -916,45 +831,75 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
     boost::unordered_map<Point2DFeature*,size_t> feature2DMap;
     boost::unordered_map<Point3DFeature*,size_t> feature3DMap;
 
-    for (size_t cameraIdx = 0; cameraIdx < m_frameSegments.size(); ++cameraIdx)
+    for (size_t segmentId = 0; segmentId < m_frameSetSegments.size(); ++segmentId)
     {
-        for (size_t segmentIdx = 0; segmentIdx < m_frameSegments.at(cameraIdx).size(); ++segmentIdx)
+        const FrameSetSegment& segment = m_frameSetSegments.at(segmentId);
+
+        for (size_t frameSetId = 0; frameSetId < segment.size(); ++frameSetId)
         {
-            const FrameSegment& segment = m_frameSegments.at(cameraIdx).at(segmentIdx);
+            const FrameSetPtr& frameSet = segment.at(frameSetId);
 
             // index all structures
-            for (size_t frameIdx = 0; frameIdx < segment.size(); ++frameIdx)
+            if (frameSet->systemPose().get() != 0)
             {
-                const FramePtr& frame = segment.at(frameIdx);
+                if (odometryMap.find(frameSet->systemPose().get()) == odometryMap.end())
+                {
+                    odometryMap.insert(std::make_pair(frameSet->systemPose().get(), odometryMap.size()));
+                }
+            }
+            if (frameSet->odometryMeasurement().get() != 0)
+            {
+                if (odometryMap.find(frameSet->odometryMeasurement().get()) == odometryMap.end())
+                {
+                    odometryMap.insert(std::make_pair(frameSet->odometryMeasurement().get(), odometryMap.size()));
+                }
+            }
+            if (frameSet->gpsInsMeasurement().get() != 0)
+            {
+                if (poseMap.find(frameSet->gpsInsMeasurement().get()) == poseMap.end())
+                {
+                    poseMap.insert(std::make_pair(frameSet->gpsInsMeasurement().get(), poseMap.size()));
+                }
+            }
+
+            for (size_t frameId = 0; frameId < frameSet->frames().size(); ++frameId)
+            {
+                const FramePtr& frame = frameSet->frames().at(frameId);
+
+                if (frame.get() == 0)
+                {
+                    continue;
+                }
 
                 frameMap.insert(std::make_pair(frame.get(), frameMap.size()));
 
-                if (frame->camera().get() != 0)
+                if (frame->cameraPose().get() != 0)
                 {
-                    if (poseMap.find(frame->camera().get()) == poseMap.end())
+                    if (poseMap.find(frame->cameraPose().get()) == poseMap.end())
                     {
-                        poseMap.insert(std::make_pair(frame->camera().get(), poseMap.size()));
+                        poseMap.insert(std::make_pair(frame->cameraPose().get(), poseMap.size()));
                     }
                 }
-                if (frame->odometryUnopt().get() != 0)
+
+                if (frame->systemPose().get() != 0)
                 {
-                    if (odometryMap.find(frame->odometryUnopt().get()) == odometryMap.end())
+                    if (odometryMap.find(frame->systemPose().get()) == odometryMap.end())
                     {
-                        odometryMap.insert(std::make_pair(frame->odometryUnopt().get(), odometryMap.size()));
+                        odometryMap.insert(std::make_pair(frame->systemPose().get(), odometryMap.size()));
                     }
                 }
-                if (frame->odometryOpt().get() != 0)
+                if (frame->odometryMeasurement().get() != 0)
                 {
-                    if (odometryMap.find(frame->odometryOpt().get()) == odometryMap.end())
+                    if (odometryMap.find(frame->odometryMeasurement().get()) == odometryMap.end())
                     {
-                        odometryMap.insert(std::make_pair(frame->odometryOpt().get(), odometryMap.size()));
+                        odometryMap.insert(std::make_pair(frame->odometryMeasurement().get(), odometryMap.size()));
                     }
                 }
-                if (frame->gps_ins().get() != 0)
+                if (frame->gpsInsMeasurement().get() != 0)
                 {
-                    if (poseMap.find(frame->gps_ins().get()) == poseMap.end())
+                    if (poseMap.find(frame->gpsInsMeasurement().get()) == poseMap.end())
                     {
-                        poseMap.insert(std::make_pair(frame->gps_ins().get(), poseMap.size()));
+                        poseMap.insert(std::make_pair(frame->gpsInsMeasurement().get(), poseMap.size()));
                     }
                 }
 
@@ -974,25 +919,6 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
                     }
 
                     const Point3DFeaturePtr& feature3D = feature2D->feature3D();
-                    if (feature3D.get() != 0)
-                    {
-                        if (feature3DMap.find(feature3D.get()) == feature3DMap.end())
-                        {
-                            feature3DMap.insert(std::make_pair(feature3D.get(), feature3DMap.size()));
-                        }
-                    }
-                }
-
-                const std::vector<Point3DFeaturePtr>& features3D = frame->features3D();
-                for (size_t i = 0; i < features3D.size(); ++i)
-                {
-                    const Point3DFeaturePtr& feature3D = features3D.at(i);
-                    if (feature3D.get() == 0)
-                    {
-                        std::cout << "# WARNING: Frame::features3D: Empty Point3DFeaturePtr instance." << std::endl;
-                        continue;
-                    }
-
                     if (feature3D.get() != 0)
                     {
                         if (feature3DMap.find(feature3D.get()) == feature3DMap.end())
@@ -1043,47 +969,47 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             writeData(ofs, emptyFilenameLen);
         }
 
-        writeData(ofs, frame->id());
+        writeData(ofs, frame->cameraId());
 
         // references
-        if (frame->camera().get() != 0)
+        if (frame->cameraPose().get() != 0)
         {
-            writeData(ofs, poseMap[frame->camera().get()]);
+            writeData(ofs, poseMap[frame->cameraPose().get()]);
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
 
-        if (frame->odometryUnopt().get() != 0)
+        if (frame->systemPose().get() != 0)
         {
-            writeData(ofs, odometryMap[frame->odometryUnopt().get()]);
+            writeData(ofs, odometryMap[frame->systemPose().get()]);
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
 
-        if (frame->odometryOpt().get() != 0)
+        if (frame->odometryMeasurement().get() != 0)
         {
-            writeData(ofs, odometryMap[frame->odometryOpt().get()]);
+            writeData(ofs, odometryMap[frame->odometryMeasurement().get()]);
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
 
-        if (frame->gps_ins().get() != 0)
+        if (frame->gpsInsMeasurement().get() != 0)
         {
-            writeData(ofs, poseMap[frame->gps_ins().get()]);
+            writeData(ofs, poseMap[frame->gpsInsMeasurement().get()]);
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
 
         writeData(ofs, frame->features2D().size());
@@ -1100,22 +1026,6 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             }
 
             writeData(ofs, itF2D->second);
-        }
-
-        writeData(ofs, frame->features3D().size());
-
-        const std::vector<Point3DFeaturePtr>& features3D = frame->features3D();
-        for (size_t i = 0; i < features3D.size(); ++i)
-        {
-            const Point3DFeaturePtr& feature3D = features3D.at(i);
-
-            boost::unordered_map<Point3DFeature*,size_t>::iterator itF3D = feature3DMap.find(feature3D.get());
-            if (itF3D == feature3DMap.end())
-            {
-                continue;
-            }
-
-            writeData(ofs, itF3D->second);
         }
     }
 
@@ -1214,18 +1124,20 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         writeData(ofs, feature2D->keypoint().response);
         writeData(ofs, feature2D->keypoint().size);
         writeData(ofs, feature2D->index());
-        writeData(ofs, feature2D->bestPrevMatchIdx());
-        writeData(ofs, feature2D->bestNextMatchIdx());
+        writeData(ofs, feature2D->bestPrevMatchId());
+        writeData(ofs, feature2D->bestNextMatchId());
 
         // references
         size_t nValidPrevMatches = 0;
         for (size_t i = 0; i < feature2D->prevMatches().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D->prevMatches().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr prevMatch = feature2D->prevMatches().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature2D::prevMatches: Point2DFeature instance was not found in map.\n";
-                continue;
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(prevMatch.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
             }
 
             ++nValidPrevMatches;
@@ -1235,24 +1147,28 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
 
         for (size_t i = 0; i < feature2D->prevMatches().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D->prevMatches().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr prevMatch = feature2D->prevMatches().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature2D::prevMatches: Point2DFeature instance was not found in map.\n";
-                continue;
-            }
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(prevMatch.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
 
-            writeData(ofs, itF2D->second);
+                writeData(ofs, itF2D->second);
+            }
         }
 
         size_t nValidNextMatches = 0;
         for (size_t i = 0; i < feature2D->nextMatches().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D->nextMatches().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr nextMatch = feature2D->nextMatches().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature2D::nextMatches: Point2DFeature instance was not found in map.\n";
-                continue;
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(nextMatch.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
             }
 
             ++nValidNextMatches;
@@ -1262,14 +1178,16 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
 
         for (size_t i = 0; i < feature2D->nextMatches().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D->nextMatches().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr nextMatch = feature2D->nextMatches().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature2D::nextMatches: Point2DFeature instance was not found in map.\n";
-                continue;
-            }
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(nextMatch.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
 
-            writeData(ofs, itF2D->second);
+                writeData(ofs, itF2D->second);
+            }
         }
 
         if (feature2D->feature3D().get() != 0)
@@ -1285,18 +1203,18 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
 
-        if (feature2D->frame().get() != 0)
+        if (FramePtr frame = feature2D->frame().lock())
         {
-            writeData(ofs, frameMap[feature2D->frame().get()]);
+            writeData(ofs, frameMap[frame.get()]);
         }
         else
         {
-            size_t invalidIdx = -1;
-            writeData(ofs, invalidIdx);
+            size_t invalidId = -1;
+            writeData(ofs, invalidId);
         }
     }
 
@@ -1323,43 +1241,92 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         size_t nValidFeatures2D = 0;
         for (size_t i = 0; i < feature3D->features2D().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature3D->features2D().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature3D::features2D: Point2DFeature instance was not found in map.\n";
-                continue;
-            }
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
 
-            ++nValidFeatures2D;
+                ++nValidFeatures2D;
+            }
         }
 
         writeData(ofs, nValidFeatures2D);
 
         for (size_t i = 0; i < feature3D->features2D().size(); ++i)
         {
-            boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature3D->features2D().at(i).get());
-            if (itF2D == feature2DMap.end())
+            if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
             {
-//                std::cout << "# WARNING: Feature3D::features2D: Point2DFeature instance was not found in map.\n";
-                continue;
-            }
+                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D.get());
+                if (itF2D == feature2DMap.end())
+                {
+                    continue;
+                }
 
-            writeData(ofs, itF2D->second);
+                writeData(ofs, itF2D->second);
+            }
         }
     }
 
-    writeData(ofs, m_frameSegments.size());
+    writeData(ofs, m_frameSetSegments.size());
 
     size_t frameCount = 0;
-    for (size_t cameraIdx = 0; cameraIdx < m_frameSegments.size(); ++cameraIdx)
+    for (size_t segmentId = 0; segmentId < m_frameSetSegments.size(); ++segmentId)
     {
-        writeData(ofs, m_frameSegments.at(cameraIdx).size());
+        const FrameSetSegment& segment = m_frameSetSegments.at(segmentId);
 
-        for (size_t segmentIdx = 0; segmentIdx < m_frameSegments.at(cameraIdx).size(); ++segmentIdx)
+        writeData(ofs, segment.size());
+
+        for (size_t frameSetId = 0; frameSetId < segment.size(); ++frameSetId)
         {
-            const FrameSegment& segment = m_frameSegments.at(cameraIdx).at(segmentIdx);
+            const FrameSetPtr& frameSet = segment.at(frameSetId);
 
-            writeData(ofs, segment.size());
+            writeData(ofs, frameSet->frames().size());
+
+            for (size_t frameId = 0; frameId < frameSet->frames().size(); ++frameId)
+            {
+                if (frameSet->frames().at(frameId).get() != 0)
+                {
+                    writeData(ofs, frameMap[frameSet->frames().at(frameId).get()]);
+                }
+                else
+                {
+                    size_t invalidId = -1;
+                    writeData(ofs, invalidId);
+                }
+            }
+
+            if (frameSet->systemPose().get() != 0)
+            {
+                writeData(ofs, odometryMap[frameSet->systemPose().get()]);
+            }
+            else
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
+
+            if (frameSet->odometryMeasurement().get() != 0)
+            {
+                writeData(ofs, odometryMap[frameSet->odometryMeasurement().get()]);
+            }
+            else
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
+
+            if (frameSet->gpsInsMeasurement().get() != 0)
+            {
+                writeData(ofs, poseMap[frameSet->gpsInsMeasurement().get()]);
+            }
+            else
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
         }
     }
 

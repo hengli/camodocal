@@ -31,7 +31,7 @@ camodocal_link_libraries(camodocal_visual_odometry
 )
 
 camodocal_test(SlidingWindowBA)
-camodocal_link_libraries(SlidingWindowBA_test gpl camodocal_visual_odometry)
+camodocal_link_libraries(SlidingWindowBA_test camodocal_gpl camodocal_visual_odometry)
 
 if(VCHARGE_VIZ)
 

@@ -69,24 +69,17 @@ private:
                                  int nViews,
                                  std::vector<std::vector<Point2DFeaturePtr> >& correspondences) const;
 
-    typedef struct
-    {
-        int cameraIdx;
-        int segmentIdx;
-        int frameIdx;
-    } FrameID;
-
     typedef std::pair<Point2DFeaturePtr, Point2DFeaturePtr> Correspondence2D2D;
-    typedef boost::tuple<int, int, FramePtr, FramePtr, Point2DFeaturePtr, Point3DFeaturePtr> Correspondence2D3D;
-    typedef boost::tuple<int, int, FramePtr, FramePtr, Point3DFeaturePtr, Point3DFeaturePtr> Correspondence3D3D;
+    typedef boost::tuple<FramePtr, FramePtr, Point2DFeaturePtr, Point3DFeaturePtr> Correspondence2D3D;
+    typedef boost::tuple<FramePtr, FramePtr, Point3DFeaturePtr, Point3DFeaturePtr> Correspondence3D3D;
 
     void buildVocTree(void);
     std::vector<std::vector<float> > frameToBOW(const FrameConstPtr& frame) const;
-    void findLoopClosure2D3D(std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame,
+    void findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame,
                              std::vector<Correspondence2D3D>& correspondences2D3D,
                              double reprojErrorThresh = 1.0);
-    void findLoopClosure2D3DHelper(int cameraIdx,
-                                   std::vector<boost::tuple<int, int, FramePtr, FramePtr> >* corrFF,
+    void findLoopClosure2D3DHelper(FrameTag frameTagQuery,
+                                   std::vector<std::pair<FramePtr, FramePtr> >* corrFF,
                                    std::vector<Correspondence2D3D>* corr2D3D,
                                    double reprojErrorThresh = 1.0);
     std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
@@ -94,13 +87,11 @@ private:
 
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                               double reprojErrorThresh = 2.0);
-    void matchFrameToWindow(int cameraIdx1, int cameraIdx2,
-                            FramePtr& frame1,
+    void matchFrameToWindow(FramePtr& frame1,
                             std::vector<FramePtr>& window,
                             std::vector<Correspondence2D2D>* correspondences2D2D,
                             double reprojErrorThresh = 2.0);
-    void matchFrameToFrame(int cameraIdx1, int cameraIdx2,
-                           FramePtr& frame1, FramePtr& frame2,
+    void matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
                            std::vector<Correspondence2D2D>* corr2D2D,
                            double reprojErrorThresh = 2.0);
 
@@ -140,7 +131,9 @@ private:
 
     void optimize(int flags, bool optimizeZ = true, int nIterations = 500);
 
-    bool seenByMultipleCameras(const std::vector<Point2DFeaturePtr>& features2D) const;
+    bool seenByMultipleCameras(const std::vector<Point2DFeatureWPtr>& features2D) const;
+
+    void reweightScenePoints(void);
 
     bool estimateCameraOdometryTransforms(void);
 
@@ -152,7 +145,7 @@ private:
     void visualizeExtrinsics(const std::string& overlayName);
 
     void visualizeFrameFrameCorrespondences(const std::string& overlayName,
-                                            const std::vector<boost::tuple<int, int, FramePtr, FramePtr> >& correspondencesFrameFrame) const;
+                                            const std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame) const;
 
     void visualize2D3DCorrespondences(const std::string& overlayName,
                                       const std::vector<Correspondence2D3D>& correspondences) const;
@@ -175,23 +168,23 @@ private:
         std::vector<size_t> pointIndices;
     } ZPlaneModel;
 
-    std::vector<CameraPtr> mCameras;
-    CameraRigExtrinsics& mExtrinsics;
-    SparseGraph mGraph;
-    Surf64Database mDb;
+    std::vector<CameraPtr> m_cameras;
+    CameraRigExtrinsics& m_extrinsics;
+    SparseGraph m_graph;
+    Surf64Database m_db;
 
-    std::vector<FrameID> mVid2FidLUT;
+    std::vector<FrameTag> m_v2fLUT;
 
-    const size_t kLocalMapWindowDistance;
-    const float kMaxDistanceRatio;
-    const double kMaxPoint3DDistance;
-    const double kMaxReprojErr;
-    const size_t kMinLoopCorrespondences2D3D;
-    const size_t kMinInterCorrespondences2D2D;
-    const int kNearestImageMatches;
-    const double kNominalFocalLength;
+    const size_t k_localMapWindowDistance;
+    const float k_maxDistanceRatio;
+    const double k_maxPoint3DDistance;
+    const double k_maxReprojErr;
+    const size_t k_minLoopCorrespondences2D3D;
+    const size_t k_minInterCorrespondences2D2D;
+    const int k_nearestImageMatches;
+    const double k_nominalFocalLength;
 
-    bool mVerbose;
+    bool m_verbose;
 };
 
 }

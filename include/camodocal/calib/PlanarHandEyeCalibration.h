@@ -22,23 +22,23 @@ public:
     bool getVerbose(void);
     void setVerbose(bool on = false);
 
-    bool estimate(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+    bool estimate(const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                   const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                  const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                  const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                   const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2,
                   Eigen::Matrix4d& H_12) const;
 
 private:
-    bool estimateRyx(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+    bool estimateRyx(const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                      const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                     const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                     const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                      const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2,
                      Eigen::Matrix3d& R_yx) const;
-    
+
     void refineEstimate(Eigen::Matrix4d& H_12,
-                        const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+                        const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                         const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                        const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                        const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                         const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2) const;
 
     // solve ax^2 + bx + c = 0
@@ -48,7 +48,7 @@ private:
     {
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-        Eigen::Vector3d rotation;
+        Eigen::Quaterniond rotation;
         Eigen::Vector3d translation;
     } Motion;
 

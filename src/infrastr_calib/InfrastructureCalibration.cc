@@ -1,5 +1,6 @@
 #include "camodocal/infrastr_calib/InfrastructureCalibration.h"
 
+#include <boost/filesystem.hpp>
 #include <iostream>
 #include <opencv2/core/eigen.hpp>
 
@@ -123,7 +124,7 @@ InfrastructureCalibration::addFrameSet(const std::vector<cv::Mat>& images,
 
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        if (frames.at(i)->camera().get() == 0)
+        if (frames.at(i)->cameraPose().get() == 0)
         {
             continue;
         }
@@ -172,8 +173,8 @@ InfrastructureCalibration::addFrameSet(const std::vector<cv::Mat>& images,
                 continue;
             }
 
-            double d = (frameCurr.at(i)->camera()->pose().inverse().block<3,1>(0,3) -
-                        framePrev.at(i)->camera()->pose().inverse().block<3,1>(0,3)).norm();
+            double d = (frameCurr.at(i)->cameraPose()->toMatrix().inverse().block<3,1>(0,3) -
+                        framePrev.at(i)->cameraPose()->toMatrix().inverse().block<3,1>(0,3)).norm();
 
             if (d < keyFrameDist)
             {
@@ -373,7 +374,7 @@ InfrastructureCalibration::run(void)
         {
             int cameraIdx = frameset.frames.at(j)->cameraId();
 
-            poses.at(cameraIdx) = frameset.frames.at(j)->camera()->pose();
+            poses.at(cameraIdx) = frameset.frames.at(j)->cameraPose()->toMatrix();
         }
 
         std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_ref(m_cameras.size());
@@ -400,9 +401,9 @@ InfrastructureCalibration::run(void)
             for (size_t k = 0; k < m_framesets.at(j).frames.size(); ++k)
             {
                 int cameraIdx = m_framesets.at(j).frames.at(k)->cameraId();
-                PosePtr& cameraPose = m_framesets.at(j).frames.at(k)->camera();
+                PoseEPtr& cameraPose = m_framesets.at(j).frames.at(k)->cameraPose();
 
-                Eigen::Matrix4d H = cameraPose->pose().inverse() * T_cam_ref.at(cameraIdx).pose().inverse();
+                Eigen::Matrix4d H = cameraPose->toMatrix().inverse() * T_cam_ref.at(cameraIdx).toMatrix().inverse();
 
                 pos += H.block<3,1>(0,3);
                 att.push_back(Eigen::Quaterniond(H.block<3,3>(0,0)));
@@ -411,7 +412,7 @@ InfrastructureCalibration::run(void)
             pos /= m_framesets.at(j).frames.size();
 
             OdometryPtr odometry(new Odometry);
-            odometry->timeStamp() = m_framesets.at(j).frames.at(0)->camera()->timeStamp();
+            odometry->timeStamp() = m_framesets.at(j).frames.at(0)->cameraPose()->timeStamp();
             odometry->position() = pos;
 
             Eigen::Quaterniond qAvg = quaternionAvg(att);
@@ -423,7 +424,7 @@ InfrastructureCalibration::run(void)
 
             for (size_t k = 0; k < m_framesets.at(j).frames.size(); ++k)
             {
-                m_framesets.at(j).frames.at(k)->odometryOpt() = odometry;
+                m_framesets.at(j).frames.at(k)->systemPose() = odometry;
             }
         }
 
@@ -448,7 +449,7 @@ InfrastructureCalibration::run(void)
 
     for (size_t i = 1; i < m_cameras.size(); ++i)
     {
-        m_extrinsics.setGlobalCameraPose(i, best_T_cam_ref.at(i).pose());
+        m_extrinsics.setGlobalCameraPose(i, best_T_cam_ref.at(i).toMatrix());
     }
 
     // extrinsics
@@ -465,9 +466,9 @@ InfrastructureCalibration::run(void)
         for (size_t j = 0; j < frameset.frames.size(); ++j)
         {
             int cameraIdx = frameset.frames.at(j)->cameraId();
-            PosePtr& cameraPose = frameset.frames.at(j)->camera();
+            PoseEPtr& cameraPose = frameset.frames.at(j)->cameraPose();
 
-            Eigen::Matrix4d H = cameraPose->pose().inverse() * T_cam_ref.at(cameraIdx).pose().inverse();
+            Eigen::Matrix4d H = cameraPose->toMatrix().inverse() * T_cam_ref.at(cameraIdx).toMatrix().inverse();
 
             pos += H.block<3,1>(0,3);
             att.push_back(Eigen::Quaterniond(H.block<3,3>(0,0)));
@@ -475,7 +476,7 @@ InfrastructureCalibration::run(void)
 
         pos /= frameset.frames.size();
 
-        OdometryPtr& odometry = frameset.frames.at(0)->odometryOpt();
+        OdometryPtr& odometry = frameset.frames.at(0)->systemPose();
         odometry->position() = pos;
 
         Eigen::Quaterniond qAvg = quaternionAvg(att);
@@ -489,7 +490,7 @@ InfrastructureCalibration::run(void)
         {
             FramePtr& frame = frameset.frames.at(j);
 
-            frame->odometryOpt() = odometry;
+            frame->systemPose() = odometry;
         }
     }
 
@@ -520,58 +521,28 @@ InfrastructureCalibration::loadFrameSets(const std::string& filename)
 
     graph.readFromBinaryFile(filename);
 
-    unsigned int mark[graph.cameraCount()];
-    for (int i = 0; i < graph.cameraCount(); ++i)
+    for (size_t i = 0; i < graph.frameSetSegment(0).size(); ++i)
     {
-        mark[i] = 0;
-    }
+        FrameSet frameset;
+        uint64_t timestamp;
 
-    bool finished = false;
-    while (!finished)
-    {
-        uint64_t timestamp = std::numeric_limits<uint64_t>::max();
-
-        for (int i = 0; i < graph.cameraCount(); ++i)
+        for (int j = 0; j < graph.frameSetSegment(0).at(i)->frames().size(); ++j)
         {
-            if (mark[i] >= graph.frameSegments(i).at(0).size())
+            FramePtr& frame = graph.frameSetSegment(0).at(i)->frames().at(j);
+
+            if (frame.get() == 0)
             {
                 continue;
             }
 
-            if (graph.frameSegments(i).at(0).at(mark[i])->camera()->timeStamp() < timestamp)
-            {
-                timestamp = graph.frameSegments(i).at(0).at(mark[i])->camera()->timeStamp();
-            }
+            timestamp = frame->cameraPose()->timeStamp();
+
+            frameset.frames.push_back(frame);
         }
 
-        FrameSet frameset;
         frameset.timestamp = timestamp;
 
-        for (int i = 0; i < graph.cameraCount(); ++i)
-        {
-            if (mark[i] >= graph.frameSegments(i).at(0).size())
-            {
-                continue;
-            }
-
-            if (timestamp == graph.frameSegments(i).at(0).at(mark[i])->camera()->timeStamp())
-            {
-                frameset.frames.push_back(graph.frameSegments(i).at(0).at(mark[i]));
-                ++mark[i];
-            }
-        }
-
         m_framesets.push_back(frameset);
-
-        finished = true;
-        for (int i = 0; i < graph.cameraCount(); ++i)
-        {
-            if (mark[i] < graph.frameSegments(i).at(0).size())
-            {
-                finished = false;
-                break;
-            }
-        }
     }
 
     if (m_verbose)
@@ -589,20 +560,20 @@ InfrastructureCalibration::saveFrameSets(const std::string& filename) const
 {
     SparseGraph graph;
 
-    for (size_t i = 0; i < m_cameras.size(); ++i)
-    {
-        graph.frameSegments(i).resize(1);
-    }
+    graph.frameSetSegments().resize(1);
+    graph.frameSetSegment(0).resize(m_framesets.size());
 
     for (size_t i = 0; i < m_framesets.size(); ++i)
     {
         const FrameSet& frameset = m_framesets.at(i);
 
+        graph.frameSetSegment(0).at(i)->frames().resize(m_cameras.size());
+
         for (size_t j = 0; j < frameset.frames.size(); ++j)
         {
-            int cameraIdx = frameset.frames.at(j)->cameraId();
+            int cameraId = frameset.frames.at(j)->cameraId();
 
-            graph.frameSegments(cameraIdx).at(0).push_back(frameset.frames.at(j));
+            graph.frameSetSegment(0).at(i)->frames().at(cameraId) = frameset.frames.at(j);
         }
     }
 
@@ -662,7 +633,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     }
 
     // find k closest matches in vocabulary tree
-    std::vector<FrameID> candidates;
+    std::vector<FrameTag> candidates;
     m_locrec->knnMatch(frame, k_nearestImageMatches, candidates);
 
     // find match with highest number of inlier 2D-2D correspondences
@@ -678,9 +649,9 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
 
     for (size_t i = 0; i < candidates.size(); ++i)
     {
-        FrameID fid = candidates.at(i);
+        FrameTag tag = candidates.at(i);
 
-        FramePtr& trainFrame = m_refGraph.frameSegments(fid.cameraIdx).at(fid.segmentIdx).at(fid.frameIdx);
+        FramePtr& trainFrame = m_refGraph.frameSetSegment(tag.frameSetSegmentId).at(tag.frameSetId)->frames().at(tag.frameId);
 
         // find 2D-2D correspondences
         std::vector<cv::DMatch> matches = matchFeatures(frame->features2D(), trainFrame->features2D());
@@ -766,12 +737,12 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     cv::cv2eigen(best_rvec_cv.reshape(0,3), rvec);
     cv::cv2eigen(best_tvec_cv.reshape(0,3), tvec);
 
-    PosePtr pose(new Pose);
+    PoseEPtr pose(new PoseE);
     pose->timeStamp() = timestamp;
     pose->rotation() = AngleAxisToQuaternion(rvec);
     pose->translation() = tvec;
 
-    frame->camera() = pose;
+    frame->cameraPose() = pose;
 
     // store inlier 2D-3D correspondences
     for (size_t i = 0; i < bestCorr2D3D.size(); ++i)
@@ -895,8 +866,8 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
                                              T_cam_ref.at(frame->cameraId()).translationData(),
-                                             frame->odometryOpt()->positionData(),
-                                             frame->odometryOpt()->attitudeData(),
+                                             frame->systemPose()->positionData(),
+                                             frame->systemPose()->attitudeData(),
                                              feature2D->feature3D()->pointData());
                 }
                 else
@@ -910,8 +881,8 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
                                              T_cam_ref.at(frame->cameraId()).translationData(),
-                                             frame->odometryOpt()->positionData(),
-                                             frame->odometryOpt()->attitudeData());
+                                             frame->systemPose()->positionData(),
+                                             frame->systemPose()->attitudeData());
                 }
             }
         }
@@ -941,7 +912,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
 
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        m_extrinsics.setGlobalCameraPose(i, T_cam_ref.at(i).pose());
+        m_extrinsics.setGlobalCameraPose(i, T_cam_ref.at(i).toMatrix());
     }
 
     if (m_verbose)
@@ -1134,8 +1105,8 @@ InfrastructureCalibration::frameReprojectionError(const FramePtr& frame,
             = reprojectionError(camera, feature3D->point(),
                                 T_cam_ref.rotation(),
                                 T_cam_ref.translation(),
-                                frame->odometryOpt()->position(),
-                                frame->odometryOpt()->attitude(),
+                                frame->systemPose()->position(),
+                                frame->systemPose()->attitude(),
                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
 
         if (minError > error)
@@ -1189,8 +1160,8 @@ InfrastructureCalibration::frameReprojectionError(const FramePtr& frame,
         }
 
         double error = camera->reprojectionError(feature3D->point(),
-                                                 frame->camera()->rotation(),
-                                                 frame->camera()->translation(),
+                                                 frame->cameraPose()->rotation(),
+                                                 frame->cameraPose()->translation(),
                                                  Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
 
         if (minError > error)
@@ -1292,14 +1263,21 @@ InfrastructureCalibration::visualizeMap(const std::string& overlayName, MapType 
         {
             boost::unordered_set<Point3DFeature*> scenePointSet;
 
-            const std::vector<FrameSegment>& segments = m_refGraph.frameSegments(i);
-            for (size_t j = 0; j < segments.size(); ++j)
+            for (size_t j = 0; j < m_refGraph.frameSetSegments().size(); ++j)
             {
-                const FrameSegment& segment = segments.at(j);
+                const FrameSetSegment& segment = m_refGraph.frameSetSegment(j);
 
                 for (size_t k = 0; k < segment.size(); ++k)
                 {
-                    const std::vector<Point2DFeaturePtr>& features2D = segment.at(k)->features2D();
+                    const FrameSetPtr& frameSet = segment.at(k);
+                    const FramePtr& frame = frameSet->frames().at(i);
+
+                    if (frame.get() == 0)
+                    {
+                        continue;
+                    }
+
+                    const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
                     for (size_t l = 0; l < features2D.size(); ++l)
                     {
@@ -1415,7 +1393,7 @@ void
 InfrastructureCalibration::visualizeCameraPose(const FrameConstPtr& frame,
                                                bool showScenePoints)
 {
-    Eigen::Matrix4d H_cam = frame->camera()->pose().inverse();
+    Eigen::Matrix4d H_cam = frame->cameraPose()->toMatrix().inverse();
 
     double xBound = 0.1;
     double yBound = 0.1;
@@ -1506,7 +1484,7 @@ InfrastructureCalibration::visualizeCameraPoses(bool showScenePoints)
         {
             FramePtr& frame = frameset.frames.at(j);
 
-            Eigen::Matrix4d H_cam = frame->camera()->pose().inverse();
+            Eigen::Matrix4d H_cam = frame->cameraPose()->toMatrix().inverse();
 
             double xBound = 0.1;
             double yBound = 0.1;
@@ -1699,9 +1677,9 @@ InfrastructureCalibration::visualizeOdometry(void) const
     {
         const FrameSet& frameset = m_framesets.at(i);
 
-        const OdometryPtr& odometry = frameset.frames.at(0)->odometryOpt();
+        const OdometryPtr& odometry = frameset.frames.at(0)->systemPose();
 
-        Eigen::Matrix4d H = odometry->pose();
+        Eigen::Matrix4d H = odometry->toMatrix();
 
         overlay.begin(VCharge::LINE_LOOP);
 

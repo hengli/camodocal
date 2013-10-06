@@ -12,7 +12,7 @@ void
 LocationRecognition::setup(const SparseGraph& graph,
                            const std::string& databaseDirectory)
 {
-    m_frameIDs.clear();
+    m_frameTags.clear();
     m_frames.clear();
 
     Surf64Vocabulary voc;
@@ -23,23 +23,29 @@ LocationRecognition::setup(const SparseGraph& graph,
     // build vocabulary tree
     std::vector<std::vector<std::vector<float> > > features;
 
-    for (int cameraIdx = 0; cameraIdx < graph.cameraCount(); ++cameraIdx)
+    for (size_t segmentId = 0; segmentId < graph.frameSetSegments().size(); ++segmentId)
     {
-        const std::vector<FrameSegment>& segments = graph.frameSegments(cameraIdx);
+        const FrameSetSegment& segment = graph.frameSetSegment(segmentId);
 
-        for (size_t segmentIdx = 0; segmentIdx < segments.size(); ++segmentIdx)
+        for (size_t frameSetId = 0; frameSetId < segment.size(); ++frameSetId)
         {
-            const FrameSegment& segment = segments.at(segmentIdx);
+            const FrameSetPtr& frameSet = segment.at(frameSetId);
 
-            for (size_t frameIdx = 0; frameIdx < segment.size(); ++frameIdx)
+            for (size_t frameId = 0; frameId < frameSet->frames().size(); ++frameId)
             {
-                const FramePtr& frame = segment.at(frameIdx);
+                const FramePtr& frame = frameSet->frames().at(frameId);
 
-                FrameID fid;
-                fid.cameraIdx = cameraIdx;
-                fid.segmentIdx = segmentIdx;
-                fid.frameIdx = frameIdx;
-                m_frameIDs.push_back(fid);
+                if (frame.get() == 0)
+                {
+                    continue;
+                }
+
+                FrameTag tag;
+                tag.frameSetSegmentId = segmentId;
+                tag.frameSetId = frameSetId;
+                tag.frameId = frameId;
+
+                m_frameTags.push_back(tag);
 
                 m_frames.push_back(frame);
 
@@ -56,7 +62,7 @@ LocationRecognition::setup(const SparseGraph& graph,
 
 void
 LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
-                              std::vector<FrameID>& matches) const
+                              std::vector<FrameTag>& matches) const
 {
     DBoW2::QueryResults ret;
     m_db.query(frameToBOW(frame), ret, k);
@@ -64,9 +70,9 @@ LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
     matches.clear();
     for (size_t i = 0; i < ret.size(); ++i)
     {
-        FrameID fid = m_frameIDs.at(ret.at(i).Id);
+        FrameTag tag = m_frameTags.at(ret.at(i).Id);
 
-        matches.push_back(fid);
+        matches.push_back(tag);
     }
 }
 

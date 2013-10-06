@@ -41,22 +41,11 @@ public:
                bool useProvidedKeypoints = false);
 
 private:
-    static cv::Ptr<SurfGPU> mInstance;
-    static boost::mutex mInstanceMutex;
+    static cv::Ptr<SurfGPU> m_instance;
+    static boost::mutex m_instanceMutex;
 
-    cv::gpu::SURF_GPU mSURF_GPU;
-    cv::gpu::GpuMat mImageGPU;
-    cv::gpu::GpuMat mMaskGPU;
-    cv::gpu::GpuMat mKptsGPU;
-    cv::gpu::GpuMat mDtorsGPU;
-
-    cv::gpu::BruteForceMatcher_GPU<cv::L2<float> > mMatcher;
-
-    cv::gpu::GpuMat mMatchMaskGPU;
-    cv::gpu::GpuMat mQDtorsGPU, mTDtorsGPU;
-
-    boost::mutex mSURFMutex;
-    boost::mutex mMatchMutex;
+    cv::gpu::SURF_GPU m_surfGPU;
+    cv::gpu::BruteForceMatcher_GPU<cv::L2<float> > m_matcher;
 };
 
 }

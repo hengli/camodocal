@@ -1,4 +1,4 @@
-#include "camodocal/sparse_graph/Odometry.h"
+#include <camodocal/sparse_graph/Odometry.h>
 
 namespace camodocal
 {
@@ -143,7 +143,7 @@ Odometry::attitudeData(void) const
 }
 
 Eigen::Matrix4d
-Odometry::pose(void) const
+Odometry::toMatrix(void) const
 {
     Eigen::Matrix4d odometryPose;
     odometryPose.setIdentity();

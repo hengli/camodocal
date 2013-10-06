@@ -18,9 +18,9 @@ namespace camodocal
 class PoseError
 {
 public:
-    PoseError(Eigen::Vector3d r1, Eigen::Vector3d t1,
-              Eigen::Vector3d r2, Eigen::Vector3d t2)
-        : m_rvec1(r1), m_tvec1(t1), m_rvec2(r2), m_tvec2(t2)
+    PoseError(Eigen::Quaterniond q1, Eigen::Vector3d t1,
+              Eigen::Quaterniond q2, Eigen::Vector3d t2)
+     : m_q1(q1), m_t1(t1), m_q2(q2), m_t2(t2)
     {}
 
     template<typename T>
@@ -31,28 +31,41 @@ public:
         Eigen::Matrix<T,3,1> t;
         t << t2x1[0], t2x1[1], T(0);
 
-        Eigen::Matrix<T,3,1> r1 = m_rvec1.cast<T>();
-        Eigen::Matrix<T,3,1> t1 = m_tvec1.cast<T>();
-        Eigen::Matrix<T,3,1> r2 = m_rvec2.cast<T>();
-        Eigen::Matrix<T,3,1> t2 = m_tvec2.cast<T>();
+        Eigen::Quaternion<T> q1 = m_q1.cast<T>();
+        Eigen::Matrix<T,3,1> t1 = m_t1.cast<T>();
+        Eigen::Quaternion<T> q2 = m_q2.cast<T>();
+        Eigen::Matrix<T,3,1> t2 = m_t2.cast<T>();
 
-        Eigen::Quaternion<T> q1 = AngleAxisToQuaternion<T>(r1);
-        Eigen::Quaternion<T> q2 = AngleAxisToQuaternion<T>(r2);
-
-        Eigen::Matrix<T,3,3> R2 = AngleAxisToRotationMatrix<T>(r2);
+        T q2_coeffs[4] = {q2.w(), q2.x(), q2.y(), q2.z()};
+        Eigen::Matrix<T,3,3> R2 = QuaternionToRotation<T>(q2_coeffs);
 
         T q_coeffs[4] = {q.w(), q.x(), q.y(), q.z()};
         Eigen::Matrix<T,3,3> R = QuaternionToRotation<T>(q_coeffs);
 
-        residuals[0] = ((R2 - Eigen::Matrix<T,3,3>::Identity()) * t
-                        - (R * t1) + t2).norm();
-        residuals[1] = ((q2 * q).coeffs() - (q * q1).coeffs()).norm();
+        Eigen::Matrix<T,3,1> t_err = (R2 - Eigen::Matrix<T,3,3>::Identity()) * t
+                                     - (R * t1) + t2;
+
+        Eigen::Quaternion<T> q_err = q * q1 * q.conjugate() * q2.conjugate();
+
+        T q_err_coeffs[4] = {q_err.w(), q_err.x(), q_err.y(), q_err.z()};
+        Eigen::Matrix<T,3,3> R_err = QuaternionToRotation<T>(q_err_coeffs);
+
+        T roll, pitch, yaw;
+        mat2RPY(R_err, roll, pitch, yaw);
+
+        residuals[0] = t_err(0);
+        residuals[1] = t_err(1);
+        residuals[2] = t_err(2);
+        residuals[3] = roll;
+        residuals[4] = pitch;
+        residuals[5] = yaw;
 
         return true;
     }
 
 private:
-    Eigen::Vector3d m_rvec1, m_rvec2, m_tvec1, m_tvec2;
+    Eigen::Quaterniond m_q1, m_q2;
+    Eigen::Vector3d m_t1, m_t2;
 };
 
 PlanarHandEyeCalibration::PlanarHandEyeCalibration()
@@ -76,7 +89,7 @@ PlanarHandEyeCalibration::addMotions(const std::vector<Eigen::Matrix4d, Eigen::a
         Eigen::Vector3d t1 = H1.at(i).block<3,1>(0,3);
 
         Motion motion1;
-        motion1.rotation = RotationToAngleAxis(R1);
+        motion1.rotation = Eigen::Quaterniond(R1);
         motion1.translation = t1;
 
         m_motions1.push_back(motion1);
@@ -85,7 +98,7 @@ PlanarHandEyeCalibration::addMotions(const std::vector<Eigen::Matrix4d, Eigen::a
         Eigen::Vector3d t2 = H2.at(i).block<3,1>(0,3);
 
         Motion motion2;
-        motion2.rotation = RotationToAngleAxis(R2);
+        motion2.rotation = Eigen::Quaterniond(R2);
         motion2.translation = t2;
 
         m_motions2.push_back(motion2);
@@ -108,17 +121,18 @@ PlanarHandEyeCalibration::calibrate(Eigen::Matrix4d& H_12)
         return false;
     }
 
-    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > rvecs1, tvecs1, rvecs2, tvecs2;
+    std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> > quats1, quats2;
+    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > tvecs1, tvecs2;
 
     for (size_t i = 0; i < m_motions1.size(); ++i)
     {
-        rvecs1.push_back(m_motions1.at(i).rotation);
+        quats1.push_back(m_motions1.at(i).rotation);
         tvecs1.push_back(m_motions1.at(i).translation);
-        rvecs2.push_back(m_motions2.at(i).rotation);
+        quats2.push_back(m_motions2.at(i).rotation);
         tvecs2.push_back(m_motions2.at(i).translation);
     }
 
-    return estimate(rvecs1, tvecs1, rvecs2, tvecs2, H_12);
+    return estimate(quats1, tvecs1, quats2, tvecs2, H_12);
 }
 
 bool
@@ -127,43 +141,34 @@ PlanarHandEyeCalibration::getVerbose(void)
     return m_verbose;
 }
 
-void 
+void
 PlanarHandEyeCalibration::setVerbose(bool on)
 {
     m_verbose = on;
 }
 
-bool 
-PlanarHandEyeCalibration::estimate(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+bool
+PlanarHandEyeCalibration::estimate(const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                                    const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                                   const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                                   const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                                    const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2,
                                    Eigen::Matrix4d& H_12) const
 {
     // Estimate R_yx first
     Eigen::Matrix3d R_yx;
-    estimateRyx(rvecs1, tvecs1, rvecs2, tvecs2, R_yx);
+    estimateRyx(quats1, tvecs1, quats2, tvecs2, R_yx);
 
-    int motionCount = rvecs1.size();
+    int motionCount = quats1.size();
 
     Eigen::MatrixXd G = Eigen::MatrixXd::Zero(motionCount * 2, 4);
     Eigen::MatrixXd w(motionCount * 2, 1);
 
     for (int i = 0; i < motionCount; ++i)
     {
-        const Eigen::Vector3d& rvec1 = rvecs1.at(i);
+        const Eigen::Quaterniond& q1 = quats1.at(i);
         const Eigen::Vector3d& tvec1 = tvecs1.at(i);
-        const Eigen::Vector3d& rvec2 = rvecs2.at(i);
+        const Eigen::Quaterniond& q2 = quats2.at(i);
         const Eigen::Vector3d& tvec2 = tvecs2.at(i);
-
-        // Remove zero rotation.
-        if (rvec1.norm() == 0 || rvec2.norm() == 0)
-        {
-            continue;
-        }
-
-        Eigen::Quaterniond q2;
-        q2 = Eigen::AngleAxisd(rvec2.norm(), rvec2.normalized());
 
         Eigen::Matrix2d J;
         J = q2.toRotationMatrix().block<2,2>(0,0) - Eigen::Matrix2d::Identity();
@@ -201,7 +206,7 @@ PlanarHandEyeCalibration::estimate(const std::vector<Eigen::Vector3d, Eigen::ali
         std::cout << H_12 << std::endl;
     }
 
-    refineEstimate(H_12, rvecs1, tvecs1, rvecs2, tvecs2);
+    refineEstimate(H_12, quats1, tvecs1, quats2, tvecs2);
 
     if (m_verbose)
     {
@@ -214,35 +219,23 @@ PlanarHandEyeCalibration::estimate(const std::vector<Eigen::Vector3d, Eigen::ali
 }
 
 bool
-PlanarHandEyeCalibration::estimateRyx(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+PlanarHandEyeCalibration::estimateRyx(const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                                       const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                                      const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                                      const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                                       const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2,
                                       Eigen::Matrix3d& R_yx) const
 {
-    size_t motionCount = rvecs1.size();
+    size_t motionCount = quats1.size();
 
     Eigen::MatrixXd M(motionCount * 4, 4);
     M.setZero();
 
-    for (size_t i = 0; i < rvecs1.size(); ++i)
+    for (size_t i = 0; i < quats1.size(); ++i)
     {
-        const Eigen::Vector3d& rvec1 = rvecs1.at(i);
+        const Eigen::Quaterniond& q1 = quats1.at(i);
         const Eigen::Vector3d& tvec1 = tvecs1.at(i);
-        const Eigen::Vector3d& rvec2 = rvecs2.at(i);
+        const Eigen::Quaterniond& q2 = quats2.at(i);
         const Eigen::Vector3d& tvec2 = tvecs2.at(i);
-
-        // Remove zero rotation.
-        if (rvec1.norm() == 0 || rvec2.norm() == 0)
-        {
-            continue;
-        }
-
-        Eigen::Quaterniond q1;
-        q1 = Eigen::AngleAxisd(rvec1.norm(), rvec1.normalized());
-
-        Eigen::Quaterniond q2;
-        q2 = Eigen::AngleAxisd(rvec2.norm(), rvec2.normalized());
 
         M.block<4,4>(i * 4, 0) = QuaternionMultMatLeft(q2) - QuaternionMultMatRight(q1);
     }
@@ -265,7 +258,7 @@ PlanarHandEyeCalibration::estimateRyx(const std::vector<Eigen::Vector3d, Eigen::
 
     Eigen::Matrix3d R_yxs[2];
     double yaw[2];
-    
+
     for (int i = 0; i < 2; ++i)
     {
         double t = s[i] * s[i] * t1.dot(t1) + 2 * s[i] * t1.dot(t2) + t2.dot(t2);
@@ -292,36 +285,36 @@ PlanarHandEyeCalibration::estimateRyx(const std::vector<Eigen::Vector3d, Eigen::
     return true;
 }
 
-void 
+void
 PlanarHandEyeCalibration::refineEstimate(Eigen::Matrix4d& H_12,
-                                         const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
+                                         const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats1,
                                          const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
-                                         const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
+                                         const std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond> >& quats2,
                                          const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs2) const
 {
     Eigen::Quaterniond q(H_12.block<3,3>(0,0));
-    double p[6] = {q.w(), q.x(), q.y(), q.z(), H_12(0,3), H_12(1,3)};
+    double q_coeffs[4] = {q.w(), q.x(), q.y(), q.z()};
+    double t_coeffs[2] = {H_12(0,3), H_12(1,3)};
 
     ceres::Problem problem;
 
-    for (size_t i = 0; i < rvecs1.size(); ++i)
+    for (size_t i = 0; i < quats1.size(); ++i)
     {
         ceres::CostFunction* costFunction =
             // t is only flexible on x and y.
-            new ceres::AutoDiffCostFunction<PoseError, 2, 4, 2>(
-                new PoseError(rvecs1.at(i), tvecs1.at(i), rvecs2.at(i), tvecs2.at(i)));
+            new ceres::AutoDiffCostFunction<PoseError, 6, 4, 2>(
+                new PoseError(quats1.at(i), tvecs1.at(i), quats2.at(i), tvecs2.at(i)));
 
-        problem.AddResidualBlock(costFunction, NULL, p, p + 4);
+        problem.AddResidualBlock(costFunction, NULL, q_coeffs, t_coeffs);
     }
 
     ceres::LocalParameterization* quaternionParameterization =
         new ceres::QuaternionParameterization;
 
-    problem.SetParameterization(p, quaternionParameterization);
+    problem.SetParameterization(q_coeffs, quaternionParameterization);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
-    options.jacobi_scaling = true;
     options.max_num_iterations = 2500;
 //    options.minimizer_progress_to_stdout = true;
 
@@ -333,8 +326,8 @@ PlanarHandEyeCalibration::refineEstimate(Eigen::Matrix4d& H_12,
         std::cout << summary.BriefReport() << std::endl;
     }
 
-    q = Eigen::Quaterniond(p[0], p[1], p[2], p[3]);
-    H_12.block<2,1>(0,3) << p[4], p[5];
+    q = Eigen::Quaterniond(q_coeffs[0], q_coeffs[1], q_coeffs[2], q_coeffs[3]);
+    H_12.block<3,1>(0,3) << t_coeffs[0], t_coeffs[1], 0.0;
     H_12.block<3,3>(0,0) = q.toRotationMatrix();
 }
 

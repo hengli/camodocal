@@ -5,26 +5,20 @@
 namespace camodocal
 {
 
-cv::Ptr<SurfGPU> SurfGPU::mInstance;
-boost::mutex SurfGPU::mInstanceMutex;
+cv::Ptr<SurfGPU> SurfGPU::m_instance;
+boost::mutex SurfGPU::m_instanceMutex;
 
 SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  int nOctaveLayers, bool extended,
                  float keypointsRatio)
- : mSURF_GPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio)
+ : m_surfGPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio)
 {
 
 }
 
 SurfGPU::~SurfGPU()
 {
-    mImageGPU.release();
-    mMaskGPU.release();
-    mKptsGPU.release();
-    mDtorsGPU.release();
-    mMatchMaskGPU.release();
-    mQDtorsGPU.release();
-    mTDtorsGPU.release();
+
 }
 
 cv::Ptr<SurfGPU>
@@ -32,37 +26,37 @@ SurfGPU::instance(double hessianThreshold, int nOctaves,
                   int nOctaveLayers, bool extended,
                   float keypointsRatio)
 {
-    boost::mutex::scoped_lock lock(mInstanceMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
-    if (mInstance.empty())
+    if (m_instance.empty())
     {
-        mInstance = cv::Ptr<SurfGPU>(new SurfGPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio));
+        m_instance = cv::Ptr<SurfGPU>(new SurfGPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio));
     }
 
-    return mInstance;
+    return m_instance;
 }
 
 void
 SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
                 const cv::Mat& mask)
 {
-    boost::mutex::scoped_lock lock(mSURFMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
-    mImageGPU.upload(image);
+    cv::gpu::GpuMat imageGPU(image);
+
+    cv::gpu::GpuMat maskGPU;
     if (!mask.empty())
     {
-        mMaskGPU.upload(mask);
-    }
-    else
-    {
-        mMaskGPU.release();
+        maskGPU.upload(mask);
     }
 
     try
     {
-        mSURF_GPU(mImageGPU, mMaskGPU, mKptsGPU);
+        cv::gpu::GpuMat kptsGPU;
 
-        mSURF_GPU.downloadKeypoints(mKptsGPU, keypoints);
+        m_surfGPU(imageGPU, maskGPU, kptsGPU);
+
+        m_surfGPU.downloadKeypoints(kptsGPU, keypoints);
     }
     catch (cv::Exception& exception)
     {
@@ -75,20 +69,21 @@ SurfGPU::compute(const cv::Mat& image,
                  std::vector<cv::KeyPoint>& keypoints,
                  cv::Mat& descriptors)
 {
-    boost::mutex::scoped_lock lock(mSURFMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
-    mImageGPU.upload(image);
+    cv::gpu::GpuMat imageGPU(image);
 
+    cv::gpu::GpuMat dtorsGPU;
     try
     {
-        mSURF_GPU(mImageGPU, cv::gpu::GpuMat(), keypoints, mDtorsGPU, true);
+        m_surfGPU(imageGPU, cv::gpu::GpuMat(), keypoints, dtorsGPU, true);
     }
     catch (cv::Exception& exception)
     {
         std::cout << "# ERROR: Surf GPU descriptor computation failed: " << exception.msg << std::endl;
     }
 
-    mDtorsGPU.download(descriptors);
+    dtorsGPU.download(descriptors);
 }
 
 void
@@ -99,7 +94,7 @@ SurfGPU::knnMatch(const cv::Mat& queryDescriptors,
                   const cv::Mat& mask,
                   bool compactResult)
 {
-    boost::mutex::scoped_lock lock(mMatchMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
     if (queryDescriptors.empty() || trainDescriptors.empty())
     {
@@ -109,19 +104,16 @@ SurfGPU::knnMatch(const cv::Mat& queryDescriptors,
 
     matches.reserve(queryDescriptors.rows);
 
-    mQDtorsGPU.upload(queryDescriptors);
-    mTDtorsGPU.upload(trainDescriptors);
+    cv::gpu::GpuMat qDtorsGPU(queryDescriptors);
+    cv::gpu::GpuMat tDtorsGPU(trainDescriptors);
 
+    cv::gpu::GpuMat maskGPU;
     if (!mask.empty())
     {
-        mMatchMaskGPU.upload(mask);
-    }
-    else
-    {
-        mMatchMaskGPU.release();
+        maskGPU.upload(mask);
     }
 
-    mMatcher.knnMatch(mQDtorsGPU, mTDtorsGPU, matches, k, mMatchMaskGPU, compactResult);
+    m_matcher.knnMatch(qDtorsGPU, tDtorsGPU, matches, k, maskGPU, compactResult);
 }
 
 void
@@ -132,7 +124,7 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
                      const cv::Mat& mask,
                      bool compactResult)
 {
-    boost::mutex::scoped_lock lock(mMatchMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
     if (queryDescriptors.empty() || trainDescriptors.empty())
     {
@@ -142,19 +134,16 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
 
     matches.reserve(queryDescriptors.rows);
 
-    mQDtorsGPU.upload(queryDescriptors);
-    mTDtorsGPU.upload(trainDescriptors);
+    cv::gpu::GpuMat qDtorsGPU(queryDescriptors);
+    cv::gpu::GpuMat tDtorsGPU(trainDescriptors);
 
+    cv::gpu::GpuMat maskGPU;
     if (!mask.empty())
     {
-        mMatchMaskGPU.upload(mask);
-    }
-    else
-    {
-        mMatchMaskGPU.release();
+        maskGPU.upload(mask);
     }
 
-    mMatcher.radiusMatch(mQDtorsGPU, mTDtorsGPU, matches, maxDistance, mMatchMaskGPU, compactResult);
+    m_matcher.radiusMatch(qDtorsGPU, tDtorsGPU, matches, maxDistance, maskGPU, compactResult);
 }
 
 void
@@ -165,7 +154,7 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
                std::vector<cv::DMatch>& matches,
                bool useProvidedKeypoints)
 {
-    boost::mutex::scoped_lock lock(mSURFMutex);
+    boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
     cv::gpu::GpuMat imageGPU[2];
     cv::gpu::GpuMat maskGPU[2];
@@ -185,14 +174,14 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
 
     try
     {
-        mSURF_GPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
-        mSURF_GPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
+        m_surfGPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
+        m_surfGPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
 
         std::vector<cv::DMatch> fwdMatches;
-        mMatcher.match(dtorsGPU[0], dtorsGPU[1], fwdMatches);
+        m_matcher.match(dtorsGPU[0], dtorsGPU[1], fwdMatches);
 
         std::vector<cv::DMatch> revMatches;
-        mMatcher.match(dtorsGPU[1], dtorsGPU[0], revMatches);
+        m_matcher.match(dtorsGPU[1], dtorsGPU[0], revMatches);
 
         // cross-check
         matches.clear();

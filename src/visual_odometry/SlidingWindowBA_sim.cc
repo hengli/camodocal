@@ -112,13 +112,13 @@ int main(int argc, char** argv)
             if (i != 0 && hasCorrespondence)
             {
                 feature2D->prevMatches().push_back(features2D.at(i - 1).at(j));
-                feature2D->bestPrevMatchIdx() = 0;
+                feature2D->bestPrevMatchId() = 0;
 
                 scenePoints.at(j)->features2D().push_back(feature2D);
             }
             else
             {
-                feature2D->bestPrevMatchIdx() = -1;
+                feature2D->bestPrevMatchId() = -1;
             }
 
             features2D.at(i).push_back(feature2D);
@@ -141,22 +141,21 @@ int main(int argc, char** argv)
         Eigen::Quaterniond q = cameraPoses.at(i).first;
         Eigen::Vector3d t = cameraPoses.at(i).second;
 
-        PosePtr camera(new Pose);
-        frameGround.camera() = camera;
+        PoseEPtr cameraPose(new PoseE);
+        frameGround.cameraPose() = cameraPose;
 
         if (i == 0)
         {
-            camera->rotation() = q;
-            camera->translation() = t;
+            cameraPose->rotation() = q;
+            cameraPose->translation() = t;
         }
         else
         {
-            camera->rotation() = q * q_prev.conjugate();
-            camera->translation() = - camera->rotation().toRotationMatrix() * t_prev + t;
+            cameraPose->rotation() = q * q_prev.conjugate();
+            cameraPose->translation() = - cameraPose->rotation().toRotationMatrix() * t_prev + t;
         }
 
         frameGround.features2D() = features2D.at(i);
-        frameGround.features3D() = scenePoints;
 
         FramePtr frame(new Frame);
         frame->features2D() = frameGround.features2D();
@@ -168,7 +167,8 @@ int main(int argc, char** argv)
         Eigen::Matrix3d R_est;
         Eigen::Vector3d t_est;
         sba.addFrame(frame,
-                     camera->rotation().toRotationMatrix(), camera->translation(),
+                     cameraPose->rotation().toRotationMatrix(),
+                     cameraPose->translation(),
                      R_est, t_est);
 
         Eigen::Matrix4d H_est;

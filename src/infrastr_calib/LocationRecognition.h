@@ -17,7 +17,7 @@ public:
 
     void setup(const SparseGraph& graph, const std::string& databaseDirectory);
 
-    void knnMatch(const FrameConstPtr& frame, int k, std::vector<FrameID>& matches) const;
+    void knnMatch(const FrameConstPtr& frame, int k, std::vector<FrameTag>& matches) const;
     void knnMatch(const FrameConstPtr& frame, int k, std::vector<FramePtr>& matches) const;
 
 private:
@@ -25,7 +25,7 @@ private:
 
     Surf64Database m_db;
 
-    std::vector<FrameID> m_frameIDs;
+    std::vector<FrameTag> m_frameTags;
     std::vector<FramePtr> m_frames;
 };
 

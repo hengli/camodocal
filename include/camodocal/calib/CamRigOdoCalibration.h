@@ -40,7 +40,7 @@ public:
          , saveWorkingData(true)
          , beginStage(0)
          , optimizeIntrinsics(true)
-         , saveImages(false)
+         , saveImages(true)
          , verbose(false) {};
 
         Mode mode;
@@ -62,6 +62,7 @@ public:
     virtual ~CamRigOdoCalibration();
 
     void addFrame(int cameraIdx, const cv::Mat& image, uint64_t timestamp);
+    void addFrameSet(const std::vector<cv::Mat>& images, uint64_t timestamp);
 
     void addOdometry(double x, double y, double yaw, uint64_t timestamp);
 
@@ -82,35 +83,37 @@ private:
     void onCamOdoThreadFinished(CamOdoThread* odoCamThread);
     void onCamRigThreadFinished(CamRigThread* camRigThread);
 
+    void buildGraph(void);
+
     bool displayHandler(void);
     static void keyboardHandler(unsigned char key, int x, int y);
 
-    Glib::RefPtr<Glib::MainLoop> mMainLoop;
-    std::vector<CamOdoThread*> mCamOdoThreads;
-    CamOdoWatchdogThread* mCamOdoWatchdogThread;
-    CamRigThread* mCamRigThread;
+    Glib::RefPtr<Glib::MainLoop> m_mainLoop;
+    std::vector<CamOdoThread*> m_camOdoThreads;
+    CamOdoWatchdogThread* m_camOdoWatchdogThread;
+    CamRigThread* m_camRigThread;
 
-    CameraRigExtrinsics mExtrinsics;
-    SparseGraph mGraph;
+    CameraRigExtrinsics m_extrinsics;
+    SparseGraph m_graph;
 
-    std::vector<AtomicData<cv::Mat>* > mImages;
-    std::vector<CameraPtr> mCameras;
-    SensorDataBuffer<OdometryPtr> mOdometryBuffer;
-    SensorDataBuffer<OdometryPtr> mInterpOdometryBuffer;
-    boost::mutex mOdometryBufferMutex;
-    SensorDataBuffer<PosePtr> mGpsInsBuffer;
-    SensorDataBuffer<PosePtr> mInterpGpsInsBuffer;
-    boost::mutex mGpsInsBufferMutex;
+    std::vector<AtomicData<cv::Mat>* > m_images;
+    std::vector<CameraPtr> m_cameras;
+    SensorDataBuffer<OdometryPtr> m_odometryBuffer;
+    SensorDataBuffer<OdometryPtr> m_interpOdometryBuffer;
+    boost::mutex m_odometryBufferMutex;
+    SensorDataBuffer<PosePtr> m_gpsInsBuffer;
+    SensorDataBuffer<PosePtr> m_interpGpsInsBuffer;
+    boost::mutex m_gpsInsBufferMutex;
 
-    boost::multi_array<bool, 1> mCamOdoCompleted;
+    boost::multi_array<bool, 1> m_camOdoCompleted;
 
-    std::vector<std::string> mStatuses;
-    std::vector<cv::Mat> mSketches;
+    std::vector<std::string> m_statuses;
+    std::vector<cv::Mat> m_sketches;
 
-    Options mOptions;
+    Options m_options;
 
-    bool mRunning;
-    static bool mStop;
+    bool m_running;
+    static bool m_stop;
 };
 
 }

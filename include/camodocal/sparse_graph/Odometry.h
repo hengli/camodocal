@@ -37,7 +37,7 @@ public:
     const Eigen::Vector3d& attitude(void) const;
     double* attitudeData(void);
     const double* const attitudeData(void) const;
-    Eigen::Matrix4d pose(void) const;
+    Eigen::Matrix4d toMatrix(void) const;
 
     Odometry& operator=(const Odometry& rhs);
 

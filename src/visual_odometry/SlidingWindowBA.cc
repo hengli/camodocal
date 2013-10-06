@@ -38,7 +38,7 @@ SlidingWindowBA::SlidingWindowBA(const CameraConstPtr& camera,
 Eigen::Matrix4d
 SlidingWindowBA::globalCameraPose(void)
 {
-    return m_T_cam_odo.pose();
+    return m_T_cam_odo.toMatrix();
 }
 
 bool
@@ -50,10 +50,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
     if (mMode == VO)
     {
-        frameCurr->camera() = PosePtr(new Pose);
+        frameCurr->cameraPose() = PoseEPtr(new PoseE);
     }
-
-    frameCurr->id() = mFrameCount;
 
     mWindow.push_back(frameCurr);
     while (mWindow.size() > m_N)
@@ -72,11 +70,11 @@ SlidingWindowBA::addFrame(FramePtr& frame,
     {
         if (mMode == VO)
         {
-            frameCurr->camera()->rotation() = Eigen::Quaterniond::Identity();
-            frameCurr->camera()->translation().setZero();
+            frameCurr->cameraPose()->rotation() = Eigen::Quaterniond::Identity();
+            frameCurr->cameraPose()->translation().setZero();
 
-            R = frameCurr->camera()->rotation().toRotationMatrix();
-            t = frameCurr->camera()->translation();
+            R = frameCurr->cameraPose()->rotation().toRotationMatrix();
+            t = frameCurr->cameraPose()->translation();
         }
 
         return true;
@@ -86,8 +84,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
     if (mMode == VO)
     {
-        frameCurr->camera()->rotation() = Eigen::Quaterniond(R_rel) * framePrev->camera()->rotation();
-        frameCurr->camera()->translation() = R_rel * framePrev->camera()->translation() + t_rel;
+        frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R_rel) * framePrev->cameraPose()->rotation();
+        frameCurr->cameraPose()->translation() = R_rel * framePrev->cameraPose()->translation() + t_rel;
     }
 
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondencesToCheck;
@@ -150,8 +148,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             cv::cv2eigen(R_cv, R);
             cv::cv2eigen(t_cv, t);
 
-            frameCurr->camera()->rotation() = Eigen::Quaterniond(R);
-            frameCurr->camera()->translation() = t;
+            frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R);
+            frameCurr->cameraPose()->translation() = t;
         }
         else
         {
@@ -195,16 +193,16 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
         if (mMode == VO)
         {
-            triangulatePoints(framePrev->camera()->rotation(), framePrev->camera()->translation(), imagePoints[0],
-                              frameCurr->camera()->rotation(), frameCurr->camera()->translation(), imagePoints[1],
+            triangulatePoints(framePrev->cameraPose()->rotation(), framePrev->cameraPose()->translation(), imagePoints[0],
+                              frameCurr->cameraPose()->rotation(), frameCurr->cameraPose()->translation(), imagePoints[1],
                               points3D, indices);
         }
         else
         {
-            Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
+            Eigen::Matrix4d H_odo_cam = m_T_cam_odo.toMatrix().inverse();
 
-            Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometryOpt()->pose().inverse();
-            Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometryOpt()->pose().inverse();
+            Eigen::Matrix4d H1 = H_odo_cam * framePrev->systemPose()->toMatrix().inverse();
+            Eigen::Matrix4d H2 = H_odo_cam * frameCurr->systemPose()->toMatrix().inverse();
 
             triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), imagePoints[0],
                               Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), imagePoints[1],
@@ -229,8 +227,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 if (mMode == VO)
                 {
                     error = kCamera->reprojectionError(feature3D,
-                                                       framePrev->camera()->rotation(),
-                                                       framePrev->camera()->translation(),
+                                                       framePrev->cameraPose()->rotation(),
+                                                       framePrev->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
@@ -238,8 +236,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(feature3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              framePrev->odometryOpt()->position(),
-                                              framePrev->odometryOpt()->attitude(),
+                                              framePrev->systemPose()->position(),
+                                              framePrev->systemPose()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -272,8 +270,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 if (mMode == VO)
                 {
                     error = kCamera->reprojectionError(feature3D,
-                                                       frameCurr->camera()->rotation(),
-                                                       frameCurr->camera()->translation(),
+                                                       frameCurr->cameraPose()->rotation(),
+                                                       frameCurr->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
@@ -281,8 +279,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(feature3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              frameCurr->odometryOpt()->position(),
-                                              frameCurr->odometryOpt()->attitude(),
+                                              frameCurr->systemPose()->position(),
+                                              frameCurr->systemPose()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -332,8 +330,6 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 point3D->features2D().push_back(pt);
                 pt->feature3D() = point3D;
             }
-
-            frameCurr->features3D().push_back(point3D);
         }
 
         // remove untriangulated feature correspondences
@@ -349,8 +345,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 continue;
             }
 
-            f0->bestNextMatchIdx() = -1;
-            f1->bestPrevMatchIdx() = -1;
+            f0->bestNextMatchId() = -1;
+            f1->bestPrevMatchId() = -1;
         }
     }
     else
@@ -415,11 +411,11 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Eigen::Vector3d rvec, tvec;
             cv::Mat rvec_cv, tvec_cv;
 
-            Eigen::Matrix3d R_est = R_rel * framePrev->camera()->rotation();
+            Eigen::Matrix3d R_est = R_rel * framePrev->cameraPose()->rotation();
             rvec = RotationToAngleAxis(R_est);
             cv::eigen2cv(rvec, rvec_cv);
 
-            cv::eigen2cv(framePrev->camera()->translation(), tvec_cv);
+            cv::eigen2cv(framePrev->cameraPose()->translation(), tvec_cv);
 
             cv::solvePnPRansac(scenePoints, rectImagePoints, cv::Mat::eye(3, 3, CV_64F), cv::noArray(),
                                rvec_cv, tvec_cv, true, 100, kReprojErrorThresh / kNominalFocalLength, 100, cv::noArray(), CV_ITERATIVE);
@@ -437,8 +433,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 std::cout << tvec_cv << std::endl;
             }
 
-            frameCurr->camera()->rotation() = AngleAxisToQuaternion(rvec);
-            frameCurr->camera()->translation() = tvec;
+            frameCurr->cameraPose()->rotation() = AngleAxisToQuaternion(rvec);
+            frameCurr->cameraPose()->translation() = tvec;
         }
 
         // remove feature correspondences marked as outliers in PnP RANSAC
@@ -453,8 +449,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             if (mMode == VO)
             {
                 error = kCamera->reprojectionError(f0->feature3D()->point(),
-                                                   frameCurr->camera()->rotation(),
-                                                   frameCurr->camera()->translation(),
+                                                   frameCurr->cameraPose()->rotation(),
+                                                   frameCurr->cameraPose()->translation(),
                                                    Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
             }
             else
@@ -462,22 +458,20 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 error = reprojectionError(f0->feature3D()->point(),
                                           m_T_cam_odo.rotation(),
                                           m_T_cam_odo.translation(),
-                                          frameCurr->odometryOpt()->position(),
-                                          frameCurr->odometryOpt()->attitude(),
+                                          frameCurr->systemPose()->position(),
+                                          frameCurr->systemPose()->attitude(),
                                           Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
             }
 
             if (mMode == VO && error > kReprojErrorThresh)
             {
-                f0->bestNextMatchIdx() = -1;
-                f1->bestPrevMatchIdx() = -1;
+                f0->bestNextMatchId() = -1;
+                f1->bestPrevMatchId() = -1;
             }
             else
             {
                 f1->feature3D() = f0->feature3D();
                 f1->feature3D()->features2D().push_back(f1);
-
-                frameCurr->features3D().push_back(f1->feature3D());
             }
         }
 
@@ -497,8 +491,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 if (mMode == VO)
                 {
                     error = kCamera->reprojectionError(point3D,
-                                                       frameCurr->camera()->rotation(),
-                                                       frameCurr->camera()->translation(),
+                                                       frameCurr->cameraPose()->rotation(),
+                                                       frameCurr->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
                 else
@@ -506,8 +500,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     error = reprojectionError(point3D,
                                               m_T_cam_odo.rotation(),
                                               m_T_cam_odo.translation(),
-                                              frameCurr->odometryOpt()->position(),
-                                              frameCurr->odometryOpt()->attitude(),
+                                              frameCurr->systemPose()->position(),
+                                              frameCurr->systemPose()->attitude(),
                                               Eigen::Vector2d(feature2D.x, feature2D.y));
                 }
 
@@ -546,16 +540,16 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             if (mMode == VO)
             {
-                triangulatePoints(framePrev->camera()->rotation(), framePrev->camera()->translation(), ipoints[0],
-                                  frameCurr->camera()->rotation(), frameCurr->camera()->translation(), ipoints[1],
+                triangulatePoints(framePrev->cameraPose()->rotation(), framePrev->cameraPose()->translation(), ipoints[0],
+                                  frameCurr->cameraPose()->rotation(), frameCurr->cameraPose()->translation(), ipoints[1],
                                   points3D, indices);
             }
             else
             {
-                Eigen::Matrix4d H_odo_cam = m_T_cam_odo.pose().inverse();
+                Eigen::Matrix4d H_odo_cam = m_T_cam_odo.toMatrix().inverse();
 
-                Eigen::Matrix4d H1 = H_odo_cam * framePrev->odometryOpt()->pose().inverse();
-                Eigen::Matrix4d H2 = H_odo_cam * frameCurr->odometryOpt()->pose().inverse();
+                Eigen::Matrix4d H1 = H_odo_cam * framePrev->systemPose()->toMatrix().inverse();
+                Eigen::Matrix4d H2 = H_odo_cam * frameCurr->systemPose()->toMatrix().inverse();
 
                 triangulatePoints(Eigen::Quaterniond(H1.block<3,3>(0,0)), Eigen::Vector3d(H1.block<3,1>(0,3)), ipoints[0],
                                   Eigen::Quaterniond(H2.block<3,3>(0,0)), Eigen::Vector3d(H2.block<3,1>(0,3)), ipoints[1],
@@ -582,8 +576,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         if (mMode == VO)
                         {
                             error = kCamera->reprojectionError(feature3D,
-                                                               framePrev->camera()->rotation(),
-                                                               framePrev->camera()->translation(),
+                                                               framePrev->cameraPose()->rotation(),
+                                                               framePrev->cameraPose()->translation(),
                                                                Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
                         else
@@ -591,8 +585,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                             error = reprojectionError(feature3D,
                                                       m_T_cam_odo.rotation(),
                                                       m_T_cam_odo.translation(),
-                                                      framePrev->odometryOpt()->position(),
-                                                      framePrev->odometryOpt()->attitude(),
+                                                      framePrev->systemPose()->position(),
+                                                      framePrev->systemPose()->attitude(),
                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
@@ -625,8 +619,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         if (mMode == VO)
                         {
                             error = kCamera->reprojectionError(feature3D,
-                                                               frameCurr->camera()->rotation(),
-                                                               frameCurr->camera()->translation(),
+                                                               frameCurr->cameraPose()->rotation(),
+                                                               frameCurr->cameraPose()->translation(),
                                                                Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
                         else
@@ -634,8 +628,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                             error = reprojectionError(feature3D,
                                                       m_T_cam_odo.rotation(),
                                                       m_T_cam_odo.translation(),
-                                                      frameCurr->odometryOpt()->position(),
-                                                      frameCurr->odometryOpt()->attitude(),
+                                                      frameCurr->systemPose()->position(),
+                                                      frameCurr->systemPose()->attitude(),
                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
                         }
 
@@ -672,8 +666,6 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     pt->feature3D() = point3D;
                 }
 
-                frameCurr->features3D().push_back(point3D);
-
                 featureCorrespondencesToCheck.push_back(fc);
             }
 
@@ -690,8 +682,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     continue;
                 }
 
-                f0->bestNextMatchIdx() = -1;
-                f1->bestPrevMatchIdx() = -1;
+                f0->bestNextMatchId() = -1;
+                f1->bestPrevMatchId() = -1;
             }
         }
     }
@@ -750,8 +742,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 //            ReprojectionError reprojErr(kCameraParameters, f->keypoint().pt.x, f->keypoint().pt.y);
 //
 //            double residuals[2];
-//            reprojErr(frameCurr->camera()->rotationData(),
-//                      frameCurr->camera()->translationData(),
+//            reprojErr(frameCurr->cameraPose()->rotationData(),
+//                      frameCurr->cameraPose()->translationData(),
 //                      f->feature3D()->pointData(), residuals);
 //
 //            if (hypot(residuals[0], residuals[1]) > kTVTReprojErrorThresh)
@@ -777,10 +769,10 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 //            f1->feature3D() = Point3DFeaturePtr();
 //            f2->feature3D() = Point3DFeaturePtr();
 //
-//            f0->bestNextMatchIdx() = -1;
-//            f1->bestNextMatchIdx() = -1;
-//            f1->bestPrevMatchIdx() = -1;
-//            f2->bestPrevMatchIdx() = -1;
+//            f0->bestNextMatchId() = -1;
+//            f1->bestNextMatchId() = -1;
+//            f1->bestPrevMatchId() = -1;
+//            f2->bestPrevMatchId() = -1;
 //
 //            ++nPrunedScenePoints;
 //        }
@@ -800,23 +792,23 @@ SlidingWindowBA::addFrame(FramePtr& frame,
     {
         FramePtr& frame = *it;
 
-        std::vector<Point3DFeaturePtr>& features3D = frame->features3D();
+        std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
-        std::vector<Point3DFeaturePtr>::iterator itF3D = features3D.begin();
-        while (itF3D != features3D.end())
+        std::vector<Point2DFeaturePtr>::iterator itF2D = features2D.begin();
+        while (itF2D != features2D.end())
         {
-            Point3DFeaturePtr feature3D = *itF3D;
+            Point3DFeaturePtr feature3D = (*itF2D)->feature3D();
 
             if (feature3D.get() == 0)
             {
-                ++itF3D;
+                ++itF2D;
                 continue;
             }
 
             Eigen::Vector3d P_cam;
             if (mMode == VO)
             {
-                P_cam = frame->camera()->rotation().toRotationMatrix() * feature3D->point() + frame->camera()->translation();
+                P_cam = frame->cameraPose()->rotation().toRotationMatrix() * feature3D->point() + frame->cameraPose()->translation();
 
             }
             else
@@ -824,7 +816,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 Eigen::Vector4d P;
                 P << feature3D->point(), 1.0;
 
-                P = (m_T_cam_odo.pose().inverse() * frame->odometryOpt()->pose().inverse()) * P;
+                P = (m_T_cam_odo.toMatrix().inverse() * frame->systemPose()->toMatrix().inverse()) * P;
 
                 P_cam = P.block<3,1>(0,0);
             }
@@ -837,20 +829,19 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             if (prune)
             {
-                std::vector<Point2DFeaturePtr> features2D = feature3D->features2D();
-
-                for (size_t i = 0; i < features2D.size(); ++i)
+                for (size_t i = 0; i < feature3D->features2D().size(); ++i)
                 {
-                    features2D.at(i)->feature3D() = Point3DFeaturePtr();
+                    if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
+                    {
+                        feature2D->feature3D() = Point3DFeaturePtr();
+                    }
                 }
-
-                features3D.erase(itF3D);
 
                 ++nPrunedScenePoints;
             }
             else
             {
-                ++itF3D;
+                ++itF2D;
             }
         }
     }
@@ -871,8 +862,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
     if (mMode == VO)
     {
-        R = frameCurr->camera()->rotation().toRotationMatrix();
-        t = frameCurr->camera()->translation();
+        R = frameCurr->cameraPose()->rotation().toRotationMatrix();
+        t = frameCurr->cameraPose()->translation();
     }
 
     return true;
@@ -933,8 +924,8 @@ SlidingWindowBA::poses(void) const
         Eigen::Matrix4d pose;
         pose.setIdentity();
 
-        pose.block<3,3>(0,0) = frame->camera()->rotation().toRotationMatrix();
-        pose.block<3,1>(0,3) = frame->camera()->translation();
+        pose.block<3,3>(0,0) = frame->cameraPose()->rotation().toRotationMatrix();
+        pose.block<3,1>(0,3) = frame->cameraPose()->translation();
 
         poses.push_back(pose);
     }
@@ -953,11 +944,11 @@ SlidingWindowBA::scenePoints(void) const
     {
         const FrameConstPtr& frame = *it;
 
-        const std::vector<Point3DFeaturePtr>& features3D = frame->features3D();
+        const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
-        for (size_t i = 0; i < features3D.size(); ++i)
+        for (size_t i = 0; i < features2D.size(); ++i)
         {
-            set.insert(features3D.at(i).get());
+            set.insert(features2D.at(i)->feature3D().get());
         }
     }
 
@@ -999,8 +990,8 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
         if (mMode == VO)
         {
             error = kCamera->reprojectionError(feature3D->point(),
-                                               frame->camera()->rotation(),
-                                               frame->camera()->translation(),
+                                               frame->cameraPose()->rotation(),
+                                               frame->cameraPose()->translation(),
                                                Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
         else
@@ -1008,8 +999,8 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
             error = reprojectionError(feature3D->point(),
                                       m_T_cam_odo.rotation(),
                                       m_T_cam_odo.translation(),
-                                      frame->odometryOpt()->position(),
-                                      frame->odometryOpt()->attitude(),
+                                      frame->systemPose()->position(),
+                                      frame->systemPose()->attitude(),
                                       Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
         }
 
@@ -1066,8 +1057,8 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
             if (mMode == VO)
             {
                 error = kCamera->reprojectionError(feature3D->point(),
-                                                   frame->camera()->rotation(),
-                                                   frame->camera()->translation(),
+                                                   frame->cameraPose()->rotation(),
+                                                   frame->cameraPose()->translation(),
                                                    Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
             }
             else
@@ -1075,8 +1066,8 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
                 error = reprojectionError(feature3D->point(),
                                           m_T_cam_odo.rotation(),
                                           m_T_cam_odo.translation(),
-                                          frame->odometryOpt()->position(),
-                                          frame->odometryOpt()->attitude(),
+                                          frame->systemPose()->position(),
+                                          frame->systemPose()->attitude(),
                                           Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
             }
 
@@ -1149,13 +1140,19 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
 
         for (int j = nViews - 1; j > 0; --j)
         {
-            if (pt[j]->prevMatches().empty() || pt[j]->bestPrevMatchIdx() == -1)
+            if (pt[j]->prevMatches().empty() || pt[j]->bestPrevMatchId() == -1)
             {
                 foundCorrespondences = false;
                 break;
             }
 
-            pt[j - 1] = pt[j]->prevMatch();
+            pt[j - 1] = pt[j]->prevMatch().lock();
+
+            if (pt[j - 1].get() == 0)
+            {
+                foundCorrespondences = false;
+                break;
+            }
         }
 
         if (!foundCorrespondences)
@@ -1440,7 +1437,7 @@ SlidingWindowBA::optimize(void)
                                                                           CAMERA_EXTRINSICS | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
-                                         frame->camera()->rotationData(), frame->camera()->translationData(),
+                                         frame->cameraPose()->rotationData(), frame->cameraPose()->translationData(),
                                          feature2D->feature3D()->pointData());
             }
             else
@@ -1454,8 +1451,8 @@ SlidingWindowBA::optimize(void)
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          m_T_cam_odo.rotationData(),
                                          m_T_cam_odo.translationData(),
-                                         frame->odometryOpt()->positionData(),
-                                         frame->odometryOpt()->attitudeData(),
+                                         frame->systemPose()->positionData(),
+                                         frame->systemPose()->attitudeData(),
                                          feature2D->feature3D()->pointData());
             }
 
@@ -1471,12 +1468,12 @@ SlidingWindowBA::optimize(void)
                 ceres::LocalParameterization* quaternionParameterization =
                     new ceres::QuaternionParameterization;
 
-                problem.SetParameterization(frame->camera()->rotationData(), quaternionParameterization);
+                problem.SetParameterization(frame->cameraPose()->rotationData(), quaternionParameterization);
             }
             else
             {
-                problem.SetParameterBlockConstant(frame->odometryOpt()->positionData());
-                problem.SetParameterBlockConstant(frame->odometryOpt()->attitudeData());
+                problem.SetParameterBlockConstant(frame->systemPose()->positionData());
+                problem.SetParameterBlockConstant(frame->systemPose()->attitudeData());
             }
         }
     }
@@ -1502,8 +1499,8 @@ SlidingWindowBA::optimize(void)
 
             if (mMode == VO)
             {
-                problem.SetParameterBlockConstant(frame->camera()->rotationData());
-                problem.SetParameterBlockConstant(frame->camera()->translationData());
+                problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
+                problem.SetParameterBlockConstant(frame->cameraPose()->translationData());
             }
 
             ++it;
@@ -1524,8 +1521,8 @@ SlidingWindowBA::optimize(void)
             if (mMode == VO)
             {
                 // set constant camera pose corresponding to first frame in the window
-                problem.SetParameterBlockConstant(frame->camera()->rotationData());
-                problem.SetParameterBlockConstant(frame->camera()->translationData());
+                problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
+                problem.SetParameterBlockConstant(frame->cameraPose()->translationData());
             }
 
             ++it;

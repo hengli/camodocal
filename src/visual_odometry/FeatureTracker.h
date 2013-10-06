@@ -208,40 +208,6 @@ protected:
     const double kReprojErrorThresh;
 };
 
-class StereoFeatureTracker: public FeatureTracker
-{
-public:
-    StereoFeatureTracker(DetectorType detectorType = ORB_DETECTOR,
-                         DescriptorType descriptorType = ORB_DESCRIPTOR,
-                         MatchTestType matchTestType = RATIO, 
-                         bool preprocess = false);
-    void addStereoFrame(const cv::Mat& imageLeft,
-                        const cv::Mat& imageRight,
-                        const cv::Mat& maskLeft = cv::Mat(),
-                        const cv::Mat& maskRight = cv::Mat());
-
-    const std::vector<Point2DFeatureLeftPtr>& getPointFeaturesLeft(void) const;
-    const std::vector<Point2DFeatureRightPtr>& getPointFeaturesRight(void) const;
-
-    virtual void getMatches(std::vector<cv::Point2f>& leftMatchedPoints,
-                            std::vector<cv::Point2f>& rightMatchedPoints) const;
-protected: 
-    void copyImagesToSketch(const cv::Mat& imageLeft, const cv::Mat& imageRight);
-    void visualizeTracks(void);
-
-    cv::Mat mImageLeft, mImageRight;
-    cv::Mat mMaskLeft, mMaskRight;
-
-    std::vector<cv::KeyPoint> mKptsLeft, mKptsRight;
-    cv::Mat mDtorLeft, mDtorRight;
-
-    std::vector<Point2DFeatureLeftPtr> mPointFeaturesLeft;
-    std::vector<Point2DFeatureRightPtr> mPointFeaturesRight;
-
-    cv::Mat mMatchingMask;
-    const float kMaxDelta;
-}; 
-
 }
 
 #endif

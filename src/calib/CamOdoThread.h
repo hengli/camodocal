@@ -18,7 +18,7 @@ class CamOdoThread
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraIdx,
+    explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
                           bool preprocess,
                           AtomicData<cv::Mat>* image,
                           const CameraConstPtr& camera,
@@ -36,9 +36,9 @@ public:
                           bool verbose = false);
     virtual ~CamOdoThread();
 
-    int cameraIdx(void) const;
+    int cameraId(void) const;
     const Eigen::Matrix4d& camOdoTransform(void) const;
-    const std::vector<FrameSegment>& frameSegments(void) const;
+    const std::vector<std::vector<FramePtr> >& frameSegments(void) const;
 
     void reprojectionError(double& minError, double& maxError, double& avgError) const;
 
@@ -52,38 +52,38 @@ private:
 
     void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                             const std::vector<OdometryPtr>& odoPoses,
-                            FrameSegment& frameSegment);
+                            std::vector<FramePtr>& frameSegment);
 
-    PoseSource mPoseSource;
+    PoseSource m_poseSource;
 
-    Glib::Threads::Thread* mThread;
-    int mCameraIdx;
-    bool mPreprocess;
-    bool mRunning;
-    sigc::signal<void> mSignalFinished;
+    Glib::Threads::Thread* m_thread;
+    int m_cameraId;
+    bool m_preprocess;
+    bool m_running;
+    sigc::signal<void> m_signalFinished;
 
-    CamOdoCalibration mCamOdoCalib;
-    std::vector<FrameSegment> mFrameSegments;
+    CamOdoCalibration m_camOdoCalib;
+    std::vector<std::vector<FramePtr> > m_frameSegments;
 
-    AtomicData<cv::Mat>* mImage;
-    const CameraConstPtr mCamera;
-    SensorDataBuffer<OdometryPtr>& mOdometryBuffer;
-    SensorDataBuffer<OdometryPtr>& mInterpOdometryBuffer;
-    boost::mutex& mOdometryBufferMutex;
-    SensorDataBuffer<PosePtr>& mGpsInsBuffer;
-    SensorDataBuffer<PosePtr>& mInterpGpsInsBuffer;
-    boost::mutex& mGpsInsBufferMutex;
-    Eigen::Matrix4d mCamOdoTransform;
-    std::string& mStatus;
-    cv::Mat& mSketch;
+    AtomicData<cv::Mat>* m_image;
+    const CameraConstPtr m_camera;
+    SensorDataBuffer<OdometryPtr>& m_odometryBuffer;
+    SensorDataBuffer<OdometryPtr>& m_interpOdometryBuffer;
+    boost::mutex& m_odometryBufferMutex;
+    SensorDataBuffer<PosePtr>& m_gpsInsBuffer;
+    SensorDataBuffer<PosePtr>& m_interpGpsInsBuffer;
+    boost::mutex& m_gpsInsBufferMutex;
+    Eigen::Matrix4d m_camOdoTransform;
+    std::string& m_status;
+    cv::Mat& m_sketch;
 
-    const double kKeyFrameDistance;
-    const int kMinTrackLength;
-    const double kOdometryTimeout;
+    const double k_keyFrameDistance;
+    const int k_minTrackLength;
+    const double k_odometryTimeout;
 
-    bool& mCompleted;
-    bool& mStop;
-    bool mSaveImages;
+    bool& m_completed;
+    bool& m_stop;
+    bool m_saveImages;
 };
 
 }
