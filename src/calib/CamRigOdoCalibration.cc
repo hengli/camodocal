@@ -388,6 +388,10 @@ CamRigOdoCalibration::buildGraph(void)
             while (frameId < frames.size() &&
                    frames.at(frameId)->cameraPose()->timeStamp() == timestamp)
             {
+                frames.at(frameId)->systemPose() = frameSet->systemPose();
+                frames.at(frameId)->odometryMeasurement() = frameSet->odometryMeasurement();
+                frames.at(frameId)->gpsInsMeasurement() = frameSet->gpsInsMeasurement();
+
                 frameSet->frames().at(frames.at(frameId)->cameraId()) = frames.at(frameId);
 
                 ++frameId;

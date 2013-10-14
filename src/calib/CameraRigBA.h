@@ -84,6 +84,8 @@ private:
                                    double reprojErrorThresh = 1.0);
     std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
                                           const std::vector<Point2DFeaturePtr>& features2) const;
+    std::vector<cv::DMatch> matchFeatures(const cv::Mat& dtor1,
+                                          const std::vector<Point2DFeaturePtr>& features2) const;
 
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                               double reprojErrorThresh = 2.0);

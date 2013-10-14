@@ -148,11 +148,12 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
 
 void
 SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
-               const cv::Mat& mask1,
+               cv::Mat& dtors1, const cv::Mat& mask1,
                const cv::Mat& image2, std::vector<cv::KeyPoint>& keypoints2,
-               const cv::Mat& mask2,
+               cv::Mat& dtors2, const cv::Mat& mask2,
                std::vector<cv::DMatch>& matches,
-               bool useProvidedKeypoints)
+               bool useProvidedKeypoints,
+               float maxDistanceRatio)
 {
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
@@ -177,18 +178,68 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
         m_surfGPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
         m_surfGPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
 
-        std::vector<cv::DMatch> fwdMatches;
-        m_matcher.match(dtorsGPU[0], dtorsGPU[1], fwdMatches);
+        dtorsGPU[0].download(dtors1);
+        dtorsGPU[1].download(dtors2);
 
-        std::vector<cv::DMatch> revMatches;
-        m_matcher.match(dtorsGPU[1], dtorsGPU[0], revMatches);
+        std::vector<std::vector<cv::DMatch> > candidateFwdMatches;
+        m_matcher.knnMatch(dtorsGPU[0], dtorsGPU[1], candidateFwdMatches, 2);
+
+        std::vector<std::vector<cv::DMatch> > candidateRevMatches;
+        m_matcher.knnMatch(dtorsGPU[1], dtorsGPU[0], candidateRevMatches, 2);
+
+        std::vector<std::vector<cv::DMatch> > fwdMatches(candidateFwdMatches.size());
+        for (size_t i = 0; i < candidateFwdMatches.size(); ++i)
+        {
+            std::vector<cv::DMatch>& match = candidateFwdMatches.at(i);
+
+            if (match.size() < 2)
+            {
+                continue;
+            }
+
+            float distanceRatio = match.at(0).distance / match.at(1).distance;
+
+            if (distanceRatio < maxDistanceRatio)
+            {
+                fwdMatches.at(i).push_back(match.at(0));
+            }
+        }
+
+        std::vector<std::vector<cv::DMatch> > revMatches(candidateRevMatches.size());
+        for (size_t i = 0; i < candidateRevMatches.size(); ++i)
+        {
+            std::vector<cv::DMatch>& match = candidateRevMatches.at(i);
+
+            if (match.size() < 2)
+            {
+                continue;
+            }
+
+            float distanceRatio = match.at(0).distance / match.at(1).distance;
+
+            if (distanceRatio < maxDistanceRatio)
+            {
+                revMatches.at(i).push_back(match.at(0));
+            }
+        }
 
         // cross-check
         matches.clear();
         for (size_t i = 0; i < fwdMatches.size(); ++i)
         {
-            cv::DMatch& fwdMatch = fwdMatches.at(i);
-            cv::DMatch& revMatch = revMatches.at(fwdMatch.trainIdx);
+            if (fwdMatches.at(i).empty())
+            {
+                continue;
+            }
+
+            cv::DMatch& fwdMatch = fwdMatches.at(i).at(0);
+
+            if (revMatches.at(fwdMatch.trainIdx).empty())
+            {
+                continue;
+            }
+
+            cv::DMatch& revMatch = revMatches.at(fwdMatch.trainIdx).at(0);
 
             if (fwdMatch.queryIdx == revMatch.trainIdx &&
                 fwdMatch.trainIdx == revMatch.queryIdx)

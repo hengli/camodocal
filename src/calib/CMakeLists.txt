@@ -78,4 +78,7 @@ camodocal_link_libraries(CamOdoCalibration_test camodocal_calib)
 camodocal_test(HandEyeCalibration)
 camodocal_link_libraries(HandEyeCalibration_test camodocal_calib)
 
+camodocal_test(PlanarHandEyeCalibration)
+camodocal_link_libraries(PlanarHandEyeCalibration_test camodocal_calib)
+
 endif(CERES_FOUND)

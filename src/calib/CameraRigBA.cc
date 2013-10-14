@@ -35,7 +35,7 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
  , k_maxDistanceRatio(0.7f)
  , k_maxPoint3DDistance(20.0)
  , k_maxReprojErr(2.0)
- , k_minLoopCorrespondences2D3D(50)
+ , k_minLoopCorrespondences2D3D(70)
  , k_minInterCorrespondences2D2D(8)
  , k_nearestImageMatches(15)
  , k_nominalFocalLength(300.0)
@@ -176,10 +176,20 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
             }
         }
 
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Checking the validity of the graph..." << std::endl;
+        }
+
         if (!validateGraph())
         {
             std::cout << "# ERROR: Graph is not valid." << std::endl;
             exit(1);
+        }
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Finished checking the validity of the graph." << std::endl;
         }
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
@@ -304,19 +314,11 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
             localInterMapFrameFrame.push_back(std::make_pair(f1, f2));
         }
 
-#ifdef VCHARGE_VIZ
-        visualizeFrameFrameCorrespondences("local-inter-p-p", localInterMapFrameFrame);
-        visualize3D3DCorrespondences("local-inter-3d-3d", localInterMap2D2D);
-#endif
-
         for (size_t i = 0; i < localInterMap2D2D.size(); ++i)
         {
             Point3DFeaturePtr f3D1 = localInterMap2D2D.at(i).first->feature3D();
             Point3DFeaturePtr f3D2 = localInterMap2D2D.at(i).second->feature3D();
 
-            std::vector<Point2DFeatureWPtr>& features2D = f3D2->features2D();
-
-            std::vector<Point2DFeatureWPtr> features2DToAdd;
             for (size_t j = 0; j < f3D1->features2D().size(); ++j)
             {
                 Point2DFeaturePtr f2D1 = f3D1->features2D().at(j).lock();
@@ -343,20 +345,23 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
                 if (!found)
                 {
-                    features2DToAdd.push_back(f2D1);
+                    f3D2->features2D().push_back(f2D1);
                 }
             }
 
-            features2D.insert(features2D.end(), features2DToAdd.begin(), features2DToAdd.end());
-
-            for (size_t j = 0; j < features2D.size(); ++j)
+            for (size_t j = 0; j < f3D2->features2D().size(); ++j)
             {
-                if (Point2DFeaturePtr feature2D = features2D.at(j).lock())
+                if (Point2DFeaturePtr feature2D = f3D2->features2D().at(j).lock())
                 {
                     feature2D->feature3D() = f3D2;
                 }
             }
         }
+
+#ifdef VCHARGE_VIZ
+        visualizeFrameFrameCorrespondences("local-inter-p-p", localInterMapFrameFrame);
+        visualize3D3DCorrespondences("local-inter-3d-3d", localInterMap2D2D);
+#endif
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
@@ -418,9 +423,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
                 Point3DFeaturePtr f3D1 = loopClosure2D3D.at(i).get<2>()->feature3D();
                 Point3DFeaturePtr f3D2 = loopClosure2D3D.at(i).get<3>();
 
-                std::vector<Point2DFeatureWPtr>& features2D = f3D2->features2D();
-
-                std::vector<Point2DFeatureWPtr> features2DToAdd;
                 for (size_t j = 0; j < f3D1->features2D().size(); ++j)
                 {
                     Point2DFeaturePtr f2D1 = f3D1->features2D().at(j).lock();
@@ -447,15 +449,13 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
                     if (!found)
                     {
-                        features2DToAdd.push_back(f2D1);
+                        f3D2->features2D().push_back(f2D1);
                     }
                 }
 
-                features2D.insert(features2D.end(), features2DToAdd.begin(), features2DToAdd.end());
-
-                for (size_t j = 0; j < features2D.size(); ++j)
+                for (size_t j = 0; j < f3D2->features2D().size(); ++j)
                 {
-                    if (Point2DFeaturePtr feature2D = features2D.at(j).lock())
+                    if (Point2DFeaturePtr feature2D = f3D2->features2D().at(j).lock())
                     {
                         feature2D->feature3D() = f3D2;
                     }
@@ -478,12 +478,12 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         if (optimizeIntrinsics)
         {
             // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
-            optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D, true);
+            optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
         }
         else
         {
             // perform BA to optimize extrinsics, odometry poses, and scene points
-            optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D, true);
+            optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
         }
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
@@ -1125,6 +1125,11 @@ CameraRigBA::findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& co
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
+                if (frame.get() == 0)
+                {
+                    continue;
+                }
+
                 FrameTag frameTag;
                 frameTag.frameSetSegmentId = i;
                 frameTag.frameSetId = j;
@@ -1134,8 +1139,12 @@ CameraRigBA::findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& co
                                                                frameTag, &corrFF[k], &corr2D3D[k], reprojErrorThresh)));
             }
 
-            for (int k = 0; k < m_cameras.size(); ++k)
+            for (int k = 0; k < frameSet->frames().size(); ++k)
             {
+                if (threads[k].get() == 0)
+                {
+                    continue;
+                }
                 threads[k]->join();
 
                 correspondencesFrameFrame.insert(correspondencesFrameFrame.end(), corrFF[k].begin(), corrFF[k].end());
@@ -1197,19 +1206,19 @@ CameraRigBA::findLoopClosure2D3DHelper(FrameTag frameTagQuery,
         {
             cv::DMatch& match = matches.at(j);
 
-            Point3DFeaturePtr& p3D = frameQuery->features2D().at(match.queryIdx)->feature3D();
-            Point2DFeaturePtr& p2D = frame->features2D().at(match.trainIdx);
+            Point2DFeaturePtr& p2D = frameQuery->features2D().at(match.queryIdx);
+            Point3DFeaturePtr& p3D = frame->features2D().at(match.trainIdx)->feature3D();
 
             if (p3D.get() == 0)
             {
                 continue;
             }
 
-            corr2D3D.push_back(boost::make_tuple(frame, frameQuery,
+            corr2D3D.push_back(boost::make_tuple(frameQuery, frame,
                                                  p2D, p3D));
 
             cv::Point2f rectPt;
-            rectifyImagePoint(m_cameras.at(frame->cameraId()), p2D->keypoint().pt, rectPt);
+            rectifyImagePoint(m_cameras.at(frameQuery->cameraId()), p2D->keypoint().pt, rectPt);
 
             imagePoints.push_back(rectPt);
 
@@ -1359,6 +1368,89 @@ CameraRigBA::matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
     return matches;
 }
 
+std::vector<cv::DMatch>
+CameraRigBA::matchFeatures(const cv::Mat& dtor1,
+                           const std::vector<Point2DFeaturePtr>& features2) const
+{
+    cv::BFMatcher descriptorMatcher(cv::NORM_L2, false);
+
+    std::vector<size_t> indices1, indices2;
+    cv::Mat dtor2 = buildDescriptorMat(features2, indices2);
+
+    std::vector<std::vector<cv::DMatch> > candidateFwdMatches;
+    descriptorMatcher.knnMatch(dtor1, dtor2, candidateFwdMatches, 2);
+
+    std::vector<std::vector<cv::DMatch> > candidateRevMatches;
+    descriptorMatcher.knnMatch(dtor2, dtor1, candidateRevMatches, 2);
+
+    std::vector<std::vector<cv::DMatch> > fwdMatches(candidateFwdMatches.size());
+    for (size_t i = 0; i < candidateFwdMatches.size(); ++i)
+    {
+        std::vector<cv::DMatch>& match = candidateFwdMatches.at(i);
+
+        if (match.size() < 2)
+        {
+            continue;
+        }
+
+        float distanceRatio = match.at(0).distance / match.at(1).distance;
+
+        if (distanceRatio < k_maxDistanceRatio)
+        {
+            fwdMatches.at(i).push_back(match.at(0));
+        }
+    }
+
+    std::vector<std::vector<cv::DMatch> > revMatches(candidateRevMatches.size());
+    for (size_t i = 0; i < candidateRevMatches.size(); ++i)
+    {
+        std::vector<cv::DMatch>& match = candidateRevMatches.at(i);
+
+        if (match.size() < 2)
+        {
+            continue;
+        }
+
+        float distanceRatio = match.at(0).distance / match.at(1).distance;
+
+        if (distanceRatio < k_maxDistanceRatio)
+        {
+            revMatches.at(i).push_back(match.at(0));
+        }
+    }
+
+    // cross-check
+    std::vector<cv::DMatch> matches;
+    for (size_t i = 0; i < fwdMatches.size(); ++i)
+    {
+        if (fwdMatches.at(i).empty())
+        {
+            continue;
+        }
+
+        cv::DMatch& fwdMatch = fwdMatches.at(i).at(0);
+
+        if (revMatches.at(fwdMatch.trainIdx).empty())
+        {
+            continue;
+        }
+
+        cv::DMatch& revMatch = revMatches.at(fwdMatch.trainIdx).at(0);
+
+        if (fwdMatch.queryIdx == revMatch.trainIdx &&
+            fwdMatch.trainIdx == revMatch.queryIdx)
+        {
+            cv::DMatch match;
+            match.queryIdx = indices1.at(fwdMatch.queryIdx);
+            match.trainIdx = indices2.at(revMatch.queryIdx);
+
+            matches.push_back(match);
+        }
+    }
+
+    return matches;
+}
+
 void
 CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                                   double reprojErrorThresh)
@@ -1427,7 +1519,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             std::cout << "]" << std::endl;
         }
 
-        // project each map into other cameras
+        // for each camera, match current image with each image in each other camera's buffer
         for (int cameraId1 = 0; cameraId1 < m_cameras.size(); ++cameraId1)
         {
             FramePtr& frame1 = frameSet->frames().at(cameraId1);
@@ -1453,7 +1545,6 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
                 std::vector<FramePtr> window;
                 window.insert(window.end(), windows[cameraId2].begin(), windows[cameraId2].end());
-
                 threads[cameraId2].reset(new boost::thread(boost::bind(&CameraRigBA::matchFrameToWindow, this,
                                                                        frame1, window,
                                                                        &subCorr2D2D[cameraId2],
@@ -1462,11 +1553,10 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
             for (int cameraId2 = 0; cameraId2 < m_cameras.size(); ++cameraId2)
             {
-                if (cameraId1 == cameraId2)
+                if (threads[cameraId2].get() == 0)
                 {
                     continue;
                 }
-
                 threads[cameraId2]->join();
 
                 correspondences2D2D.insert(correspondences2D2D.end(), subCorr2D2D[cameraId2].begin(), subCorr2D2D[cameraId2].end());
@@ -1481,61 +1571,55 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
         }
     }
 
-    std::vector<Correspondence2D2D>::iterator it = correspondences2D2D.begin();
-    while (it != correspondences2D2D.end())
-    {
-        Point2DFeaturePtr& p1 = it->first;
-        Point2DFeaturePtr& p2 = it->second;
-
-        FramePtr frame1 = p1->frame().lock();
-        FramePtr frame2 = p2->frame().lock();
-
-        if (frame1.get() == 0 || frame2.get() == 0)
-        {
-            std::cout << "# WARNING: Parent frame is missing." << std::endl;
-            continue;
-        }
-
-        if (p1->feature3D().get() == 0 && p2->feature3D().get() == 0)
-        {
-            Eigen::Vector3d scenePoint;
-            if (!triangulate3DPoint(p1, p2, scenePoint))
-            {
-                it = correspondences2D2D.erase(it);
-                continue;
-            }
-
-            Point3DFeaturePtr feature3D(new Point3DFeature);
-            feature3D->point() = scenePoint;
-            feature3D->features2D().push_back(p1);
-            feature3D->features2D().push_back(p2);
-
-            p1->feature3D() = feature3D;
-            p2->feature3D() = feature3D;
-        }
-        else
-        {
-            if (p1->feature3D().get() == 0)
-            {
-                Point3DFeaturePtr feature3D(new Point3DFeature);
-                feature3D->point() = p2->feature3D()->point();
-                feature3D->features2D().push_back(p1);
-
-                p1->feature3D() = feature3D;
-            }
-
-            if (p2->feature3D().get() == 0)
-            {
-                Point3DFeaturePtr feature3D(new Point3DFeature);
-                feature3D->point() = p1->feature3D()->point();
-                feature3D->features2D().push_back(p2);
-
-                p2->feature3D() = feature3D;
-            }
-        }
-
-        ++it;
-    }
+//    std::vector<Correspondence2D2D>::iterator it = correspondences2D2D.begin();
+//    while (it != correspondences2D2D.end())
+//    {
+//        Point2DFeaturePtr& p1 = it->first;
+//        Point2DFeaturePtr& p2 = it->second;
+//
+//        FramePtr frame1 = p1->frame().lock();
+//        FramePtr frame2 = p2->frame().lock();
+//
+//        if (frame1.get() == 0 || frame2.get() == 0)
+//        {
+//            std::cout << "# WARNING: Parent frame is missing." << std::endl;
+//            continue;
+//        }
+//
+//        if (p1->feature3D().get() == 0 && p2->feature3D().get() == 0)
+//        {
+//            Eigen::Vector3d scenePoint;
+//            if (!triangulate3DPoint(p1, p2, scenePoint))
+//            {
+//                it = correspondences2D2D.erase(it);
+//                continue;
+//            }
+//
+//            Point3DFeaturePtr feature3D(new Point3DFeature);
+//            feature3D->point() = scenePoint;
+//            feature3D->features2D().push_back(p1);
+//            feature3D->features2D().push_back(p2);
+//
+//            p1->feature3D() = feature3D;
+//            p2->feature3D() = feature3D;
+//        }
+//        else
+//        {
+//            if (p1->feature3D().get() == 0)
+//            {
+//                p1->feature3D() = p2->feature3D();
+//                p1->feature3D()->features2D().push_back(p1);
+//            }
+//
+//            if (p2->feature3D().get() == 0)
+//            {
+//                p2->feature3D() = p1->feature3D();
+//                p2->feature3D()->features2D().push_back(p1);
+//            }
+//        }
+//
+//        ++it;
+//    }
 }
 
 void
@@ -1595,7 +1679,7 @@ CameraRigBA::matchFrameToWindow(FramePtr& frame1,
             std::cout << "# INFO: Best: cam " << frame1->cameraId()
                       << " - cam " << frame2->cameraId()
                       << ": window " << windowIdBest
-                      << " | " << correspondences2D2D->size() << " 3D-3D" << std::endl;
+                      << " | " << correspondences2D2D->size() << " 2D-2D" << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -1684,21 +1768,31 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
     cv::remap(frame2->image(), rimg2, mapX2, mapY2, cv::INTER_LINEAR);
 
     cv::Mat rmask1, rmask2;
-    if (!m_cameras.at(cameraId1)->mask().empty())
+    if (m_cameras.at(cameraId1)->mask().empty())
     {
-        cv::remap(m_cameras.at(cameraId1)->mask(), rmask1, mapX1, mapY1, cv::INTER_LINEAR);
+        rmask1 = rimg1 > 0;
     }
-    if (!m_cameras.at(cameraId2)->mask().empty())
+    else
     {
-        cv::remap(m_cameras.at(cameraId2)->mask(), rmask2, mapX2, mapY2, cv::INTER_LINEAR);
+        cv::remap(m_cameras.at(cameraId1)->mask(), rmask1, mapX1, mapY1, cv::INTER_NEAREST);
+    }
+    if (m_cameras.at(cameraId2)->mask().empty())
+    {
+        rmask2 = rimg2 > 0;
+    }
+    else
+    {
+        cv::remap(m_cameras.at(cameraId2)->mask(), rmask2, mapX2, mapY2, cv::INTER_NEAREST);
     }
 
     cv::Ptr<SurfGPU> surf = SurfGPU::instance(200.0);
 
     std::vector<cv::KeyPoint> rkeypoints1, rkeypoints2;
+    cv::Mat rdtors1, rdtors2;
     std::vector<cv::DMatch> rmatches;
 
-    surf->match(rimg1, rkeypoints1, rmask1, rimg2, rkeypoints2, rmask2, rmatches);
+    surf->match(rimg1, rkeypoints1, rdtors1, rmask1,
+                rimg2, rkeypoints2, rdtors2, rmask2, rmatches);
 
     if (rmatches.size() < k_minInterCorrespondences2D2D)
     {
@@ -1715,7 +1809,9 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
     }
 
     cv::Mat E, inlierMat;
-    E = findEssentialMat(rpoints1, rpoints2, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, reprojErrorThresh / k_nominalFocalLength, 1000, inlierMat);
+    E = findEssentialMat(rpoints1, rpoints2, k_nominalFocalLength,
+                         cv::Point2d(rimg1.cols / 2, rimg1.rows / 2),
+                         CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
 
     if (cv::countNonZero(inlierMat) < k_minInterCorrespondences2D2D)
     {
@@ -1734,7 +1830,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         std::vector<cv::DMatch> inlierRMatches;
         for (size_t i = 0; i < rmatches.size(); ++i)
         {
-            if (inlierMat.at<unsigned char>(0, i) != 0)
+            if (inlierMat.at<unsigned char>(0,i) != 0)
             {
                 inlierRMatches.push_back(rmatches.at(i));
             }
@@ -1769,7 +1865,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
     std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > candidateCorr2D2D(rmatches.size());
     for (size_t i = 0; i < rmatches.size(); ++i)
     {
-        if (inlierMat.at<unsigned char>(0, i) == 0)
+        if (inlierMat.at<unsigned char>(0,i) == 0)
         {
             continue;
         }
@@ -1788,7 +1884,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         m_cameras.at(cameraId1)->spaceToPlane(ray, ep);
 
         // find closest image point to computed image point
-        float kpDistMin = std::numeric_limits<float>::max();
+        std::vector<Point2DFeaturePtr> candidateImagePoints1;
         Point2DFeaturePtr p2DBest;
         for (size_t j = 0; j < frame1->features2D().size(); ++j)
         {
@@ -1796,17 +1892,18 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 
             float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
                                  ep(1) - p2D->keypoint().pt.y);
-            if (kpDist < kpDistMin)
+            if (kpDist < 1.0f)
             {
-                kpDistMin = kpDist;
-                p2DBest = p2D;
+                candidateImagePoints1.push_back(p2D);
             }
         }
 
-        if (kpDistMin < reprojErrorThresh)
+        if (candidateImagePoints1.size() != 1)
         {
-            candidateCorr2D2D.at(i).first = p2DBest;
+            continue;
         }
+
+        candidateCorr2D2D.at(i).first = candidateImagePoints1.front();
 
         rp = rpoints2.at(i);
 
@@ -1820,34 +1917,53 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         m_cameras.at(cameraId2)->spaceToPlane(ray, ep);
 
         // find closest image point to computed image point
-        kpDistMin = std::numeric_limits<float>::max();
+        std::vector<Point2DFeaturePtr> candidateImagePoints2;
         for (size_t j = 0; j < frame2->features2D().size(); ++j)
         {
             Point2DFeaturePtr& p2D = frame2->features2D().at(j);
 
             float kpDist = hypot(ep(0) - p2D->keypoint().pt.x,
                                  ep(1) - p2D->keypoint().pt.y);
-            if (kpDist < kpDistMin)
+            if (kpDist < 1.0f)
             {
-                kpDistMin = kpDist;
-                p2DBest = p2D;
+                candidateImagePoints2.push_back(p2D);
             }
         }
 
-        if (kpDistMin < reprojErrorThresh)
+        if (candidateImagePoints2.size() != 1)
         {
-            candidateCorr2D2D.at(i).second = p2DBest;
+            continue;
         }
+
+        candidateCorr2D2D.at(i).second = candidateImagePoints2.front();
     }
 
-    if (0)
+    for (size_t i = 0; i < candidateCorr2D2D.size(); ++i)
+    {
+        Point2DFeaturePtr& p1 = candidateCorr2D2D.at(i).first;
+        Point2DFeaturePtr& p2 = candidateCorr2D2D.at(i).second;
+
+        if (p1.get() == 0 || p2.get() == 0)
+        {
+            continue;
+        }
+
+        if (p1->feature3D().get() == 0 || p2->feature3D().get() == 0)
+        {
+            continue;
+        }
+
+        corr2D2D->push_back(candidateCorr2D2D.at(i));
+    }
+
+    if (0 && !corr2D2D->empty())
     {
         std::vector<cv::KeyPoint> keypoints1, keypoints2;
         std::vector<cv::DMatch> matches;
-        for (size_t i = 0; i < candidateCorr2D2D.size(); ++i)
+        for (size_t i = 0; i < corr2D2D->size(); ++i)
         {
-            Point2DFeaturePtr& p1 = candidateCorr2D2D.at(i).first;
-            Point2DFeaturePtr& p2 = candidateCorr2D2D.at(i).second;
+            Point2DFeaturePtr& p1 = corr2D2D->at(i).first;
+            Point2DFeaturePtr& p2 = corr2D2D->at(i).second;
 
             if (p1.get() == 0 || p2.get() == 0)
             {
@@ -1886,19 +2002,6 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         ++count;
 
         mutex.unlock();
-    }
-
-    for (size_t i = 0; i < candidateCorr2D2D.size(); ++i)
-    {
-        Point2DFeaturePtr& p1 = candidateCorr2D2D.at(i).first;
-        Point2DFeaturePtr& p2 = candidateCorr2D2D.at(i).second;
-
-        if (p1.get() == 0 || p2.get() == 0)
-        {
-            continue;
-        }
-
-        corr2D2D->push_back(candidateCorr2D2D.at(i));
     }
 }
 
@@ -2367,7 +2470,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                     optimizeExtrinsics[cameraId] = 1;
 
-                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), feature3D->weight(), ceres::TAKE_OWNERSHIP);
+                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::HuberLoss(1.0), feature3D->weight(), ceres::TAKE_OWNERSHIP);
 
                     ceres::CostFunction* costFunction;
                     switch (flags)
@@ -2787,24 +2890,21 @@ CameraRigBA::estimateCameraOdometryTransforms(void)
         {
             FrameSetPtr& frameSet = segment.at(frameSetId);
 
-            if (!init)
-            {
-                odoMeasPrev = frameSet->odometryMeasurement()->toMatrix();
-                odoEstPrev = frameSet->systemPose()->toMatrix();
+            Eigen::Matrix4d odoMeas = frameSet->odometryMeasurement()->toMatrix();
+            Eigen::Matrix4d odoEst = frameSet->systemPose()->toMatrix();
 
-                init = true;
+            if (init)
+            {
+                H_odoMeas.push_back(odoMeas.inverse() * odoMeasPrev);
+                H_odoEst.push_back(odoEst.inverse() * odoEstPrev);
             }
             else
             {
-                Eigen::Matrix4d odoMeas = frameSet->odometryMeasurement()->toMatrix();
-                Eigen::Matrix4d odoEst = frameSet->systemPose()->toMatrix();
-
-                H_odoMeas.push_back(odoMeas.inverse() * odoMeasPrev);
-                H_odoEst.push_back(odoEst.inverse() * odoEstPrev);
-
-                odoMeasPrev = odoMeas;
-                odoEstPrev = odoEst;
+                init = true;
             }
+
+            odoMeasPrev = odoMeas;
+            odoEstPrev = odoEst;
         }
 
         calib.addMotions(H_odoEst, H_odoMeas);
@@ -3139,6 +3239,8 @@ CameraRigBA::visualize(const std::string& overlayPrefix, int type)
     }
 
     overlay.publish();
+
+    usleep(50000);
 }
 
 void
@@ -3532,6 +3634,7 @@ CameraRigBA::validateGraph(void) const
         {
             const FrameSetPtr& frameSet = segment.at(j);
 
+            OdometryConstPtr systemPose;
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
                 const FramePtr& frame = frameSet->frames().at(k);
@@ -3541,9 +3644,41 @@ CameraRigBA::validateGraph(void) const
                     continue;
                 }
 
+                if (systemPose.get() == 0)
+                {
+                    systemPose = frame->systemPose();
+                }
+                else
+                {
+                    if (systemPose.get() != frame->systemPose().get())
+                    {
+                        std::cout << "# WARNING: Frames in frame set " << j + 1 << " do not have the same system pose." << std::endl;
+                        valid = false;
+                    }
+                }
+
+                if (frame->gpsInsMeasurement().get() != frameSet->gpsInsMeasurement().get())
+                {
+                    std::cout << "# WARNING: Frame and its parent frameset do not have the same gpsInsMeasurement() reference." << std::endl;
+                    valid = false;
+                }
+
+                if (frame->odometryMeasurement().get() != frameSet->odometryMeasurement().get())
+                {
+                    std::cout << "# WARNING: Frame and its parent frameset do not have the same odometryMeasurement() reference." << std::endl;
+                    valid = false;
+                }
+
+                if (frame->systemPose().get() != frameSet->systemPose().get())
+                {
+                    std::cout << "# WARNING: Frame and its parent frameset do not have the same systemPose() reference." << std::endl;
+                    valid = false;
+                }
+
                 if (frame->cameraId() != k)
                 {
                     std::cout << "# WARNING: Frame's camera ID does not match expected value." << std::endl;
+                    valid = false;
                 }
 
                 const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();

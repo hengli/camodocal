@@ -44,9 +44,23 @@ public:
         T q_coeffs[4] = {q.w(), q.x(), q.y(), q.z()};
         Eigen::Matrix<T,3,3> R = QuaternionToRotation<T>(q_coeffs);
 
-        residuals[0] = ((R1 - Eigen::Matrix<T,3,3>::Identity()) * t
-                        - (scale[0] * R * t2) + t1).norm();
-        residuals[1] = ((q1 * q).coeffs() - (q * q2).coeffs()).norm();
+        Eigen::Matrix<T,3,1> t_err = (R1 - Eigen::Matrix<T,3,3>::Identity()) * t
+                                     - (scale[0] * R * t2) + t1;
+
+        Eigen::Quaternion<T> q_err = q.conjugate() * q1 * q * q2.conjugate();
+
+        T q_err_coeffs[4] = {q_err.w(), q_err.x(), q_err.y(), q_err.z()};
+        Eigen::Matrix<T,3,3> R_err = QuaternionToRotation<T>(q_err_coeffs);
+
+        T roll, pitch, yaw;
+        mat2RPY(R_err, roll, pitch, yaw);
+
+        residuals[0] = t_err(0);
+        residuals[1] = t_err(1);
+        residuals[2] = t_err(2);
+        residuals[3] = roll;
+        residuals[4] = pitch;
+        residuals[5] = yaw;
 
         return true;
     }
@@ -540,7 +554,8 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs2) const
 {
     Eigen::Quaterniond q(H_cam_odo.block<3,3>(0,0));
-    double p[7] = {q.w(), q.x(), q.y(), q.z(), H_cam_odo(0,3), H_cam_odo(1,3), H_cam_odo(2,3)};
+    double q_coeffs[4] = {q.w(), q.x(), q.y(), q.z()};
+    double t_coeffs[3] = {H_cam_odo(0,3), H_cam_odo(1,3), H_cam_odo(2,3)};
 
     ceres::Problem problem;
 
@@ -550,22 +565,21 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
         {
             ceres::CostFunction* costFunction =
                 // t is only flexible on x and y.
-                new ceres::AutoDiffCostFunction<CameraOdometerError, 2, 4, 2, 1>(
+                new ceres::AutoDiffCostFunction<CameraOdometerError, 6, 4, 2, 1>(
                     new CameraOdometerError(rvecs1.at(i).at(j), tvecs1.at(i).at(j), rvecs2.at(i).at(j), tvecs2.at(i).at(j)));
 
-            problem.AddResidualBlock(costFunction, NULL, p, p + 4, &scales.at(i));
+            problem.AddResidualBlock(costFunction, NULL, q_coeffs, t_coeffs, &scales.at(i));
         }
     }
 
     ceres::LocalParameterization* quaternionParameterization =
         new ceres::QuaternionParameterization;
 
-    problem.SetParameterization(p, quaternionParameterization);
+    problem.SetParameterization(q_coeffs, quaternionParameterization);
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
-    options.jacobi_scaling = true;
-    options.max_num_iterations = 2500;
+    options.max_num_iterations = 100;
 //    options.minimizer_progress_to_stdout = true;
 
     ceres::Solver::Summary summary;
@@ -576,8 +590,8 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
         std::cout << summary.BriefReport() << std::endl;
     }
 
-    q = Eigen::Quaterniond(p[0], p[1], p[2], p[3]);
-    H_cam_odo.block<3,1>(0,3) << p[4], p[5], p[6];
+    q = Eigen::Quaterniond(q_coeffs[0], q_coeffs[1], q_coeffs[2], q_coeffs[3]);
+    H_cam_odo.block<3,1>(0,3) << t_coeffs[0], t_coeffs[1], t_coeffs[2];
     H_cam_odo.block<3,3>(0,0) = q.toRotationMatrix();
 }
 
