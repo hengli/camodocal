@@ -24,6 +24,10 @@ The primary author, Lionel Heng, is funded by the DSO Postgraduate Scholarship. 
 
 The CamOdoCal library includes third-party code from the following sources:
 
+        M. Rufli, D. Scaramuzza, and R. Siegwart,
+        Automatic Detection of Checkerboards on Blurred and Distorted Images,
+        In Proc. IEEE/RSJ International Conference on Intelligent Robots and Systems, 2008.
+
         Sameer Agarwal, Keir Mierle, and Others,
         Ceres Solver.
         https://code.google.com/p/ceres-solver/
@@ -31,7 +35,6 @@ The CamOdoCal library includes third-party code from the following sources:
         D. Galvez-Lopez, and J. Tardos,
         Bags of Binary Words for Fast Place Recognition in Image Sequences,
         IEEE Transactions on Robotics, 28(5):1188-1197, October 2012.
-        http://webdiis.unizar.es/~dorian/index.php?p=32
         
 Parts of the CamOdoCal library are based on the following papers:
 
