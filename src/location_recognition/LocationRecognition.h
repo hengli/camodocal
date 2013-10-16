@@ -15,7 +15,7 @@ class LocationRecognition
 public:
     LocationRecognition();
 
-    void setup(const SparseGraph& graph, const std::string& databaseDirectory);
+    void setup(const SparseGraph& graph);
 
     void knnMatch(const FrameConstPtr& frame, int k, std::vector<FrameTag>& matches) const;
     void knnMatch(const FrameConstPtr& frame, int k, std::vector<FramePtr>& matches) const;

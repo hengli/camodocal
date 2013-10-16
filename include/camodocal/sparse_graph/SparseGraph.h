@@ -7,7 +7,7 @@
 #include <opencv2/features2d/features2d.hpp>
 
 #include <camodocal/sparse_graph/Odometry.h>
-#include <camodocal/sparse_graph/PoseE.h>
+#include <camodocal/sparse_graph/Pose.h>
 
 namespace camodocal
 {
@@ -37,8 +37,8 @@ class Frame
 public:
     Frame();
 
-    PoseEPtr& cameraPose(void);
-    PoseEConstPtr cameraPose(void) const;
+    PosePtr& cameraPose(void);
+    PoseConstPtr cameraPose(void) const;
 
     int& cameraId(void);
     int cameraId(void) const;
@@ -59,7 +59,7 @@ public:
     const cv::Mat& image(void) const;
 
 private:
-    PoseEPtr m_cameraPose;
+    PosePtr m_cameraPose;
     int m_cameraId;
 
     OdometryPtr m_systemPose;

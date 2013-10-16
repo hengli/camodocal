@@ -113,7 +113,7 @@ TEST(SlidingWindowBA, NoNoise1)
         Eigen::Quaterniond q = cameraPoses.at(i).first;
         Eigen::Vector3d t = cameraPoses.at(i).second;
 
-        PoseEPtr cameraPose(new PoseE);
+        PosePtr cameraPose(new Pose);
         frameGround.cameraPose() = cameraPose;
 
         if (i == 0)
@@ -292,7 +292,7 @@ TEST(SlidingWindowBA, Noise1)
         Eigen::Quaterniond q = cameraPoses.at(i).first;
         Eigen::Vector3d t = cameraPoses.at(i).second;
 
-        PoseEPtr cameraPose(new PoseE);
+        PosePtr cameraPose(new Pose);
         frameGround.cameraPose() = cameraPose;
 
         if (i == 0)
@@ -467,7 +467,7 @@ TEST(SlidingWindowBA, NoNoise2)
         Eigen::Quaterniond q = cameraPoses.at(i).first;
         Eigen::Vector3d t = cameraPoses.at(i).second;
 
-        PoseEPtr cameraPose(new PoseE);
+        PosePtr cameraPose(new Pose);
         frameGround.cameraPose() = cameraPose;
 
         if (i == 0)

@@ -9,9 +9,9 @@
 #include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
 #include "../gpl/OpenCVUtils.h"
+#include "../location_recognition/LocationRecognition.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "ceres/ceres.h"
-#include "LocationRecognition.h"
 
 #ifdef VCHARGE_VIZ
 #include <boost/unordered_set.hpp>
@@ -77,7 +77,7 @@ InfrastructureCalibration::loadMap(const std::string& mapDirectory)
     }
 
     m_locrec.reset(new LocationRecognition);
-    m_locrec->setup(m_refGraph, mapDirectory);
+    m_locrec->setup(m_refGraph);
 
     if (m_verbose)
     {
@@ -401,7 +401,7 @@ InfrastructureCalibration::run(void)
             for (size_t k = 0; k < m_framesets.at(j).frames.size(); ++k)
             {
                 int cameraIdx = m_framesets.at(j).frames.at(k)->cameraId();
-                PoseEPtr& cameraPose = m_framesets.at(j).frames.at(k)->cameraPose();
+                PosePtr& cameraPose = m_framesets.at(j).frames.at(k)->cameraPose();
 
                 Eigen::Matrix4d H = cameraPose->toMatrix().inverse() * T_cam_ref.at(cameraIdx).toMatrix().inverse();
 
@@ -466,7 +466,7 @@ InfrastructureCalibration::run(void)
         for (size_t j = 0; j < frameset.frames.size(); ++j)
         {
             int cameraIdx = frameset.frames.at(j)->cameraId();
-            PoseEPtr& cameraPose = frameset.frames.at(j)->cameraPose();
+            PosePtr& cameraPose = frameset.frames.at(j)->cameraPose();
 
             Eigen::Matrix4d H = cameraPose->toMatrix().inverse() * T_cam_ref.at(cameraIdx).toMatrix().inverse();
 
@@ -737,7 +737,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     cv::cv2eigen(best_rvec_cv.reshape(0,3), rvec);
     cv::cv2eigen(best_tvec_cv.reshape(0,3), tvec);
 
-    PoseEPtr pose(new PoseE);
+    PosePtr pose(new Pose);
     pose->timeStamp() = timestamp;
     pose->rotation() = AngleAxisToQuaternion(rvec);
     pose->translation() = tvec;

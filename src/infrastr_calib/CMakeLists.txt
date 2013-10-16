@@ -11,7 +11,6 @@ include_directories(
 
 camodocal_library(camodocal_infrastr_calib
   InfrastructureCalibration.cc
-  LocationRecognition.cc
 )
 
 camodocal_link_libraries(camodocal_infrastr_calib
@@ -23,13 +22,10 @@ camodocal_link_libraries(camodocal_infrastr_calib
   ${OPENCV_CALIB3D_LIBRARY}
   camodocal_camera_models
   camodocal_camera_systems
-  camodocal_DBoW2
-  camodocal_DUtilsCV
-  camodocal_DUtils
-  camodocal_DVision
   camodocal_features2d
   camodocal_gpl
   camodocal_fivepoint
+  camodocal_pose_graph
   camodocal_sparse_graph
   ceres
 )

@@ -50,7 +50,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
     if (mMode == VO)
     {
-        frameCurr->cameraPose() = PoseEPtr(new PoseE);
+        frameCurr->cameraPose() = PosePtr(new Pose);
     }
 
     mWindow.push_back(frameCurr);

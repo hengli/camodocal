@@ -345,6 +345,7 @@ CamRigOdoCalibration::buildGraph(void)
         std::vector<FramePtr> frames;
 
         std::set<int>::iterator itCameraId = cameraIds.begin();
+
         while (itCameraId != cameraIds.end())
         {
             int cameraId = *itCameraId;
@@ -360,9 +361,19 @@ CamRigOdoCalibration::buildGraph(void)
                     const FramePtr& frame = frameSegment.at(k);
 
                     uint64_t timestamp = frame->cameraPose()->timeStamp();
-                    if (timestamp < start || timestamp > end)
+                    if (lastIntervalEnd == 0)
                     {
-                        continue;
+                        if (timestamp < start || timestamp > end)
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (timestamp <= start || timestamp > end)
+                        {
+                            continue;
+                        }
                     }
 
                     frames.push_back(frame);
@@ -388,13 +399,19 @@ CamRigOdoCalibration::buildGraph(void)
             while (frameId < frames.size() &&
                    frames.at(frameId)->cameraPose()->timeStamp() == timestamp)
             {
-                frames.at(frameId)->systemPose() = frameSet->systemPose();
-                frames.at(frameId)->odometryMeasurement() = frameSet->odometryMeasurement();
-                frames.at(frameId)->gpsInsMeasurement() = frameSet->gpsInsMeasurement();
-
                 frameSet->frames().at(frames.at(frameId)->cameraId()) = frames.at(frameId);
 
                 ++frameId;
+            }
+
+            for (size_t i = 0; i < frameSet->frames().size(); ++i)
+            {
+                if (frameSet->frames().at(i).get() != 0)
+                {
+                    frameSet->frames().at(i)->systemPose() = frameSet->systemPose();
+                    frameSet->frames().at(i)->odometryMeasurement() = frameSet->odometryMeasurement();
+                    frameSet->frames().at(i)->gpsInsMeasurement() = frameSet->gpsInsMeasurement();
+                }
             }
 
             m_graph.frameSetSegments().back().push_back(frameSet);

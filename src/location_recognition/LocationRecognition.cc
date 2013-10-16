@@ -9,8 +9,7 @@ LocationRecognition::LocationRecognition()
 }
 
 void
-LocationRecognition::setup(const SparseGraph& graph,
-                           const std::string& databaseDirectory)
+LocationRecognition::setup(const SparseGraph& graph)
 {
     m_frameTags.clear();
     m_frames.clear();

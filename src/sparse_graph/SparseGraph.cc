@@ -16,13 +16,13 @@ Frame::Frame()
 
 }
 
-PoseEPtr&
+PosePtr&
 Frame::cameraPose(void)
 {
     return m_cameraPose;
 }
 
-PoseEConstPtr
+PoseConstPtr
 Frame::cameraPose(void) const
 {
     return m_cameraPose;
@@ -468,10 +468,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         frameMap.at(i) = FramePtr(new Frame);
     }
 
-    std::vector<PoseEPtr> poseMap(nPoses);
+    std::vector<PosePtr> poseMap(nPoses);
     for (size_t i = 0; i < nPoses; ++i)
     {
-        poseMap.at(i) = PoseEPtr(new PoseE);
+        poseMap.at(i) = PosePtr(new Pose);
     }
 
     std::vector<OdometryPtr> odometryMap(nOdometry);
@@ -562,7 +562,7 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         size_t poseId;
         readData(ifs, poseId);
 
-        PoseEPtr& pose = poseMap.at(poseId);
+        PosePtr& pose = poseMap.at(poseId);
 
         readData(ifs, pose->timeStamp());
 

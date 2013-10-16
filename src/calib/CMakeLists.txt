@@ -54,6 +54,8 @@ camodocal_link_libraries(camodocal_calib
   camodocal_DUtils
   camodocal_DVision
   camodocal_gpl
+  camodocal_location_recognition
+  camodocal_pose_graph
   camodocal_sparse_graph
   camodocal_visual_odometry
   ceres

@@ -21,14 +21,14 @@ public:
 
     DirectedEdge();
 
-    DirectedEdge(const boost::weak_ptr<const VertexT>& outVertex,
-                 const boost::weak_ptr<const VertexT>& inVertex);
-
-    boost::weak_ptr<VertexT>& outVertex(void);
-    const boost::weak_ptr<const VertexT>& outVertex(void) const;
+    DirectedEdge(const boost::weak_ptr<VertexT>& inVertex,
+                 const boost::weak_ptr<VertexT>& outVertex);
 
     boost::weak_ptr<VertexT>& inVertex(void);
-    const boost::weak_ptr<const VertexT>& inVertex(void) const;
+    const boost::weak_ptr<const VertexT> inVertex(void) const;
+
+    boost::weak_ptr<VertexT>& outVertex(void);
+    const boost::weak_ptr<const VertexT> outVertex(void) const;
 
     EdgeT& property(void);
     const EdgeT& property(void) const;
@@ -36,49 +36,33 @@ public:
     EdgeType& type(void);
     EdgeType type(void) const;
 
-    double& weight(void);
-    double weight(void) const;
+    std::vector<double>& weight(void);
+    const std::vector<double>& weight(void) const;
 
 private:
-    boost::weak_ptr<VertexT> m_outVertex;
     boost::weak_ptr<VertexT> m_inVertex;
+    boost::weak_ptr<VertexT> m_outVertex;
 
     EdgeT m_property;
     EdgeType m_type;
-    double m_weight;
+    std::vector<double> m_weight;
 };
 
 template<class EdgeT, class VertexT>
 DirectedEdge<EdgeT, VertexT>::DirectedEdge()
  : m_type(EDGE_ODOMETRY)
- , m_weight(1.0)
 {
 
 }
 
 template<class EdgeT, class VertexT>
-DirectedEdge<EdgeT, VertexT>::DirectedEdge(const boost::weak_ptr<const VertexT>& outVertex,
-                                           const boost::weak_ptr<const VertexT>& inVertex)
- : m_outVertex(outVertex)
- , m_inVertex(inVertex)
+DirectedEdge<EdgeT, VertexT>::DirectedEdge(const boost::weak_ptr<VertexT>& inVertex,
+                                           const boost::weak_ptr<VertexT>& outVertex)
+ : m_inVertex(inVertex)
+ , m_outVertex(outVertex)
  , m_type(EDGE_ODOMETRY)
- , m_weight(1.0)
 {
 
-}
-
-template<class EdgeT, class VertexT>
-boost::weak_ptr<VertexT>&
-DirectedEdge<EdgeT, VertexT>::outVertex(void)
-{
-    return m_outVertex;
-}
-
-template<class EdgeT, class VertexT>
-const boost::weak_ptr<const VertexT>&
-DirectedEdge<EdgeT, VertexT>::outVertex(void) const
-{
-    return m_outVertex;
 }
 
 template<class EdgeT, class VertexT>
@@ -89,10 +73,24 @@ DirectedEdge<EdgeT, VertexT>::inVertex(void)
 }
 
 template<class EdgeT, class VertexT>
-const boost::weak_ptr<const VertexT>&
+const boost::weak_ptr<const VertexT>
 DirectedEdge<EdgeT, VertexT>::inVertex(void) const
 {
     return m_inVertex;
+}
+
+template<class EdgeT, class VertexT>
+boost::weak_ptr<VertexT>&
+DirectedEdge<EdgeT, VertexT>::outVertex(void)
+{
+    return m_outVertex;
+}
+
+template<class EdgeT, class VertexT>
+const boost::weak_ptr<const VertexT>
+DirectedEdge<EdgeT, VertexT>::outVertex(void) const
+{
+    return m_outVertex;
 }
 
 template<class EdgeT, class VertexT>
@@ -124,14 +122,14 @@ DirectedEdge<EdgeT, VertexT>::type(void) const
 }
 
 template<class EdgeT, class VertexT>
-double&
+std::vector<double>&
 DirectedEdge<EdgeT, VertexT>::weight(void)
 {
     return m_weight;
 }
 
 template<class EdgeT, class VertexT>
-double
+const std::vector<double>&
 DirectedEdge<EdgeT, VertexT>::weight(void) const
 {
     return m_weight;

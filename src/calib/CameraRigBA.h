@@ -8,13 +8,12 @@
 #include "camodocal/calib/CameraCalibration.h"
 #include "camodocal/camera_systems/CameraRigExtrinsics.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
-#include "../dbow2/DBoW2/DBoW2.h"
-#include "../dbow2/DUtils/DUtils.h"
-#include "../dbow2/DUtilsCV/DUtilsCV.h"
-#include "../dbow2/DVision/DVision.h"
 
 namespace camodocal
 {
+
+// forward declaration
+class LocationRecognition;
 
 class CameraRigBA
 {
@@ -61,6 +60,8 @@ private:
                              const Eigen::Vector3d& odo_att,
                              const Eigen::Vector2d& observed_p) const;
 
+    void triangulateFeatureCorrespondences(void);
+
     void triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& frame3,
                              const CameraConstPtr& camera,
                              const Pose& T_cam_odo);
@@ -73,19 +74,14 @@ private:
     typedef boost::tuple<FramePtr, FramePtr, Point2DFeaturePtr, Point3DFeaturePtr> Correspondence2D3D;
     typedef boost::tuple<FramePtr, FramePtr, Point3DFeaturePtr, Point3DFeaturePtr> Correspondence3D3D;
 
-    void buildVocTree(void);
-    std::vector<std::vector<float> > frameToBOW(const FrameConstPtr& frame) const;
     void findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame,
                              std::vector<Correspondence2D3D>& correspondences2D3D,
                              double reprojErrorThresh = 1.0);
     void findLoopClosure2D3DHelper(FrameTag frameTagQuery,
+                                   boost::shared_ptr<LocationRecognition> locRec,
                                    std::vector<std::pair<FramePtr, FramePtr> >* corrFF,
                                    std::vector<Correspondence2D3D>* corr2D3D,
                                    double reprojErrorThresh = 1.0);
-    std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
-                                          const std::vector<Point2DFeaturePtr>& features2) const;
-    std::vector<cv::DMatch> matchFeatures(const cv::Mat& dtor1,
-                                          const std::vector<Point2DFeaturePtr>& features2) const;
 
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                               double reprojErrorThresh = 2.0);
@@ -97,22 +93,10 @@ private:
                            std::vector<Correspondence2D2D>* corr2D2D,
                            double reprojErrorThresh = 2.0);
 
-    cv::Mat buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
-                               std::vector<size_t>& indices) const;
-
     bool project3DPoint(const CameraConstPtr& camera,
                         const Eigen::Matrix4d& H,
                         const Eigen::Vector4d& src,
                         Eigen::Vector3d& dst) const;
-
-    void rectifyImagePoint(const CameraConstPtr& camera,
-                           const cv::Point2f& src, cv::Point2f& dst) const;
-    void rectifyImagePoint(const CameraConstPtr& camera,
-                           const Eigen::Vector2d& src, Eigen::Vector2d& dst) const;
-
-    void rectifyImagePoints(const CameraConstPtr& camera,
-                            const std::vector<cv::Point2f>& src,
-                            std::vector<cv::Point2f>& dst) const;
 
     void tvt(const CameraConstPtr& camera,
              const Eigen::Matrix4d& H1,
@@ -149,6 +133,8 @@ private:
     void visualizeFrameFrameCorrespondences(const std::string& overlayName,
                                             const std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame) const;
 
+    void visualizeSystemPoses(const std::string& overlayName);
+
     void visualize2D3DCorrespondences(const std::string& overlayName,
                                       const std::vector<Correspondence2D3D>& correspondences) const;
 
@@ -173,9 +159,6 @@ private:
     std::vector<CameraPtr> m_cameras;
     CameraRigExtrinsics& m_extrinsics;
     SparseGraph m_graph;
-    Surf64Database m_db;
-
-    std::vector<FrameTag> m_v2fLUT;
 
     const size_t k_localMapWindowDistance;
     const float k_maxDistanceRatio;

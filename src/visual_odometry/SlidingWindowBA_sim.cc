@@ -141,7 +141,7 @@ int main(int argc, char** argv)
         Eigen::Quaterniond q = cameraPoses.at(i).first;
         Eigen::Vector3d t = cameraPoses.at(i).second;
 
-        PoseEPtr cameraPose(new PoseE);
+        PosePtr cameraPose(new Pose);
         frameGround.cameraPose() = cameraPose;
 
         if (i == 0)
