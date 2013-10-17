@@ -1,24 +1,65 @@
-CamOdoCal: Automatic Intrinsic and Extrinsic Calibration of a Rig with Multiple Generic Cameras and Odometry
-------------------------------------------------------------------------------------------------------------
+CamOdoCal
+=========
 
-This C++ library supports both intrinsic calibration of a generic camera and extrinsic calibration of a multi-camera rig for which odometry data is provided. The intrinsic calibration process computes the parameters for one of the following three camera models:
+Introduction
+------------
+
+This C++ library supports the following tasks:
+
+1. Intrinsic calibration of a generic camera.
+2. Extrinsic self-calibration of a multi-camera rig for which odometry data is provided.
+3. Extrinsic infrastructure-based calibration of a multi-camera rig for which a map generated from task 2 is provided.
+
+
+The intrinsic calibration process computes the parameters for one of the following three camera models:
 * Pinhole camera model
 * Unified projection model (C. Mei, and P. Rives, Single View Point Omnidirectional Camera Calibration from Planar Grids, ICRA 2007)
 * Equidistant fish-eye model (J. Kannala, and S. Brandt, A Generic Camera Model and Calibration Method for Conventional, Wide-Angle, and Fish-Eye Lenses, PAMI 2006)
 
 By default, the unified projection model is used since this model approximates a wide range of cameras from normal cameras to catadioptric cameras. Note that in our equidistant fish-eye model, we use 8 parameters: k2, k3, k4, k5, mu, mv, u0, v0. k1 is set to 1.
 
+Typically for a set of 4 cameras with 500 frames each, the extrinsic self-calibration takes 2 hours. In contrast, the extrinsic infrastructure-based calibration runs in near real-time, and is strongly recommended if you are calibrating multiple rigs in the same area.
+
 The landing page of the library is located at http://people.inf.ethz.ch/hengli/camodocal/
 
-The workings of the library is described in the paper:
+The workings of the library are described in the two papers:
 
         Lionel Heng, Bo Li, and Marc Pollefeys,
         CamOdoCal: Automatic Intrinsic and Extrinsic Calibration of a Rig with Multiple Generic Cameras and Odometry,
         In Proc. IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2013.
 
-If you use this library in an academic publication, please cite this paper.
+        Lionel Heng, Mathias Bürki, Gim Hee Lee, Paul Furgale, Roland Siegwart, and Marc Pollefeys,
+        Infrastructure-Based Calibration of a Multi-Camera Rig,
+        Submitted to IEEE International Conference on Robotics and Automation, 2014.
 
-This work is supported in part by the European Community's Seventh Framework Programme (FP7/2007-2013) under grant #269916 (V-Charge).
+If you use this library in an academic publication, please cite either or both of the papers depending on what you use the library for.
+
+#### Acknowledgements ####
+
+The primary author, Lionel Heng, is funded by the DSO Postgraduate Scholarship. This work is supported in part by the European Community's Seventh Framework Programme (FP7/2007-2013) under grant #269916 (V-Charge).
+
+The CamOdoCal library includes third-party code from the following sources:
+
+        1. M. Rufli, D. Scaramuzza, and R. Siegwart,
+           Automatic Detection of Checkerboards on Blurred and Distorted Images,
+           In Proc. IEEE/RSJ International Conference on Intelligent Robots and Systems, 2008.
+
+        2. Sameer Agarwal, Keir Mierle, and Others,
+           Ceres Solver.
+           https://code.google.com/p/ceres-solver/
+        
+        3. D. Galvez-Lopez, and J. Tardos,
+           Bags of Binary Words for Fast Place Recognition in Image Sequences,
+           IEEE Transactions on Robotics, 28(5):1188-1197, October 2012.
+        
+Parts of the CamOdoCal library are based on the following papers:
+
+* Robust pose graph optimization
+
+        G.H. Lee, F. Fraundorfer, and Marc Pollefeys,
+        Robust Pose-Graph Loop-Closures with Expectation-Maximization,
+        In Proc. IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2013.
+        
 
 Build Instructions for Ubuntu
 -----------------------------
