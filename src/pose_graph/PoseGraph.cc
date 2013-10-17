@@ -85,7 +85,7 @@ PoseGraph::optimize(bool useRobustOptimization)
     {
         for (int i = 0; i < 20; ++i)
         {
-            if (!iterateEM())
+            if (!iterateEM(true))
             {
 #ifdef VCHARGE_VIZ
                 visualizeLoopClosureEdges();
@@ -96,7 +96,7 @@ PoseGraph::optimize(bool useRobustOptimization)
     }
     else
     {
-        iterateEM();
+        iterateEM(false);
     }
 }
 
@@ -364,7 +364,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
 }
 
 bool
-PoseGraph::iterateEM(void)
+PoseGraph::iterateEM(bool useRobustOptimization)
 {
     ceres::Problem problem;
 
@@ -410,7 +410,11 @@ PoseGraph::iterateEM(void)
         pose1 = edge.inVertex().lock();
         pose2 = edge.outVertex().lock();
 
-        ceres::LossFunction* lossFunction = new ceres::CauchyLoss(k_lossWidth);
+        ceres::LossFunction* lossFunction = 0;
+        if (useRobustOptimization)
+        {
+            lossFunction = new ceres::CauchyLoss(k_lossWidth);
+        }
 
         problem.AddResidualBlock(costFunction, lossFunction,
                                  pose1->positionData(), pose1->attitudeData(),
@@ -428,7 +432,7 @@ PoseGraph::iterateEM(void)
 
     int nIterations = summary.num_successful_steps + summary.num_unsuccessful_steps;
 
-    if (nIterations != 0)
+    if (nIterations != 0 && useRobustOptimization)
     {
         classifySwitches();
     }

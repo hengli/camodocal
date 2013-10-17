@@ -53,7 +53,7 @@ private:
                                 std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> >* correspondences2D3D,
                                 double reprojErrorThresh) const;
 
-    bool iterateEM(void);
+    bool iterateEM(bool useRobustOptimization);
     void classifySwitches(void);
 
 #ifdef VCHARGE_VIZ
