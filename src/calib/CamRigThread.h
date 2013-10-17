@@ -17,7 +17,6 @@ public:
                           CameraRigExtrinsics& cameraRigExt,
                           SparseGraph& graph,
                           int beginStage = 1,
-                          bool findLoopClosures = true,
                           bool optimizeIntrinsics = true,
                           bool saveWorkingData = false,
                           std::string dataDir = "data",
@@ -41,7 +40,6 @@ private:
     SparseGraph& mGraph;
 
     int mBeginStage;
-    bool mFindLoopClosures;
     bool mOptimizeIntrinsics;
     bool mSaveWorkingData;
     std::string mDataDir;

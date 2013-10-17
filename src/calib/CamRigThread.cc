@@ -9,7 +9,6 @@ CamRigThread::CamRigThread(const std::vector<CameraPtr>& cameras,
                            CameraRigExtrinsics& cameraRigExt,
                            SparseGraph& graph,
                            int beginStage,
-                           bool findLoopClosures,
                            bool optimizeIntrinsics,
                            bool saveWorkingData,
                            std::string dataDir,
@@ -20,7 +19,6 @@ CamRigThread::CamRigThread(const std::vector<CameraPtr>& cameras,
  , mCameraRigExt(cameraRigExt)
  , mGraph(graph)
  , mBeginStage(beginStage)
- , mFindLoopClosures(findLoopClosures)
  , mOptimizeIntrinsics(optimizeIntrinsics)
  , mSaveWorkingData(saveWorkingData)
  , mDataDir(dataDir)
@@ -69,7 +67,7 @@ CamRigThread::threadFunction(void)
 
     CameraRigBA ba(mCameras, mGraph, mCameraRigExt);
     ba.setVerbose(mVerbose);
-    ba.run(mBeginStage, mFindLoopClosures, mOptimizeIntrinsics, mSaveWorkingData, mDataDir);
+    ba.run(mBeginStage, mOptimizeIntrinsics, mSaveWorkingData, mDataDir);
 
     mRunning = false;
 

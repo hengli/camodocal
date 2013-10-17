@@ -46,14 +46,14 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
                                                 m_odometryBuffer, m_interpOdometryBuffer, m_odometryBufferMutex,
                                                 m_gpsInsBuffer, m_interpGpsInsBuffer, m_gpsInsBufferMutex,
                                                 m_statuses.at(i), m_sketches.at(i), m_camOdoCompleted[i], m_stop,
-                                                options.saveImages, options.verbose);
+                                                options.verbose);
         m_camOdoThreads.at(i) = thread;
         thread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamOdoThreadFinished), thread));
     }
 
     m_camOdoWatchdogThread = new CamOdoWatchdogThread(m_camOdoCompleted, m_stop);
 
-    m_camRigThread = new CamRigThread(m_cameras, m_extrinsics, m_graph, options.beginStage, options.findLoopClosures, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
+    m_camRigThread = new CamRigThread(m_cameras, m_extrinsics, m_graph, options.beginStage, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
     m_camRigThread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamRigThreadFinished), m_camRigThread));
 
     for (size_t i = 0; i < m_sketches.size(); ++i)

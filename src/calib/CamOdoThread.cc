@@ -28,7 +28,6 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
                            cv::Mat& sketch,
                            bool& completed,
                            bool& stop,
-                           bool saveImages,
                            bool verbose)
  : m_poseSource(poseSource)
  , m_thread(0)
@@ -50,7 +49,6 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
  , k_odometryTimeout(4.0)
  , m_completed(completed)
  , m_stop(stop)
- , m_saveImages(saveImages)
 {
     m_camOdoCalib.setVerbose(verbose);
     m_camOdoCalib.setMotionCount(nMotions);
@@ -364,11 +362,6 @@ CamOdoThread::threadFunction(void)
                 }
 
                 frame->cameraPose()->timeStamp() = timeStamp;
-
-                if (!m_saveImages)
-                {
-                    frame->image() = cv::Mat();
-                }
 
                 if (camValid)
                 {

@@ -32,7 +32,6 @@ public:
                           cv::Mat& sketch,
                           bool& completed,
                           bool& stop,
-                          bool saveImages = false,
                           bool verbose = false);
     virtual ~CamOdoThread();
 
@@ -83,7 +82,6 @@ private:
 
     bool& m_completed;
     bool& m_stop;
-    bool m_saveImages;
 };
 
 }

@@ -36,11 +36,9 @@ public:
          , poseSource(ODOMETRY)
          , nMotions(200)
          , preprocessImages(false)
-         , findLoopClosures(true)
          , saveWorkingData(true)
          , beginStage(0)
          , optimizeIntrinsics(true)
-         , saveImages(true)
          , verbose(false) {};
 
         Mode mode;
@@ -48,12 +46,10 @@ public:
         int nMotions;
 
         bool preprocessImages;
-        bool findLoopClosures;
         bool saveWorkingData;
         int beginStage;
         bool optimizeIntrinsics;
         std::string dataDir;
-        bool saveImages;
         bool verbose;
     };
 

@@ -21,10 +21,8 @@ main(int argc, char** argv)
     int nMotions;
     int beginStage;
     bool preprocessImages;
-    bool findLoopClosures;
     bool optimizeIntrinsics;
     std::string dataDir;
-    bool saveImages;
     bool debug;
     bool verbose;
 
@@ -39,10 +37,8 @@ main(int argc, char** argv)
         ("motions,m", boost::program_options::value<int>(&nMotions)->default_value(500), "Number of motions for calibration.")
         ("begin-stage", boost::program_options::value<int>(&beginStage)->default_value(0), "Stage to begin from")
         ("preprocess", boost::program_options::bool_switch(&preprocessImages)->default_value(false), "Preprocess images")
-        ("loop-closures", boost::program_options::bool_switch(&findLoopClosures)->default_value(false), "Find loop closures")
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
-        ("save-images", boost::program_options::bool_switch(&saveImages)->default_value(true), "Save images.")
         ("debug", boost::program_options::bool_switch(&debug)->default_value(false), "Debug mode")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
@@ -140,12 +136,10 @@ main(int argc, char** argv)
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
     options.preprocessImages = preprocessImages;
-    options.findLoopClosures = findLoopClosures;
     options.optimizeIntrinsics = optimizeIntrinsics;
     options.saveWorkingData = true;
     options.beginStage = beginStage;
     options.dataDir = dataDir;
-    options.saveImages = saveImages;
     options.verbose = verbose;
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options);

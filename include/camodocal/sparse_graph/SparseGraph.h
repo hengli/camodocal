@@ -134,6 +134,11 @@ class Point3DFeature
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+    enum
+    {
+        LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS = 0x1
+    };
+
     Point3DFeature();
 
     Eigen::Vector3d& point(void);
@@ -148,6 +153,9 @@ public:
     double* pointCovarianceData(void);
     const double* const pointCovarianceData(void) const;
 
+    int& attributes(void);
+    int attributes(void) const;
+
     double& weight(void);
     double weight(void) const;
 
@@ -157,6 +165,7 @@ public:
 private:
     Eigen::Vector3d m_point;
     Eigen::Matrix3d m_pointCovariance;
+    int m_attributes;
     double m_weight;
     std::vector<Point2DFeatureWPtr> m_features2D;
 };
@@ -204,6 +213,8 @@ public:
 
     std::vector<FrameSetSegment>& frameSetSegments(void);
     const std::vector<FrameSetSegment>& frameSetSegments(void) const;
+
+    size_t scenePointCount(void) const;
 
     bool readFromBinaryFile(const std::string& filename);
     void writeToBinaryFile(const std::string& filename) const;

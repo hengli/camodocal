@@ -48,12 +48,14 @@ CameraRigBA::CameraRigBA(const std::vector<CameraPtr>& cameras,
 }
 
 void
-CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
+CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                  bool saveWorkingData, std::string dataDir)
 {
     // stage 1 - triangulate 3D points with feature correspondences from mono VO and run BA
-    // stage 2 - find local inter-camera 3D-3D correspondences and run BA
-    // stage 3 - find loop closures and run BA
+    // stage 2 - run robust pose graph SLAM and find inlier 2D-3D correspondences from loop closures
+    // stage 3 - find local inter-camera 3D-3D correspondences
+    // stage 4 - run BA
+    // stage 5 - run hand-eye calibration
 
     if (m_verbose)
     {
@@ -132,7 +134,9 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         if (m_verbose)
         {
             std::cout << "# INFO: Reprojection error after triangulation: avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -156,7 +160,9 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         {
             std::cout << "# INFO: Done." << std::endl;
             std::cout << "# INFO: Reprojection error after BA (odometry): avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -182,7 +188,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
     {
         if (m_verbose)
         {
-            std::cout << "# INFO: Running pose graph optimization... " << std::endl;
+            std::cout << "# INFO: Running robust pose graph optimization... " << std::endl;
         }
 
         PoseGraph poseGraph(m_cameras, m_extrinsics, m_graph,
@@ -201,6 +207,76 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
         triangulateFeatureCorrespondences();
 
+        std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > correspondences2D3D;
+        correspondences2D3D = poseGraph.getCorrespondences2D3D();
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: # inlier 2D-3D correspondences: " << correspondences2D3D.size() << std::endl;
+        }
+
+        size_t nMerged3DScenePoints = 0;
+        for (size_t i = 0; i < correspondences2D3D.size(); ++i)
+        {
+            Point3DFeaturePtr f3D1 = correspondences2D3D.at(i).first->feature3D();
+            Point3DFeaturePtr f3D2 = correspondences2D3D.at(i).second;
+
+            if (f3D1.get() == 0)
+            {
+                continue;
+            }
+
+            bool merge = false;
+            for (size_t j = 0; j < f3D2->features2D().size(); ++j)
+            {
+                Point2DFeaturePtr f2D2 = f3D2->features2D().at(j).lock();
+                if (f2D2.get() == 0)
+                {
+                    continue;
+                }
+
+                bool found = false;
+                for (size_t k = 0; k < f3D1->features2D().size(); ++k)
+                {
+                    Point2DFeaturePtr f2D1 = f3D1->features2D().at(k).lock();
+                    if (f2D1.get() == 0)
+                    {
+                        continue;
+                    }
+
+                    if (f2D1.get() == f2D2.get())
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    f3D1->features2D().push_back(f2D2);
+                    merge = true;
+                }
+            }
+
+            for (size_t j = 0; j < f3D1->features2D().size(); ++j)
+            {
+                if (Point2DFeaturePtr feature2D = f3D1->features2D().at(j).lock())
+                {
+                    feature2D->feature3D() = f3D1;
+                }
+            }
+
+            if (merge)
+            {
+                ++nMerged3DScenePoints;
+            }
+        }
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Merged " << nMerged3DScenePoints << " 3D scene points." << std::endl;
+        }
+
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
         double minError, maxError, avgError;
@@ -210,32 +286,15 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
 
         if (m_verbose)
         {
-            std::cout << "# INFO: Reprojection error after pose-graph optimization and triangulation: avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
+            std::cout << "# INFO: Reprojection error after robust pose-graph optimization: avg = " << avgError
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt2-BA-", ODOMETRY);
+        visualize("opt2-", ODOMETRY);
 #endif
-
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Running BA on odometry data... " << std::endl;
-        }
-
-        // optimize camera extrinsics, poses, and 3D scene points
-        optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, false);
-
-        prune(PRUNE_BEHIND_CAMERA, ODOMETRY); // | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after BA (odometry): avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
-        }
 
         if (saveWorkingData)
         {
@@ -358,6 +417,7 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
                     feature2D->feature3D() = f3D2;
                 }
             }
+            f3D2->attributes() = Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS;
         }
 
 #ifdef VCHARGE_VIZ
@@ -382,7 +442,9 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         {
             std::cout << "# INFO: Done." << std::endl;
             std::cout << "# INFO: Reprojection error after local matching: avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -406,71 +468,6 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
     if (beginStage <= 4)
     {
         reweightScenePoints();
-
-        if (findLoopClosures)
-        {
-            if (m_verbose)
-            {
-                std::cout << "# INFO: Finding loop closures... " << std::endl;
-            }
-
-            std::vector<std::pair<FramePtr, FramePtr> > loopClosureFrameFrame;
-            std::vector<Correspondence2D3D> loopClosure2D3D;
-            findLoopClosure2D3D(loopClosureFrameFrame, loopClosure2D3D);
-
-            for (size_t i = 0; i < loopClosure2D3D.size(); ++i)
-            {
-                Point3DFeaturePtr f3D1 = loopClosure2D3D.at(i).get<2>()->feature3D();
-                Point3DFeaturePtr f3D2 = loopClosure2D3D.at(i).get<3>();
-
-                for (size_t j = 0; j < f3D1->features2D().size(); ++j)
-                {
-                    Point2DFeaturePtr f2D1 = f3D1->features2D().at(j).lock();
-                    if (f2D1.get() == 0)
-                    {
-                        continue;
-                    }
-
-                    bool found = false;
-                    for (size_t k = 0; k < f3D2->features2D().size(); ++k)
-                    {
-                        Point2DFeaturePtr f2D2 = f3D2->features2D().at(k).lock();
-                        if (f2D2.get() == 0)
-                        {
-                            continue;
-                        }
-
-                        if (f2D1.get() == f2D2.get())
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found)
-                    {
-                        f3D2->features2D().push_back(f2D1);
-                    }
-                }
-
-                for (size_t j = 0; j < f3D2->features2D().size(); ++j)
-                {
-                    if (Point2DFeaturePtr feature2D = f3D2->features2D().at(j).lock())
-                    {
-                        feature2D->feature3D() = f3D2;
-                    }
-                }
-            }
-
-#ifdef VCHARGE_VIZ
-            visualizeFrameFrameCorrespondences("loop-p-p", loopClosureFrameFrame);
-#endif
-
-            if (m_verbose)
-            {
-                std::cout << "# INFO: Done." << std::endl;
-            }
-        }
 
         std::cout << "# INFO: Running BA on odometry data... " << std::endl;
 
@@ -498,19 +495,10 @@ CameraRigBA::run(int beginStage, bool findLoopClosures, bool optimizeIntrinsics,
         if (m_verbose)
         {
             std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after ";
-
-            if (findLoopClosures)
-            {
-                std::cout << "loop closures";
-            }
-            else
-            {
-                std::cout << "inter-map linking";
-            }
-
-            std::cout << ": avg = " << avgError
-                      << " px | max = " << maxError << " px | count = " << featureCount << std::endl;
+            std::cout << "# INFO: Reprojection error after full BA: avg = " << avgError
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
 #ifdef VCHARGE_VIZ
@@ -1088,189 +1076,6 @@ CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& featu
         }
 
         correspondences.push_back(correspondence);
-    }
-}
-
-void
-CameraRigBA::findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame,
-                                 std::vector<Correspondence2D3D>& correspondences2D3D,
-                                 double reprojErrorThresh)
-{
-    boost::shared_ptr<LocationRecognition> locRec(new LocationRecognition);
-    locRec->setup(m_graph);
-
-    for (int i = 0; i < m_graph.frameSetSegments().size(); ++i)
-    {
-        FrameSetSegment& segment = m_graph.frameSetSegment(i);
-
-        for (int j = 0; j < segment.size(); ++j)
-        {
-            FrameSetPtr& frameSet = segment.at(j);
-
-            std::vector<Correspondence2D3D> corr2D3D[m_cameras.size()];
-            std::vector<std::pair<FramePtr, FramePtr> > corrFF[m_cameras.size()];
-
-            boost::shared_ptr<boost::thread> threads[m_cameras.size()];
-
-            for (size_t k = 0; k < frameSet->frames().size(); ++k)
-            {
-                FramePtr& frame = frameSet->frames().at(k);
-
-                if (frame.get() == 0)
-                {
-                    continue;
-                }
-
-                FrameTag frameTag;
-                frameTag.frameSetSegmentId = i;
-                frameTag.frameSetId = j;
-                frameTag.frameId = k;
-
-                threads[k].reset(new boost::thread(boost::bind(&CameraRigBA::findLoopClosure2D3DHelper, this,
-                                                               frameTag, locRec, &corrFF[k], &corr2D3D[k], reprojErrorThresh)));
-            }
-
-            for (int k = 0; k < frameSet->frames().size(); ++k)
-            {
-                if (threads[k].get() == 0)
-                {
-                    continue;
-                }
-                threads[k]->join();
-
-                correspondencesFrameFrame.insert(correspondencesFrameFrame.end(), corrFF[k].begin(), corrFF[k].end());
-                correspondences2D3D.insert(correspondences2D3D.end(), corr2D3D[k].begin(), corr2D3D[k].end());
-            }
-        }
-    }
-}
-
-void
-CameraRigBA::findLoopClosure2D3DHelper(FrameTag frameTagQuery,
-                                       boost::shared_ptr<LocationRecognition> locRec,
-                                       std::vector<std::pair<FramePtr, FramePtr> >* corrFF,
-                                       std::vector<Correspondence2D3D>* corr2D3D,
-                                       double reprojErrorThresh)
-{
-    FramePtr& frameQuery = m_graph.frameSetSegment(frameTagQuery.frameSetSegmentId).at(frameTagQuery.frameSetId)->frames().at(frameTagQuery.frameId);
-
-    if (frameQuery.get() == 0)
-    {
-        return;
-    }
-
-    reprojErrorThresh /= k_nominalFocalLength;
-
-    // find closest matching images
-    std::vector<FrameTag> frameTags;
-    locRec->knnMatch(frameQuery, k_nearestImageMatches, frameTags);
-
-    std::vector<Correspondence2D3D> corr2D3DBest;
-    FramePtr frameBest;
-    FrameTag frameTagBest;
-    for (size_t i = 0; i < frameTags.size(); ++i)
-    {
-        FrameTag frameTag = frameTags.at(i);
-
-        if (frameTagQuery.frameSetSegmentId == frameTag.frameSetSegmentId &&
-            std::abs(frameTagQuery.frameSetId - frameTag.frameSetId) < 20)
-        {
-            continue;
-        }
-
-        FramePtr& frame = m_graph.frameSetSegment(frameTag.frameSetSegmentId).at(frameTag.frameSetId)->frames().at(frameTag.frameId);
-
-        // mark 3D-3D correspondences between maps
-        std::vector<cv::DMatch> matches = matchFeatures(frameQuery->features2D(), frame->features2D(), k_maxDistanceRatio);
-
-        if (matches.size() < k_minLoopCorrespondences2D3D)
-        {
-            continue;
-        }
-
-        // find camera pose from EPnP
-        std::vector<Correspondence2D3D> corr2D3D;
-        std::vector<cv::Point2f> imagePoints;
-        std::vector<cv::Point3f> scenePoints;
-        for (size_t j = 0; j < matches.size(); ++j)
-        {
-            cv::DMatch& match = matches.at(j);
-
-            Point2DFeaturePtr& p2D = frameQuery->features2D().at(match.queryIdx);
-            Point3DFeaturePtr& p3D = frame->features2D().at(match.trainIdx)->feature3D();
-
-            if (p3D.get() == 0)
-            {
-                continue;
-            }
-
-            corr2D3D.push_back(boost::make_tuple(frameQuery, frame,
-                                                 p2D, p3D));
-
-            cv::Point2f rectPt;
-            rectifyImagePoint(m_cameras.at(frameQuery->cameraId()), p2D->keypoint().pt, rectPt);
-
-            imagePoints.push_back(rectPt);
-
-            const Eigen::Vector3d& p = p3D->point();
-            scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
-        }
-
-        if (corr2D3D.size() < k_minLoopCorrespondences2D3D)
-        {
-            continue;
-        }
-
-        cv::Mat rvec_cv, tvec_cv;
-        std::vector<int> inliers;
-
-        cv::solvePnPRansac(scenePoints, imagePoints,
-                           cv::Mat::eye(3, 3, CV_32F),
-                           cv::noArray(),
-                           rvec_cv, tvec_cv, false, 200,
-                           reprojErrorThresh, 100, inliers, CV_EPNP);
-
-        int nInliers = inliers.size();
-
-        if (nInliers < k_minLoopCorrespondences2D3D)
-        {
-            continue;
-        }
-
-        if (nInliers > corr2D3DBest.size())
-        {
-            corr2D3DBest.clear();
-            for (size_t j = 0; j < inliers.size(); ++j)
-            {
-                corr2D3DBest.push_back(corr2D3D.at(inliers.at(j)));
-            }
-
-            frameBest = frame;
-            frameTagBest = frameTag;
-        }
-    }
-
-    if (!corr2D3DBest.empty())
-    {
-        corrFF->push_back(std::make_pair(frameQuery, frameBest));
-
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Image match: " << frameTagQuery.frameSetSegmentId
-                      << "," << frameTagQuery.frameSetId
-                      << "," << frameTagQuery.frameId
-                      << " -> " << frameTagBest.frameSetSegmentId
-                      << "," << frameTagBest.frameSetId
-                      << "," << frameTagBest.frameId
-                      << " with " << corr2D3DBest.size()
-                      << " 2D-3D correspondences." << std::endl;
-        }
-
-        corr2D3D->insert(corr2D3D->end(), corr2D3DBest.begin(), corr2D3DBest.end());
-
-#ifdef VCHARGE_VIZ
-        visualize2D3DCorrespondences("loop-2d-3d", corr2D3DBest);
-#endif
     }
 }
 
@@ -2476,62 +2281,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     }
 }
 
-bool
-CameraRigBA::seenByMultipleCameras(const std::vector<Point2DFeatureWPtr>& features2D) const
-{
-    if (features2D.size() <= 1)
-    {
-        return false;
-    }
-
-    int firstCameraId = -1;
-    if (Point2DFeaturePtr feature2D = features2D.front().lock())
-    {
-        if (FramePtr frame = feature2D->frame().lock())
-        {
-            firstCameraId = frame->cameraId();
-        }
-        else
-        {
-            std::cout << "# WARNING: Parent frame is missing." << std::endl;
-            return false;
-        }
-    }
-    else
-    {
-        return false;
-    }
-
-    std::vector<Point2DFeatureWPtr>::const_iterator it = features2D.begin() + 1;
-
-    while (it != features2D.end())
-    {
-        Point2DFeaturePtr feature2D = it->lock();
-
-        if (feature2D.get() == 0)
-        {
-            continue;
-        }
-
-        FramePtr frame = feature2D->frame().lock();
-
-        if (frame.get() == 0)
-        {
-            std::cout << "# WARNING: Parent frame is missing." << std::endl;
-            continue;
-        }
-
-        if (frame->cameraId() != firstCameraId)
-        {
-            return true;
-        }
-
-        ++it;
-    }
-
-    return false;
-}
-
 void
 CameraRigBA::reweightScenePoints(void)
 {
@@ -2577,7 +2326,7 @@ CameraRigBA::reweightScenePoints(void)
     for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
          it != scenePointSet.end(); ++it)
     {
-        if (seenByMultipleCameras((*it)->features2D()))
+        if ((*it)->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
         {
             nPointsMultipleCams += (*it)->features2D().size();
         }
@@ -2615,7 +2364,7 @@ CameraRigBA::reweightScenePoints(void)
                         continue;
                     }
 
-                    if (seenByMultipleCameras(feature3D->features2D()))
+                    if (feature3D->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                     {
                         feature3D->weight() = weightM;
                     }

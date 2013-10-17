@@ -1,7 +1,6 @@
 include_directories(
   ../dbow2/DBoW2
   ../dbow2/DUtils
-  ../dbow2/DUtils
   ../dbow2/DUtilsCV
   ../dbow2/DVision
 )

@@ -35,7 +35,7 @@ public:
                 SparseGraph& graph,
                 CameraRigExtrinsics& extrinsics);
 
-    void run(int beginStage = 1, bool findLoopClosures = true,
+    void run(int beginStage = 1,
              bool optimizeIntrinsics = true,
              bool saveWorkingData = false, std::string dataDir = "data");
 
@@ -74,15 +74,6 @@ private:
     typedef boost::tuple<FramePtr, FramePtr, Point2DFeaturePtr, Point3DFeaturePtr> Correspondence2D3D;
     typedef boost::tuple<FramePtr, FramePtr, Point3DFeaturePtr, Point3DFeaturePtr> Correspondence3D3D;
 
-    void findLoopClosure2D3D(std::vector<std::pair<FramePtr, FramePtr> >& correspondencesFrameFrame,
-                             std::vector<Correspondence2D3D>& correspondences2D3D,
-                             double reprojErrorThresh = 1.0);
-    void findLoopClosure2D3DHelper(FrameTag frameTagQuery,
-                                   boost::shared_ptr<LocationRecognition> locRec,
-                                   std::vector<std::pair<FramePtr, FramePtr> >* corrFF,
-                                   std::vector<Correspondence2D3D>* corr2D3D,
-                                   double reprojErrorThresh = 1.0);
-
     void findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                               double reprojErrorThresh = 2.0);
     void matchFrameToWindow(FramePtr& frame1,
@@ -116,8 +107,6 @@ private:
     void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETRY);
 
     void optimize(int flags, bool optimizeZ = true, int nIterations = 500);
-
-    bool seenByMultipleCameras(const std::vector<Point2DFeatureWPtr>& features2D) const;
 
     void reweightScenePoints(void);
 

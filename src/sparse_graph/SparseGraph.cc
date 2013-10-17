@@ -1,6 +1,7 @@
 #include <camodocal/sparse_graph/SparseGraph.h>
 
 #include <boost/filesystem.hpp>
+#include <boost/unordered_set.hpp>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -241,7 +242,8 @@ Point2DFeature::frame(void) const
 }
 
 Point3DFeature::Point3DFeature(void)
- : m_weight(1.0)
+ : m_attributes(0)
+ , m_weight(1.0)
 {
     m_point.setZero();
     m_pointCovariance.setZero();
@@ -293,6 +295,18 @@ const double* const
 Point3DFeature::pointCovarianceData(void) const
 {
     return m_pointCovariance.data();
+}
+
+int&
+Point3DFeature::attributes(void)
+{
+    return m_attributes;
+}
+
+int
+Point3DFeature::attributes(void) const
+{
+    return m_attributes;
 }
 
 double&
@@ -421,6 +435,45 @@ const std::vector<FrameSetSegment>&
 SparseGraph::frameSetSegments(void) const
 {
     return m_frameSetSegments;
+}
+
+size_t
+SparseGraph::scenePointCount(void) const
+{
+    boost::unordered_set<Point3DFeature*> scenePointSet;
+    for (size_t i = 0; i < m_frameSetSegments.size(); ++i)
+    {
+        const FrameSetSegment& segment = m_frameSetSegments.at(i);
+
+        for (size_t j = 0; j < segment.size(); ++j)
+        {
+            const FrameSetPtr& frameSet = segment.at(j);
+
+            for (size_t k = 0; k < frameSet->frames().size(); ++k)
+            {
+                const FramePtr& frame = frameSet->frames().at(k);
+
+                if (frame.get() == 0)
+                {
+                    continue;
+                }
+
+                const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
+
+                for (size_t l = 0; l < features2D.size(); ++l)
+                {
+                    if (features2D.at(l)->feature3D().get() == 0)
+                    {
+                        continue;
+                    }
+
+                    scenePointSet.insert(features2D.at(l)->feature3D().get());
+                }
+            }
+        }
+    }
+
+    return scenePointSet.size();
 }
 
 bool
@@ -723,6 +776,9 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         }
 
         memcpy(feature3D->pointCovarianceData(), cov, sizeof(double) * 9);
+
+        readData(ifs, feature3D->attributes());
+        readData(ifs, feature3D->weight());
 
         size_t nFeatures2D;
         readData(ifs, nFeatures2D);
@@ -1237,6 +1293,9 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             writeData(ofs, cov[i]);
         }
 
+        writeData(ofs, feature3D->attributes());
+        writeData(ofs, feature3D->weight());
+
         // references
         size_t nValidFeatures2D = 0;
         for (size_t i = 0; i < feature3D->features2D().size(); ++i)
@@ -1272,7 +1331,6 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
 
     writeData(ofs, m_frameSetSegments.size());
 
-    size_t frameCount = 0;
     for (size_t segmentId = 0; segmentId < m_frameSetSegments.size(); ++segmentId)
     {
         const FrameSetSegment& segment = m_frameSetSegments.at(segmentId);

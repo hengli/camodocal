@@ -64,7 +64,7 @@ PoseGraph::buildEdges(void)
         std::cout << "# INFO: Building loop closure edges..." << std::endl;
     }
 
-    m_loopClosureEdges = findLoopClosureEdges();
+    findLoopClosures(m_loopClosureEdges, m_correspondences2D3D);
 
     if (m_verbose)
     {
@@ -100,6 +100,27 @@ PoseGraph::optimize(bool useRobustOptimization)
     }
 }
 
+std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> >
+PoseGraph::getCorrespondences2D3D(void) const
+{
+    // return 2D-3D correspondences from switched-on loop closure edges
+    std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > correspondences2D3D;
+
+    for (size_t i = 0; i < m_correspondences2D3D.size(); ++i)
+    {
+        if (m_loopClosureEdgeSwitches.at(i) != ON)
+        {
+            continue;
+        }
+
+        correspondences2D3D.insert(correspondences2D3D.end(),
+                                   m_correspondences2D3D.at(i).begin(),
+                                   m_correspondences2D3D.at(i).end());
+    }
+
+    return correspondences2D3D;
+}
+
 std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> >
 PoseGraph::findOdometryEdges(void) const
 {
@@ -133,13 +154,13 @@ PoseGraph::findOdometryEdges(void) const
     return edges;
 }
 
-std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> >
-PoseGraph::findLoopClosureEdges(double reprojErrorThresh) const
+void
+PoseGraph::findLoopClosures(std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> >& loopClosureEdges,
+                            std::vector<std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > >& correspondences2D3D,
+                            double reprojErrorThresh) const
 {
     boost::shared_ptr<LocationRecognition> locRec(new LocationRecognition);
     locRec->setup(m_graph);
-
-    std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> > edges;
 
     for (int i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -150,7 +171,8 @@ PoseGraph::findLoopClosureEdges(double reprojErrorThresh) const
             const FrameSetPtr& frameSet = segment.at(j);
 
             boost::shared_ptr<boost::thread> threads[frameSet->frames().size()];
-            std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> > edgeSubsets[frameSet->frames().size()];
+            PoseGraph::Edge edges[frameSet->frames().size()];
+            std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3D[frameSet->frames().size()];
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
@@ -166,8 +188,10 @@ PoseGraph::findLoopClosureEdges(double reprojErrorThresh) const
                 frameTag.frameSetId = j;
                 frameTag.frameId = k;
 
-                threads[k].reset(new boost::thread(boost::bind(&PoseGraph::findLoopClosureEdgesHelper, this,
-                                                               frameTag, locRec, &edgeSubsets[k], reprojErrorThresh)));
+                threads[k].reset(new boost::thread(boost::bind(&PoseGraph::findLoopClosuresHelper, this,
+                                                               frameTag, locRec,
+                                                               &edges[k], &corr2D3D[k],
+                                                               reprojErrorThresh)));
             }
 
             for (int k = 0; k < frameSet->frames().size(); ++k)
@@ -178,19 +202,22 @@ PoseGraph::findLoopClosureEdges(double reprojErrorThresh) const
                 }
                 threads[k]->join();
 
-                edges.insert(edges.end(), edgeSubsets[k].begin(), edgeSubsets[k].end());
+                if (!corr2D3D[k].empty())
+                {
+                    loopClosureEdges.push_back(edges[k]);
+                    correspondences2D3D.push_back(corr2D3D[k]);
+                }
             }
         }
     }
-
-    return edges;
 }
 
 void
-PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
-                                      boost::shared_ptr<LocationRecognition> locRec,
-                                      std::vector<PoseGraph::Edge, Eigen::aligned_allocator<PoseGraph::Edge> >* edges,
-                                      double reprojErrorThresh) const
+PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
+                                  boost::shared_ptr<LocationRecognition> locRec,
+                                  PoseGraph::Edge* edge,
+                                  std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> >* correspondences2D3D,
+                                  double reprojErrorThresh) const
 {
     FramePtr& frameQuery = m_graph.frameSetSegment(frameTagQuery.frameSetSegmentId).at(frameTagQuery.frameSetId)->frames().at(frameTagQuery.frameId);
 
@@ -207,7 +234,7 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
     std::vector<FrameTag> frameTags;
     locRec->knnMatch(frameQuery, k_nImageMatches, frameTags);
 
-    int nInliersBest = 0;
+    std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3DBest;
     Transform transformBest;
     FramePtr frameBest;
     FrameTag frameTagBest;
@@ -232,6 +259,7 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
         }
 
         // find camera pose from EPnP
+        std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3D;
         std::vector<cv::Point2f> imagePoints;
         std::vector<cv::Point3f> scenePoints;
         for (size_t j = 0; j < matches.size(); ++j)
@@ -253,9 +281,11 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
 
             const Eigen::Vector3d& p = p3D->point();
             scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
+
+            corr2D3D.push_back(std::make_pair(p2D, p3D));
         }
 
-        if (imagePoints.size() < k_minLoopCorrespondences2D3D)
+        if (corr2D3D.size() < k_minLoopCorrespondences2D3D)
         {
             continue;
         }
@@ -276,12 +306,12 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
             continue;
         }
 
-        if (nInliers > nInliersBest)
+        if (nInliers > corr2D3DBest.size())
         {
-            nInliersBest = nInliers;
             frameBest = frame;
             frameTagBest = frameTag;
 
+            // compute loop closure constraint
             Eigen::Vector3d rvec, tvec;
             cv::cv2eigen(rvec_cv, rvec);
             cv::cv2eigen(tvec_cv, tvec);
@@ -298,15 +328,26 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
 
             transformBest.rotation() = Eigen::Quaterniond(H_01.block<3,3>(0,0));
             transformBest.translation() = H_01.block<3,1>(0,3);
+
+            // find inlier 2D-3D correspondences
+            corr2D3DBest.clear();
+
+            for (size_t j = 0; j < inliers.size(); ++j)
+            {
+                corr2D3DBest.push_back(corr2D3D.at(inliers.at(j)));
+            }
         }
     }
 
-    if (nInliersBest > 0)
+    if (!corr2D3DBest.empty())
     {
-        edges->push_back(Edge(frameQuery->systemPose(), frameBest->systemPose()));
-        edges->back().type() = EDGE_LOOP_CLOSURE;
-        edges->back().property() = transformBest;
-        edges->back().weight().assign(6, 1.0);
+        edge->inVertex() = frameQuery->systemPose();
+        edge->outVertex() = frameBest->systemPose();
+        edge->type() = EDGE_LOOP_CLOSURE;
+        edge->property() = transformBest;
+        edge->weight().assign(6, 1.0);
+
+        *(correspondences2D3D) = corr2D3DBest;
 
         if (m_verbose)
         {
@@ -316,7 +357,7 @@ PoseGraph::findLoopClosureEdgesHelper(FrameTag frameTagQuery,
                       << " -> " << frameTagBest.frameSetSegmentId
                       << "," << frameTagBest.frameSetId
                       << "," << frameTagBest.frameId
-                      << " with " << nInliersBest
+                      << " with " << correspondences2D3D->size()
                       << " 2D-3D correspondences." << std::endl;
         }
     }

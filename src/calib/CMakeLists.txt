@@ -13,7 +13,6 @@ include_directories(
   ../ceres-solver/include
   ../dbow2/DBoW2
   ../dbow2/DUtils
-  ../dbow2/DUtils
   ../dbow2/DUtilsCV
   ../dbow2/DVision
 )
@@ -49,12 +48,7 @@ camodocal_link_libraries(camodocal_calib
   ${OPENCV_CALIB3D_LIBRARY}
   camodocal_camera_models
   camodocal_camera_systems
-  camodocal_DBoW2
-  camodocal_DUtilsCV
-  camodocal_DUtils
-  camodocal_DVision
   camodocal_gpl
-  camodocal_location_recognition
   camodocal_pose_graph
   camodocal_sparse_graph
   camodocal_visual_odometry
