@@ -5,8 +5,7 @@
 #include <boost/tuple/tuple.hpp>
 #include <Eigen/Dense>
 
-#include "camodocal/calib/CameraCalibration.h"
-#include "camodocal/camera_systems/CameraRigExtrinsics.h"
+#include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
 namespace camodocal
@@ -31,9 +30,8 @@ public:
         PRUNE_HIGH_REPROJ_ERR = 0x4
     };
 
-    CameraRigBA(const std::vector<CameraPtr>& cameras,
-                SparseGraph& graph,
-                CameraRigExtrinsics& extrinsics);
+    CameraRigBA(CameraSystem& cameraSystem,
+                SparseGraph& graph);
 
     void run(int beginStage = 1,
              bool optimizeIntrinsics = true,
@@ -145,8 +143,7 @@ private:
         std::vector<size_t> pointIndices;
     } ZPlaneModel;
 
-    std::vector<CameraPtr> m_cameras;
-    CameraRigExtrinsics& m_extrinsics;
+    CameraSystem& m_cameraSystem;
     SparseGraph m_graph;
 
     const size_t k_localMapWindowDistance;

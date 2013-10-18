@@ -1,24 +1,36 @@
-#ifndef CAMERARIGEXTRINSICS_H
-#define CAMERARIGEXTRINSICS_H
+#ifndef CAMERASYSTEM_H
+#define CAMERASYSTEM_H
 
+#include <camodocal/camera_models/Camera.h>
 #include <Eigen/Eigen>
 #include <vector>
 
 namespace camodocal
 {
 
-class CameraRigExtrinsics
+class CameraSystem
 {
 public:
     // cameras are assumed to be indexed in an anti-clockwise direction
-    CameraRigExtrinsics(int cameraCount);
+    CameraSystem();
+    CameraSystem(int cameraCount);
 
     int cameraCount(void) const;
 
     void reset(void);
 
-    bool readFromFile(const std::string& filename);
-    bool writeToFile(const std::string& filename) const;
+    bool readPosesFromTextFile(const std::string& filename);
+    bool writePosesToTextFile(const std::string& filename) const;
+
+    bool readFromDirectory(const std::string& directory);
+    bool writeToDirectory(const std::string& directory) const;
+
+    bool readFromXmlFile(const std::string& filename);
+    bool writeToXmlFile(const std::string& filename) const;
+
+    CameraPtr getCamera(int idx) const;
+
+    void setCamera(int idx, CameraPtr& camera);
 
     bool setReferenceCamera(int idx);
 
@@ -39,13 +51,14 @@ public:
     Eigen::Matrix4d relativeTransformBetweenCameraPair(int pairIdx) const;
     double translationScaleBetweenCameraPair(int pairIdx) const;
 
-    CameraRigExtrinsics& operator=(const CameraRigExtrinsics& other);
+    CameraSystem& operator=(const CameraSystem& other);
 
 private:
     int m_cameraCount;
     int m_referenceCameraIdx;
 
-    std::vector< Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_globalPoses;
+    std::vector<CameraPtr> m_cameras;
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_globalPoses;
 };
 
 }

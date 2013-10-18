@@ -4,7 +4,7 @@
 #include <glibmm.h>
 
 #include "camodocal/camera_models/Camera.h"
-#include "camodocal/camera_systems/CameraRigExtrinsics.h"
+#include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
 namespace camodocal
@@ -13,8 +13,7 @@ namespace camodocal
 class CamRigThread
 {
 public:
-    explicit CamRigThread(const std::vector<CameraPtr>& cameras,
-                          CameraRigExtrinsics& cameraRigExt,
+    explicit CamRigThread(CameraSystem& cameraSystem,
                           SparseGraph& graph,
                           int beginStage = 1,
                           bool optimizeIntrinsics = true,
@@ -35,8 +34,7 @@ private:
     bool mRunning;
     sigc::signal<void> mSignalFinished;
 
-    const std::vector<CameraPtr>& mCameras;
-    CameraRigExtrinsics& mCameraRigExt;
+    CameraSystem& mCameraSystem;
     SparseGraph& mGraph;
 
     int mBeginStage;

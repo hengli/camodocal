@@ -39,8 +39,8 @@ public:
 
         int nIntrinsics(void) const;
 
-        virtual bool read(const std::string& filename) = 0;
-        virtual void write(const std::string& filename) const = 0;
+        virtual bool readFromYamlFile(const std::string& filename) = 0;
+        virtual void writeToYamlFile(const std::string& filename) const = 0;
 
     protected:
         ModelType m_modelType;
@@ -92,7 +92,7 @@ public:
     virtual void readParameters(const std::vector<double>& parameters) = 0;
     virtual void writeParameters(std::vector<double>& parameters) const = 0;
 
-    virtual void writeParameters(const std::string& filename) const = 0;
+    virtual void writeParametersToYamlFile(const std::string& filename) const = 0;
 
     virtual std::string parametersToString(void) const = 0;
 

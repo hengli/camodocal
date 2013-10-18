@@ -29,7 +29,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
  , m_cameras(cameras)
  , m_odometryBuffer(1000)
  , m_gpsInsBuffer(1000)
- , m_extrinsics(cameras.size())
+ , m_cameraSystem(cameras.size())
  , m_statuses(cameras.size())
  , m_sketches(cameras.size())
  , m_camOdoCompleted(boost::extents[cameras.size()])
@@ -53,7 +53,7 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
 
     m_camOdoWatchdogThread = new CamOdoWatchdogThread(m_camOdoCompleted, m_stop);
 
-    m_camRigThread = new CamRigThread(m_cameras, m_extrinsics, m_graph, options.beginStage, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
+    m_camRigThread = new CamRigThread(m_cameraSystem, m_graph, options.beginStage, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
     m_camRigThread->signalFinished().connect(sigc::bind(sigc::mem_fun(*this, &CamRigOdoCalibration::onCamRigThreadFinished), m_camRigThread));
 
     for (size_t i = 0; i < m_sketches.size(); ++i)
@@ -182,11 +182,10 @@ CamRigOdoCalibration::start(void)
 
             boost::filesystem::path extrinsicPath(m_options.dataDir);
             extrinsicPath /= "tmp_extrinsic_0.txt";
+            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
 
             boost::filesystem::path graphPath(m_options.dataDir);
             graphPath /= "frames_0.sg";
-
-            m_extrinsics.writeToFile(extrinsicPath.string());
             m_graph.writeToBinaryFile(graphPath.string());
 
             std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
@@ -210,7 +209,7 @@ CamRigOdoCalibration::start(void)
 
         double tsStart = timeInSeconds();
 
-        if (!m_extrinsics.readFromFile(extrinsicPath.string()))
+        if (!m_cameraSystem.readPosesFromTextFile(extrinsicPath.string()))
         {
             std::cout << "# ERROR: Working data in file " << extrinsicPath.string() << " is missing." << std::endl;
             exit(1);
@@ -223,6 +222,11 @@ CamRigOdoCalibration::start(void)
         }
 
         std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
+    }
+
+    for (size_t i = 0; i < m_cameras.size(); ++i)
+    {
+        m_cameraSystem.setCamera(i, m_cameras.at(i));
     }
 
     std::cout << "# INFO: Running camera rig calibration." << std::endl;
@@ -252,10 +256,10 @@ CamRigOdoCalibration::isRunning(void) const
     return m_running;
 }
 
-const CameraRigExtrinsics&
-CamRigOdoCalibration::extrinsics(void) const
+const CameraSystem&
+CamRigOdoCalibration::cameraSystem(void) const
 {
-    return m_extrinsics;
+    return m_cameraSystem;
 }
 
 void
@@ -310,8 +314,8 @@ CamRigOdoCalibration::buildGraph(void)
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
-        m_extrinsics.setGlobalCameraPose(camOdoThread->cameraId(),
-                                         camOdoThread->camOdoTransform());
+        m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
+                                           camOdoThread->camOdoTransform());
 
         cameraIdSets[i].insert(camOdoThread->cameraId());
 

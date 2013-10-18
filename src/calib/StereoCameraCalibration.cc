@@ -382,8 +382,8 @@ StereoCameraCalibration::writeParams(const std::string& directory) const
         boost::filesystem::create_directory(directory);
     }
 
-    cameraLeft()->writeParameters(directory + "/camera_left.yaml");
-    cameraRight()->writeParameters(directory + "/camera_right.yaml");
+    cameraLeft()->writeParametersToYamlFile(directory + "/camera_left.yaml");
+    cameraRight()->writeParametersToYamlFile(directory + "/camera_right.yaml");
 
     cv::FileStorage fs(directory + "/extrinsics.yaml", cv::FileStorage::WRITE);
 

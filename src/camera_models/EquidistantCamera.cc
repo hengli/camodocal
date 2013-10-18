@@ -143,7 +143,7 @@ EquidistantCamera::Parameters::v0(void) const
 }
 
 bool
-EquidistantCamera::Parameters::read(const std::string& filename)
+EquidistantCamera::Parameters::readFromYamlFile(const std::string& filename)
 {
     cv::FileStorage fs(filename, cv::FileStorage::READ);
 
@@ -182,7 +182,7 @@ EquidistantCamera::Parameters::read(const std::string& filename)
 }
 
 void
-EquidistantCamera::Parameters::write(const std::string& filename) const
+EquidistantCamera::Parameters::writeToYamlFile(const std::string& filename) const
 {
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
 
@@ -618,9 +618,9 @@ EquidistantCamera::writeParameters(std::vector<double>& parameterVec) const
 }
 
 void
-EquidistantCamera::writeParameters(const std::string& filename) const
+EquidistantCamera::writeParametersToYamlFile(const std::string& filename) const
 {
-    mParameters.write(filename);
+    mParameters.writeToYamlFile(filename);
 }
 
 std::string

@@ -48,8 +48,8 @@ public:
         double u0(void) const;
         double v0(void) const;
 
-        bool read(const std::string& filename);
-        void write(const std::string& filename) const;
+        bool readFromYamlFile(const std::string& filename);
+        void writeToYamlFile(const std::string& filename) const;
 
         Parameters& operator=(const Parameters& other);
         friend std::ostream& operator<< (std::ostream& out, const Parameters& params);
@@ -133,7 +133,7 @@ public:
     void readParameters(const std::vector<double>& parameterVec);
     void writeParameters(std::vector<double>& parameterVec) const;
 
-    void writeParameters(const std::string& filename) const;
+    void writeParametersToYamlFile(const std::string& filename) const;
 
     std::string parametersToString(void) const;
 

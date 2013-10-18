@@ -219,7 +219,7 @@ CameraCalibration::drawResults(const cv::Size& boardSize, float squareSize,
 void
 CameraCalibration::writeParams(const std::string& filename) const
 {
-    mCamera->writeParameters(filename);
+    mCamera->writeParametersToYamlFile(filename);
 }
 
 void

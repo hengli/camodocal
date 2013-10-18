@@ -7,8 +7,7 @@
 #include "camodocal/calib/AtomicData.h"
 #include "camodocal/calib/PoseSource.h"
 #include "camodocal/calib/SensorDataBuffer.h"
-#include "camodocal/camera_models/Camera.h"
-#include "camodocal/camera_systems/CameraRigExtrinsics.h"
+#include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
 namespace camodocal
@@ -71,7 +70,7 @@ public:
 
     bool isRunning(void) const;
 
-    const CameraRigExtrinsics& extrinsics(void) const;
+    const CameraSystem& cameraSystem(void) const;
 
 private:
     void launchCamOdoThreads(void);
@@ -89,7 +88,7 @@ private:
     CamOdoWatchdogThread* m_camOdoWatchdogThread;
     CamRigThread* m_camRigThread;
 
-    CameraRigExtrinsics m_extrinsics;
+    CameraSystem m_cameraSystem;
     SparseGraph m_graph;
 
     std::vector<AtomicData<cv::Mat>* > m_images;

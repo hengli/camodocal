@@ -5,8 +5,7 @@
 namespace camodocal
 {
 
-CamRigThread::CamRigThread(const std::vector<CameraPtr>& cameras,
-                           CameraRigExtrinsics& cameraRigExt,
+CamRigThread::CamRigThread(CameraSystem& cameraSystem,
                            SparseGraph& graph,
                            int beginStage,
                            bool optimizeIntrinsics,
@@ -15,8 +14,7 @@ CamRigThread::CamRigThread(const std::vector<CameraPtr>& cameras,
                            bool verbose)
  : mThread(0)
  , mRunning(false)
- , mCameras(cameras)
- , mCameraRigExt(cameraRigExt)
+ , mCameraSystem(cameraSystem)
  , mGraph(graph)
  , mBeginStage(beginStage)
  , mOptimizeIntrinsics(optimizeIntrinsics)
@@ -65,7 +63,7 @@ CamRigThread::threadFunction(void)
 {
     mRunning = true;
 
-    CameraRigBA ba(mCameras, mGraph, mCameraRigExt);
+    CameraRigBA ba(mCameraSystem, mGraph);
     ba.setVerbose(mVerbose);
     ba.run(mBeginStage, mOptimizeIntrinsics, mSaveWorkingData, mDataDir);
 

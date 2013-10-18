@@ -31,7 +31,7 @@ InfrastructureCalibration::InfrastructureCalibration(std::vector<CameraPtr>& cam
 #ifdef VCHARGE_VIZ
  , m_overlay("cameras", VCharge::COORDINATE_FRAME_GLOBAL)
 #endif
- , m_extrinsics(cameras.size())
+ , m_cameraSystem(cameras.size())
  , k_maxDistanceRatio(0.7f)
  , k_minCorrespondences2D2D(20)
  , k_minCorrespondences2D3D(25)
@@ -52,7 +52,7 @@ InfrastructureCalibration::loadMap(const std::string& mapDirectory)
     }
 
     boost::filesystem::path graphPath(mapDirectory);
-    graphPath /= "frames_3.sg";
+    graphPath /= "frames_4.sg";
 
     if (!m_refGraph.readFromBinaryFile(graphPath.string()))
     {
@@ -249,7 +249,7 @@ InfrastructureCalibration::reset(void)
     m_y_last = 0.0;
     m_distance = 0.0;
 
-    m_extrinsics.reset();
+    m_cameraSystem = CameraSystem(m_cameras.size());
 
 #ifdef VCHARGE_VIZ
     m_overlay.clear();
@@ -323,7 +323,7 @@ InfrastructureCalibration::run(void)
                 size_t featureCount;
 
                 frameReprojectionError(frame,
-                                       m_cameras.at(frame->cameraId()),
+                                       m_cameraSystem.getCamera(frame->cameraId()),
                                        minError, maxError, avgError,
                                        featureCount);
 
@@ -348,8 +348,13 @@ InfrastructureCalibration::run(void)
                   << std::endl;
     }
 
+    for (size_t i = 0; i < m_cameras.size(); ++i)
+    {
+        m_cameraSystem.setCamera(i, m_cameras.at(i));
+    }
+
     // without loss of generality, mark camera 0 as the reference frame
-    m_extrinsics.setGlobalCameraPose(0, Eigen::Matrix4d::Identity());
+    m_cameraSystem.setGlobalCameraPose(0, Eigen::Matrix4d::Identity());
 
     // find initial estimates for camera extrinsics
 
@@ -389,7 +394,7 @@ InfrastructureCalibration::run(void)
             T_cam_ref.at(j).rotation() = Eigen::Quaterniond(H_cam_ref.block<3,3>(0,0));
             T_cam_ref.at(j).translation() = H_cam_ref.block<3,1>(0,3);
 
-            m_extrinsics.setGlobalCameraPose(j, H_cam_ref);
+            m_cameraSystem.setGlobalCameraPose(j, H_cam_ref);
         }
 
         for (size_t j = 0; j < m_framesets.size(); ++j)
@@ -449,7 +454,7 @@ InfrastructureCalibration::run(void)
 
     for (size_t i = 1; i < m_cameras.size(); ++i)
     {
-        m_extrinsics.setGlobalCameraPose(i, best_T_cam_ref.at(i).toMatrix());
+        m_cameraSystem.setGlobalCameraPose(i, best_T_cam_ref.at(i).toMatrix());
     }
 
     // extrinsics
@@ -802,10 +807,10 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     }
 }
 
-const CameraRigExtrinsics&
-InfrastructureCalibration::extrinsics(void) const
+const CameraSystem&
+InfrastructureCalibration::cameraSystem(void) const
 {
-    return m_extrinsics;
+    return m_cameraSystem;
 }
 
 void
@@ -815,7 +820,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_ref(m_cameras.size());
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        T_cam_ref.at(i) = Pose(m_extrinsics.getGlobalCameraPose(i));
+        T_cam_ref.at(i) = Pose(m_cameraSystem.getGlobalCameraPose(i));
     }
 
     if (m_verbose)
@@ -859,7 +864,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                 if (optimizeScenePoints)
                 {
                     ceres::CostFunction* costFunction
-                        = CostFunctionFactory::instance()->generateCostFunction(m_cameras.at(frame->cameraId()),
+                        = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(frame->cameraId()),
                                                                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                 CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D);
 
@@ -873,7 +878,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                 else
                 {
                     ceres::CostFunction* costFunction
-                        = CostFunctionFactory::instance()->generateCostFunction(m_cameras.at(frame->cameraId()),
+                        = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(frame->cameraId()),
                                                                                 feature2D->feature3D()->point(),
                                                                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                 CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS);
@@ -912,7 +917,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
 
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        m_extrinsics.setGlobalCameraPose(i, T_cam_ref.at(i).toMatrix());
+        m_cameraSystem.setGlobalCameraPose(i, T_cam_ref.at(i).toMatrix());
     }
 
     if (m_verbose)
@@ -1208,7 +1213,7 @@ InfrastructureCalibration::reprojectionError(double& minError, double& maxError,
         {
             const FramePtr& frame = frameset.frames.at(j);
 
-            Pose T_cam_ref(m_extrinsics.getGlobalCameraPose(frame->cameraId()));
+            Pose T_cam_ref(m_cameraSystem.getGlobalCameraPose(frame->cameraId()));
 
             double frameMinError;
             double frameMaxError;
@@ -1216,7 +1221,7 @@ InfrastructureCalibration::reprojectionError(double& minError, double& maxError,
             size_t frameFeatureCount;
 
             frameReprojectionError(frame,
-                                   m_cameras.at(frame->cameraId()),
+                                   m_cameraSystem.getCamera(frame->cameraId()),
                                    T_cam_ref,
                                    frameMinError, frameMaxError, frameAvgError, frameFeatureCount);
 
@@ -1597,7 +1602,7 @@ InfrastructureCalibration::visualizeExtrinsics(void) const
 
     for (int i = 0; i < m_cameras.size(); ++i)
     {
-        Eigen::Matrix4d H_cam = m_extrinsics.getGlobalCameraPose(i);
+        Eigen::Matrix4d H_cam = m_cameraSystem.getGlobalCameraPose(i);
 
         double xBound = 0.1;
         double yBound = 0.1;

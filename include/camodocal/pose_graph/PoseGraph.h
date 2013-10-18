@@ -1,8 +1,7 @@
 #ifndef POSEGRAPH_H
 #define POSEGRAPH_H
 
-#include <camodocal/camera_models/Camera.h>
-#include <camodocal/camera_systems/CameraRigExtrinsics.h>
+#include <camodocal/camera_systems/CameraSystem.h>
 #include <camodocal/pose_graph/DirectedEdge.h>
 #include <camodocal/sparse_graph/SparseGraph.h>
 #include <vector>
@@ -16,8 +15,7 @@ class LocationRecognition;
 class PoseGraph
 {
 public:
-    PoseGraph(std::vector<CameraPtr>& cameras,
-              CameraRigExtrinsics& extrinsics,
+    PoseGraph(CameraSystem& cameraSystem,
               SparseGraph& graph,
               float maxDistanceRatio,
               int minLoopCorrespondences2D3D,
@@ -60,8 +58,7 @@ private:
     void visualizeLoopClosureEdges(void);
 #endif
 
-    std::vector<CameraPtr> m_cameras;
-    CameraRigExtrinsics m_extrinsics;
+    CameraSystem m_cameraSystem;
     SparseGraph& m_graph;
     std::vector<Edge, Eigen::aligned_allocator<Edge> > m_odometryEdges;
     std::vector<Edge, Eigen::aligned_allocator<Edge> > m_loopClosureEdges;

@@ -142,7 +142,7 @@ PinholeCamera::Parameters::cy(void) const
 }
 
 bool
-PinholeCamera::Parameters::read(const std::string& filename)
+PinholeCamera::Parameters::readFromYamlFile(const std::string& filename)
 {
     cv::FileStorage fs(filename, cv::FileStorage::READ);
 
@@ -183,7 +183,7 @@ PinholeCamera::Parameters::read(const std::string& filename)
 }
 
 void
-PinholeCamera::Parameters::write(const std::string& filename) const
+PinholeCamera::Parameters::writeToYamlFile(const std::string& filename) const
 {
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
 
@@ -814,9 +814,9 @@ PinholeCamera::writeParameters(std::vector<double>& parameterVec) const
 }
 
 void
-PinholeCamera::writeParameters(const std::string& filename) const
+PinholeCamera::writeParametersToYamlFile(const std::string& filename) const
 {
-    mParameters.write(filename);
+    mParameters.writeToYamlFile(filename);
 }
 
 std::string

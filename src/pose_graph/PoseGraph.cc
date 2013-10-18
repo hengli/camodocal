@@ -18,15 +18,13 @@
 namespace camodocal
 {
 
-PoseGraph::PoseGraph(std::vector<CameraPtr>& cameras,
-                     CameraRigExtrinsics& extrinsics,
+PoseGraph::PoseGraph(CameraSystem& cameraSystem,
                      SparseGraph& graph,
                      float maxDistanceRatio,
                      int minLoopCorrespondences2D3D,
                      int nImageMatches,
                      double nominalFocalLength)
- : m_cameras(cameras)
- , m_extrinsics(extrinsics)
+ : m_cameraSystem(cameraSystem)
  , m_graph(graph)
  , k_lossWidth(0.01)
  , k_maxDistanceRatio(maxDistanceRatio)
@@ -228,7 +226,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
 
     reprojErrorThresh /= k_nominalFocalLength;
 
-    Pose T_cam_odo(m_extrinsics.getGlobalCameraPose(frameQuery->cameraId()));
+    Pose T_cam_odo(m_cameraSystem.getGlobalCameraPose(frameQuery->cameraId()));
 
     // find closest matching images
     std::vector<FrameTag> frameTags;
@@ -275,7 +273,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
             }
 
             cv::Point2f rectPt;
-            rectifyImagePoint(m_cameras.at(frameQuery->cameraId()), p2D->keypoint().pt, rectPt);
+            rectifyImagePoint(m_cameraSystem.getCamera(frameQuery->cameraId()), p2D->keypoint().pt, rectPt);
 
             imagePoints.push_back(rectPt);
 

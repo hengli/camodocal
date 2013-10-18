@@ -158,7 +158,7 @@ CataCamera::Parameters::v0(void) const
 }
 
 bool
-CataCamera::Parameters::read(const std::string& filename)
+CataCamera::Parameters::readFromYamlFile(const std::string& filename)
 {
     cv::FileStorage fs(filename, cv::FileStorage::READ);
 
@@ -202,7 +202,7 @@ CataCamera::Parameters::read(const std::string& filename)
 }
 
 void
-CataCamera::Parameters::write(const std::string& filename) const
+CataCamera::Parameters::writeToYamlFile(const std::string& filename) const
 {
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
 
@@ -949,9 +949,9 @@ CataCamera::writeParameters(std::vector<double>& parameterVec) const
 }
 
 void
-CataCamera::writeParameters(const std::string& filename) const
+CataCamera::writeParametersToYamlFile(const std::string& filename) const
 {
-    mParameters.write(filename);
+    mParameters.writeToYamlFile(filename);
 }
 
 std::string

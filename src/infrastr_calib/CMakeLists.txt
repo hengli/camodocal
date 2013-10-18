@@ -20,7 +20,6 @@ camodocal_link_libraries(camodocal_infrastr_calib
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY}
   ${OPENCV_CALIB3D_LIBRARY}
-  camodocal_camera_models
   camodocal_camera_systems
   camodocal_features2d
   camodocal_gpl

@@ -3,8 +3,7 @@
 
 #include <boost/thread.hpp>
 
-#include "camodocal/camera_models/Camera.h"
-#include "camodocal/camera_systems/CameraRigExtrinsics.h"
+#include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
 #ifdef VCHARGE_VIZ
@@ -35,7 +34,7 @@ public:
     void loadFrameSets(const std::string& filename);
     void saveFrameSets(const std::string& filename) const;
 
-    const CameraRigExtrinsics& extrinsics(void) const;
+    const CameraSystem& cameraSystem(void) const;
 
 private:
     void estimateCameraPose(const cv::Mat& image, uint64_t timestamp,
@@ -115,7 +114,7 @@ private:
 #endif
 
     // output
-    CameraRigExtrinsics m_extrinsics;
+    CameraSystem m_cameraSystem;
 
     // parameters
     const float k_maxDistanceRatio;

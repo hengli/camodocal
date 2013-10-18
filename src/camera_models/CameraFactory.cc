@@ -73,9 +73,9 @@ CameraFactory::generateCamera(Camera::ModelType modelType,
 }
 
 CameraPtr
-CameraFactory::generateCamera(const std::string& calibFilename)
+CameraFactory::generateCameraFromYamlFile(const std::string& filename)
 {
-    cv::FileStorage fs(calibFilename, cv::FileStorage::READ);
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
 
     if (!fs.isOpened())
     {
@@ -114,7 +114,7 @@ CameraFactory::generateCamera(const std::string& calibFilename)
         EquidistantCameraPtr camera(new EquidistantCamera);
 
         EquidistantCamera::Parameters params = camera->getParameters();
-        params.read(calibFilename);
+        params.readFromYamlFile(filename);
         camera->setParameters(params);
         return camera;
     }
@@ -123,7 +123,7 @@ CameraFactory::generateCamera(const std::string& calibFilename)
         PinholeCameraPtr camera(new PinholeCamera);
 
         PinholeCamera::Parameters params = camera->getParameters();
-        params.read(calibFilename);
+        params.readFromYamlFile(filename);
         camera->setParameters(params);
         return camera;
     }
@@ -133,7 +133,7 @@ CameraFactory::generateCamera(const std::string& calibFilename)
         CataCameraPtr camera(new CataCamera);
 
         CataCamera::Parameters params = camera->getParameters();
-        params.read(calibFilename);
+        params.readFromYamlFile(filename);
         camera->setParameters(params);
         return camera;
     }
