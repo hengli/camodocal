@@ -467,6 +467,31 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     {
         reweightScenePoints();
 
+        // read chessboard data used for intrinsic calibration
+        bool isChessboardDataComplete = true;
+
+        std::vector<boost::shared_ptr<CameraCalibration> > cameraCalibrations(m_cameraSystem.cameraCount());
+        for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
+        {
+            cameraCalibrations.at(i).reset(new CameraCalibration);
+
+            boost::filesystem::path chessboardDataPath(dataDir);
+            std::ostringstream oss;
+            oss << m_cameraSystem.getCamera(i)->cameraName() << "_chessboard_data.dat";
+            chessboardDataPath /= oss.str();
+
+            if (!cameraCalibrations.at(i)->readChessboardData(chessboardDataPath.string()))
+            {
+                isChessboardDataComplete = false;
+                break;
+            }
+        }
+
+        if (isChessboardDataComplete)
+        {
+            m_cameraCalibrations = cameraCalibrations;
+        }
+
         std::cout << "# INFO: Running BA on odometry data... " << std::endl;
 
         // perform BA to optimize intrinsics, extrinsics and scene points
@@ -1920,6 +1945,8 @@ CameraRigBA::prune(int flags, int poseType)
 void
 CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
+    size_t nPoints = 0;
+    size_t nPointsMultipleCams = 0;
     boost::unordered_set<Point3DFeature*> scenePointSet;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -1942,14 +1969,69 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
-                    if (features2D.at(l)->feature3D().get() == 0)
+                    if (features2D.at(l)->feature3D().get() != 0)
                     {
-                        continue;
-                    }
+                        if (features2D.at(l)->feature3D()->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
+                        {
+                            ++nPointsMultipleCams;
+                        }
 
-                    scenePointSet.insert(features2D.at(l)->feature3D().get());
+                        ++nPoints;
+
+                        scenePointSet.insert(features2D.at(l)->feature3D().get());
+                    }
                 }
             }
+        }
+    }
+
+    bool includeChessboardData = (flags & CAMERA_INTRINSICS) && !m_cameraCalibrations.empty();
+    size_t nResidualsChessboard = 0;
+    double wResidualChessboard = 0.0;
+    if (includeChessboardData)
+    {
+        for (size_t i = 0; i < m_cameraCalibrations.size(); ++i)
+        {
+            nResidualsChessboard += m_cameraCalibrations.at(i)->imagePoints().size() *
+                                    m_cameraCalibrations.at(i)->imagePoints().front().size();
+
+            if (m_verbose)
+            {
+                std::vector<cv::Mat> rvecs(m_cameraCalibrations.at(i)->scenePoints().size());
+                std::vector<cv::Mat> tvecs(m_cameraCalibrations.at(i)->scenePoints().size());
+
+                for (int j = 0; j < m_cameraCalibrations.at(i)->cameraPoses().rows; ++j)
+                {
+                    cv::Mat rvec(3, 1, CV_64F);
+                    rvec.at<double>(0) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,0);
+                    rvec.at<double>(1) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,1);
+                    rvec.at<double>(2) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,2);
+
+                    cv::Mat tvec(3, 1, CV_64F);
+                    tvec.at<double>(0) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,3);
+                    tvec.at<double>(1) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,4);
+                    tvec.at<double>(2) =  m_cameraCalibrations.at(i)->cameraPoses().at<double>(j,5);
+
+                    rvecs.at(j) = rvec;
+                    tvecs.at(j) = tvec;
+                }
+
+                double err = m_cameraSystem.getCamera(i)->reprojectionError(m_cameraCalibrations.at(i)->scenePoints(),
+                                                                            m_cameraCalibrations.at(i)->imagePoints(),
+                                                                            rvecs, tvecs);
+                std::cout << "# INFO: "
+                          << "[" << m_cameraSystem.getCamera(i)->cameraName()
+                          << "] Initial reprojection error (chessboard): "
+                          << err << " pixels" << std::endl;
+            }
+        }
+
+        wResidualChessboard = static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsChessboard);
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Added " << nResidualsChessboard << " residuals from chessboard data." << std::endl;
+            std::cout << "# INFO: Assigned weight of " << wResidualChessboard << " to each residual." << std::endl;
         }
     }
 
@@ -2134,6 +2216,60 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
+    std::vector<std::vector<double> > chessboardCameraPoses[m_cameraSystem.cameraCount()];
+
+    if (includeChessboardData)
+    {
+        for (size_t i = 0; i < m_cameraCalibrations.size(); ++i)
+        {
+            cv::Mat& cameraPoses = m_cameraCalibrations.at(i)->cameraPoses();
+            chessboardCameraPoses[i].resize(cameraPoses.rows);
+
+            std::vector<std::vector<cv::Point2f> >& imagePoints = m_cameraCalibrations.at(i)->imagePoints();
+            std::vector<std::vector<cv::Point3f> >& scenePoints = m_cameraCalibrations.at(i)->scenePoints();
+
+            // create residuals for each observation
+            for (size_t j = 0; j < imagePoints.size(); ++j)
+            {
+                chessboardCameraPoses[i].at(j).resize(7);
+
+                Eigen::Vector3d rvec(cameraPoses.at<double>(j,0),
+                                     cameraPoses.at<double>(j,1),
+                                     cameraPoses.at<double>(j,2));
+
+                AngleAxisToQuaternion(rvec, chessboardCameraPoses[i].at(j).data());
+
+                chessboardCameraPoses[i].at(j).at(4) = cameraPoses.at<double>(j,3);
+                chessboardCameraPoses[i].at(j).at(5) = cameraPoses.at<double>(j,4);
+                chessboardCameraPoses[i].at(j).at(6) = cameraPoses.at<double>(j,5);
+
+                for (size_t k = 0; k < imagePoints.at(j).size(); ++k)
+                {
+                    const cv::Point3f& spt = scenePoints.at(j).at(k);
+                    const cv::Point2f& ipt = imagePoints.at(j).at(k);
+
+                    ceres::CostFunction* costFunction =
+                        CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(i),
+                                                                              Eigen::Vector3d(spt.x, spt.y, spt.z),
+                                                                              Eigen::Vector2d(ipt.x, ipt.y),
+                                                                              CAMERA_INTRINSICS | CAMERA_EXTRINSICS);
+
+                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), wResidualChessboard, ceres::TAKE_OWNERSHIP);
+                    problem.AddResidualBlock(costFunction, lossFunction,
+                                             intrinsicParams[i].data(),
+                                             chessboardCameraPoses[i].at(j).data(),
+                                             chessboardCameraPoses[i].at(j).data() + 4);
+                }
+
+                ceres::LocalParameterization* quaternionParameterization =
+                    new EigenQuaternionParameterization;
+
+                problem.SetParameterization(chessboardCameraPoses[i].at(j).data(),
+                                            quaternionParameterization);
+            }
+        }
+    }
+
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
@@ -2261,6 +2397,36 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             m_cameraSystem.getCamera(i)->readParameters(intrinsicParams[i]);
         }
     }
+
+    if (includeChessboardData && m_verbose)
+    {
+        for (size_t i = 0; i < m_cameraCalibrations.size(); ++i)
+        {
+            std::vector<cv::Mat> rvecs(m_cameraCalibrations.at(i)->scenePoints().size());
+            std::vector<cv::Mat> tvecs(m_cameraCalibrations.at(i)->scenePoints().size());
+
+            for (size_t j = 0; j < chessboardCameraPoses[i].size(); ++j)
+            {
+                Eigen::Vector3d rvec;
+                QuaternionToAngleAxis(chessboardCameraPoses[i].at(j).data(), rvec);
+                cv::eigen2cv(rvec, rvecs.at(j));
+
+                tvecs.at(j) = cv::Mat(3, 1, CV_64F);
+                cv::Mat& tvec = tvecs.at(j);
+                tvec.at<double>(0) = chessboardCameraPoses[i].at(j).at(4);
+                tvec.at<double>(1) = chessboardCameraPoses[i].at(j).at(5);
+                tvec.at<double>(2) = chessboardCameraPoses[i].at(j).at(6);
+            }
+
+            double err = m_cameraSystem.getCamera(i)->reprojectionError(m_cameraCalibrations.at(i)->scenePoints(),
+                                                                        m_cameraCalibrations.at(i)->imagePoints(),
+                                                                        rvecs, tvecs);
+            std::cout << "# INFO: "
+                      << "[" << m_cameraSystem.getCamera(i)->cameraName()
+                      << "] Final reprojection error (chessboard): "
+                      << err << " pixels" << std::endl;
+        }
+    }
 }
 
 void
@@ -2270,6 +2436,8 @@ CameraRigBA::reweightScenePoints(void)
     // Note that the observation condition only applies to scene points
     // *locally* observed by multiple cameras.
 
+    size_t nPoints = 0;
+    size_t nPointsMultipleCams = 0;
     boost::unordered_set<Point3DFeature*> scenePointSet;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -2292,31 +2460,23 @@ CameraRigBA::reweightScenePoints(void)
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
-                    if (features2D.at(l)->feature3D().get() == 0)
+                    if (features2D.at(l)->feature3D().get() != 0)
                     {
-                        continue;
-                    }
+                        if (features2D.at(l)->feature3D()->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
+                        {
+                            ++nPointsMultipleCams;
+                        }
 
-                    scenePointSet.insert(features2D.at(l)->feature3D().get());
+                        ++nPoints;
+
+                        scenePointSet.insert(features2D.at(l)->feature3D().get());
+                    }
                 }
             }
         }
     }
 
-    size_t nPoints = 0;
-    size_t nPointsMultipleCams = 0;
-    for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
-         it != scenePointSet.end(); ++it)
-    {
-        if ((*it)->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
-        {
-            nPointsMultipleCams += (*it)->features2D().size();
-        }
-
-        nPoints += (*it)->features2D().size();
-    }
-
-    double weightM = static_cast<double>(nPoints) / static_cast<double>(nPointsMultipleCams);
+    double weightM = static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nPointsMultipleCams);
 
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -2349,6 +2509,10 @@ CameraRigBA::reweightScenePoints(void)
                     if (feature3D->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                     {
                         feature3D->weight() = weightM;
+                    }
+                    else
+                    {
+                        feature3D->weight() = 1.0;
                     }
                 }
             }

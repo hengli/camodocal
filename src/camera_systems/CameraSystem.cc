@@ -263,7 +263,7 @@ CameraSystem::writeToXmlFile(const std::string& filename) const
         eModel.append_child(pugi::node_pcdata).set_value("TBD");
 
         pugi::xml_node eDescription = eCamera.append_child("description");
-        eDescription.append_child(pugi::node_pcdata).set_value("Monocular Camera");
+        eDescription.append_child(pugi::node_pcdata).set_value(camera->cameraName().c_str());
 
         pugi::xml_node eGeneralParameters = eCamera.append_child("general-parameters");
 

@@ -139,7 +139,7 @@ int main(int argc, char** argv)
     cv::Mat image = cv::imread(imageFilenames.front(), -1);
     const cv::Size frameSize = image.size();
 
-    camodocal::CameraCalibration calibration(modelType, cameraName, frameSize);
+    camodocal::CameraCalibration calibration(modelType, cameraName, frameSize, boardSize, squareSize);
     calibration.setVerbose(verbose);
 
     std::vector<bool> chessboardFound(imageFilenames.size(), false);
@@ -186,8 +186,9 @@ int main(int argc, char** argv)
 
     double startTime = camodocal::timeInSeconds();
 
-    calibration.calibrate(boardSize, squareSize);
+    calibration.calibrate();
     calibration.writeParams(cameraName + "_camera_calib.yaml");
+    calibration.writeChessboardData(cameraName + "_chessboard_data.dat");
 
     if (verbose)
     {
@@ -218,7 +219,7 @@ int main(int argc, char** argv)
         }
 
         // visualize observed and reprojected points
-        calibration.drawResults(boardSize, squareSize, cbImages);
+        calibration.drawResults(cbImages);
 
         for (size_t i = 0; i < cbImages.size(); ++i)
         {

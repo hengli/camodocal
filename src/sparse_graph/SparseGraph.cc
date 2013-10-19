@@ -606,7 +606,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
             size_t feature2DId;
             readData(ifs, feature2DId);
 
-            features2D.at(j) = feature2DMap.at(feature2DId);
+            if (feature2DId != static_cast<size_t>(-1))
+            {
+                features2D.at(j) = feature2DMap.at(feature2DId);
+            }
         }
     }
 
@@ -728,7 +731,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         {
             readData(ifs, featureId);
 
-            feature2D->prevMatches().at(j) = feature2DMap.at(featureId);
+            if (featureId != static_cast<size_t>(-1))
+            {
+                feature2D->prevMatches().at(j) = feature2DMap.at(featureId);
+            }
         }
 
         size_t nNextMatches;
@@ -739,7 +745,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         {
             readData(ifs, featureId);
 
-            feature2D->nextMatches().at(j) = feature2DMap.at(featureId);
+            if (featureId != static_cast<size_t>(-1))
+            {
+                feature2D->nextMatches().at(j) = feature2DMap.at(featureId);
+            }
         }
 
         size_t feature3DId;
@@ -788,7 +797,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
         {
             readData(ifs, featureId);
 
-            feature3D->features2D().at(j) = feature2DMap.at(featureId);
+            if (featureId != static_cast<size_t>(-1))
+            {
+                feature3D->features2D().at(j) = feature2DMap.at(featureId);
+            }
         }
     }
 
@@ -1076,12 +1088,15 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             const Point2DFeaturePtr& feature2D = features2D.at(i);
 
             boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D.get());
-            if (itF2D == feature2DMap.end())
+            if (itF2D != feature2DMap.end())
             {
-                continue;
+                writeData(ofs, itF2D->second);
             }
-
-            writeData(ofs, itF2D->second);
+            else
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
         }
     }
 
@@ -1184,78 +1199,64 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         writeData(ofs, feature2D->bestNextMatchId());
 
         // references
-        size_t nValidPrevMatches = 0;
-        for (size_t i = 0; i < feature2D->prevMatches().size(); ++i)
-        {
-            if (Point2DFeaturePtr prevMatch = feature2D->prevMatches().at(i).lock())
-            {
-                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(prevMatch.get());
-                if (itF2D == feature2DMap.end())
-                {
-                    continue;
-                }
-            }
-
-            ++nValidPrevMatches;
-        }
-
-        writeData(ofs, nValidPrevMatches);
+        writeData(ofs, feature2D->prevMatches().size());
 
         for (size_t i = 0; i < feature2D->prevMatches().size(); ++i)
         {
+            bool valid = false;
+
             if (Point2DFeaturePtr prevMatch = feature2D->prevMatches().at(i).lock())
             {
                 boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(prevMatch.get());
-                if (itF2D == feature2DMap.end())
+                if (itF2D != feature2DMap.end())
                 {
-                    continue;
-                }
-
-                writeData(ofs, itF2D->second);
-            }
-        }
-
-        size_t nValidNextMatches = 0;
-        for (size_t i = 0; i < feature2D->nextMatches().size(); ++i)
-        {
-            if (Point2DFeaturePtr nextMatch = feature2D->nextMatches().at(i).lock())
-            {
-                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(nextMatch.get());
-                if (itF2D == feature2DMap.end())
-                {
-                    continue;
+                    valid = true;
+                    writeData(ofs, itF2D->second);
                 }
             }
 
-            ++nValidNextMatches;
+            if (!valid)
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
         }
 
-        writeData(ofs, nValidNextMatches);
+        writeData(ofs, feature2D->nextMatches().size());
 
         for (size_t i = 0; i < feature2D->nextMatches().size(); ++i)
         {
+            bool valid = false;
+
             if (Point2DFeaturePtr nextMatch = feature2D->nextMatches().at(i).lock())
             {
                 boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(nextMatch.get());
-                if (itF2D == feature2DMap.end())
+                if (itF2D != feature2DMap.end())
                 {
-                    continue;
+                    valid = true;
+                    writeData(ofs, itF2D->second);
                 }
+            }
 
-                writeData(ofs, itF2D->second);
+            if (!valid)
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
             }
         }
 
         if (feature2D->feature3D().get() != 0)
         {
             boost::unordered_map<Point3DFeature*,size_t>::iterator itF3D = feature3DMap.find(feature2D->feature3D().get());
-            if (itF3D == feature3DMap.end())
+            if (itF3D != feature3DMap.end())
             {
-//                std::cout << "# WARNING: Feature2D::feature3D: Point3DFeature instance was not found in map.\n";
-                continue;
+                writeData(ofs, itF3D->second);
             }
-
-            writeData(ofs, itF3D->second);
+            else
+            {
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
+            }
         }
         else
         {
@@ -1297,34 +1298,26 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
         writeData(ofs, feature3D->weight());
 
         // references
-        size_t nValidFeatures2D = 0;
+        writeData(ofs, feature3D->features2D().size());
+
         for (size_t i = 0; i < feature3D->features2D().size(); ++i)
         {
+            bool valid = false;
+
             if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
             {
                 boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D.get());
-                if (itF2D == feature2DMap.end())
+                if (itF2D != feature2DMap.end())
                 {
-                    continue;
+                    valid = true;
+                    writeData(ofs, itF2D->second);
                 }
-
-                ++nValidFeatures2D;
             }
-        }
 
-        writeData(ofs, nValidFeatures2D);
-
-        for (size_t i = 0; i < feature3D->features2D().size(); ++i)
-        {
-            if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
+            if (!valid)
             {
-                boost::unordered_map<Point2DFeature*,size_t>::iterator itF2D = feature2DMap.find(feature2D.get());
-                if (itF2D == feature2DMap.end())
-                {
-                    continue;
-                }
-
-                writeData(ofs, itF2D->second);
+                size_t invalidId = -1;
+                writeData(ofs, invalidId);
             }
         }
     }

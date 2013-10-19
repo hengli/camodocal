@@ -15,9 +15,11 @@ namespace camodocal
 StereoCameraCalibration::StereoCameraCalibration(Camera::ModelType modelType,
                                                  const std::string& cameraLeftName,
                                                  const std::string& cameraRightName,
-                                                 const cv::Size& imageSize)
- : m_calibLeft(modelType, cameraLeftName, imageSize)
- , m_calibRight(modelType, cameraRightName, imageSize)
+                                                 const cv::Size& imageSize,
+                                                 const cv::Size& boardSize,
+                                                 float squareSize)
+ : m_calibLeft(modelType, cameraLeftName, imageSize, boardSize, squareSize)
+ , m_calibRight(modelType, cameraRightName, imageSize, boardSize, squareSize)
  , m_verbose(false)
 {
 
@@ -39,34 +41,20 @@ StereoCameraCalibration::addChessboardData(const std::vector<cv::Point2f>& corne
 }
 
 bool
-StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
+StereoCameraCalibration::calibrate(void)
 {
     // calibrate cameras individually
-    if (!m_calibLeft.calibrate(boardSize, squareSize))
+    if (!m_calibLeft.calibrate())
     {
         return false;
     }
-    if (!m_calibRight.calibrate(boardSize, squareSize))
+    if (!m_calibRight.calibrate())
     {
         return false;
     }
 
     // perform stereo calibration
     int imageCount = imagePointsLeft().size();
-
-    std::vector< std::vector<cv::Point3f> > objectPoints;
-    for (int i = 0; i < imageCount; ++i)
-    {
-        std::vector<cv::Point3f> objectPointsInView;
-        for (int j = 0; j < boardSize.height; ++j)
-        {
-            for (int k = 0; k < boardSize.width; ++k)
-            {
-                objectPointsInView.push_back(cv::Point3f(j * squareSize, k * squareSize, 0.0));
-            }
-        }
-        objectPoints.push_back(objectPointsInView);
-    }
 
     // find best estimate for initial transform from left camera frame to right camera frame
     double minReprojErr = std::numeric_limits<double>::max();
@@ -122,7 +110,7 @@ StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
             cv::eigen2cv(t_r, tvecs.at(j));
         }
 
-        double reprojErr = cameraRight()->reprojectionError(objectPoints,
+        double reprojErr = cameraRight()->reprojectionError(scenePoints(),
                                                             imagePointsRight(),
                                                             rvecs, tvecs);
 
@@ -139,7 +127,7 @@ StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
     std::vector<cv::Mat> rvecsR(imageCount);
     std::vector<cv::Mat> tvecsR(imageCount);
 
-    double* extrinsicCameraLParams[objectPoints.size()];
+    double* extrinsicCameraLParams[scenePoints().size()];
     for (int i = 0; i < imageCount; ++i)
     {
         extrinsicCameraLParams[i] = new double[7];
@@ -182,11 +170,11 @@ StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
                   << "r: " << roll << "  p: " << pitch << "  yaw: " << yaw << std::endl
                   << "x: " << m_t(0) << "  y: " << m_t(1) << "  z: " << m_t(2) << std::endl;
 
-        double err = cameraLeft()->reprojectionError(objectPoints, imagePointsLeft(), rvecsL, tvecsL);
+        double err = cameraLeft()->reprojectionError(scenePoints(), imagePointsLeft(), rvecsL, tvecsL);
         std::cout << "[" << cameraLeft()->cameraName() << "] " << "# INFO: Initial reprojection error: "
                   << err << " pixels" << std::endl;
 
-        err = cameraRight()->reprojectionError(objectPoints, imagePointsRight(), rvecsR, tvecsR);
+        err = cameraRight()->reprojectionError(scenePoints(), imagePointsRight(), rvecsR, tvecsR);
         std::cout << "[" << cameraRight()->cameraName() << "] " << "# INFO: Initial reprojection error: "
                   << err << " pixels" << std::endl;
     }
@@ -201,16 +189,16 @@ StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
 
     for (int i = 0; i < imageCount; ++i)
     {
-        for (size_t j = 0; j < objectPoints.at(i).size(); ++j)
+        for (size_t j = 0; j < scenePoints().at(i).size(); ++j)
         {
-            const cv::Point3f& opt = objectPoints.at(i).at(j);
+            const cv::Point3f& spt = scenePoints().at(i).at(j);
             const cv::Point2f& iptL = imagePointsLeft().at(i).at(j);
             const cv::Point2f& iptR = imagePointsRight().at(i).at(j);
 
             ceres::CostFunction* costFunction =
                 CostFunctionFactory::instance()->generateCostFunction(cameraLeft(),
                                                                       cameraRight(),
-                                                                      Eigen::Vector3d(opt.x, opt.y, opt.z),
+                                                                      Eigen::Vector3d(spt.x, spt.y, spt.z),
                                                                       Eigen::Vector2d(iptL.x, iptL.y),
                                                                       Eigen::Vector2d(iptR.x, iptR.y));
 
@@ -307,13 +295,13 @@ StereoCameraCalibration::calibrate(const cv::Size& boardSize, float squareSize)
                   << "r: " << roll << "  p: " << pitch << "  yaw: " << yaw << std::endl
                   << "x: " << m_t(0) << "  y: " << m_t(1) << "  z: " << m_t(2) << std::endl;
 
-        double err = cameraLeft()->reprojectionError(objectPoints, imagePointsLeft(), rvecsL, tvecsL);
+        double err = cameraLeft()->reprojectionError(scenePoints(), imagePointsLeft(), rvecsL, tvecsL);
         std::cout << "[" << cameraLeft()->cameraName() << "] " << "# INFO: Final reprojection error: "
                   << err << " pixels" << std::endl;
         std::cout << "[" << cameraLeft()->cameraName() << "] " << "# INFO: "
                   << cameraLeft()->parametersToString() << std::endl;
 
-        err = cameraRight()->reprojectionError(objectPoints, imagePointsRight(), rvecsR, tvecsR);
+        err = cameraRight()->reprojectionError(scenePoints(), imagePointsRight(), rvecsR, tvecsR);
         std::cout << "[" << cameraRight()->cameraName() << "] " << "# INFO: Final reprojection error: "
                   << err << " pixels" << std::endl;
         std::cout << "[" << cameraRight()->cameraName() << "] " << "# INFO: "
@@ -329,16 +317,22 @@ StereoCameraCalibration::sampleCount(void) const
     return m_calibLeft.sampleCount();
 }
 
-const std::vector< std::vector<cv::Point2f> >&
+const std::vector<std::vector<cv::Point2f> >&
 StereoCameraCalibration::imagePointsLeft(void) const
 {
     return m_calibLeft.imagePoints();
 }
 
-const std::vector< std::vector<cv::Point2f> >&
+const std::vector<std::vector<cv::Point2f> >&
 StereoCameraCalibration::imagePointsRight(void) const
 {
     return m_calibRight.imagePoints();
+}
+
+const std::vector<std::vector<cv::Point3f> >&
+StereoCameraCalibration::scenePoints(void) const
+{
+    return m_calibLeft.scenePoints();
 }
 
 CameraPtr&
@@ -366,12 +360,11 @@ StereoCameraCalibration::cameraRight(void) const
 }
 
 void
-StereoCameraCalibration::drawResults(const cv::Size& boardSize, float squareSize,
-                                     std::vector<cv::Mat>& imagesLeft,
+StereoCameraCalibration::drawResults(std::vector<cv::Mat>& imagesLeft,
                                      std::vector<cv::Mat>& imagesRight) const
 {
-    m_calibLeft.drawResults(boardSize, squareSize, imagesLeft);
-    m_calibRight.drawResults(boardSize, squareSize, imagesRight);
+    m_calibLeft.drawResults(imagesLeft);
+    m_calibRight.drawResults(imagesRight);
 }
 
 void

@@ -5,8 +5,9 @@
 #include <boost/tuple/tuple.hpp>
 #include <Eigen/Dense>
 
-#include "camodocal/camera_systems/CameraSystem.h"
-#include "camodocal/sparse_graph/SparseGraph.h"
+#include <camodocal/calib/CameraCalibration.h>
+#include <camodocal/camera_systems/CameraSystem.h>
+#include <camodocal/sparse_graph/SparseGraph.h>
 
 namespace camodocal
 {
@@ -144,6 +145,7 @@ private:
     } ZPlaneModel;
 
     CameraSystem& m_cameraSystem;
+    std::vector<boost::shared_ptr<CameraCalibration> > m_cameraCalibrations;
     SparseGraph m_graph;
 
     const size_t k_localMapWindowDistance;
