@@ -51,6 +51,9 @@ The CamOdoCal library includes third-party code from the following sources:
         3. D. Galvez-Lopez, and J. Tardos,
            Bags of Binary Words for Fast Place Recognition in Image Sequences,
            IEEE Transactions on Robotics, 28(5):1188-1197, October 2012.
+           
+        4. pugixml
+           http://pugixml.org/
         
 Parts of the CamOdoCal library are based on the following papers:
 
