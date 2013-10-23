@@ -569,6 +569,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                 std::cout << "# INFO: Did not find ground plane." << std::endl;
             }
         }
+
+#ifdef VCHARGE_VIZ
+        visualizeExtrinsics("camodocal-extrinsics");
+#endif
     }
 }
 

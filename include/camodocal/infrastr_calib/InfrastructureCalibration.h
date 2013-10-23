@@ -118,7 +118,6 @@ private:
 
     // parameters
     const float k_maxDistanceRatio;
-    const int k_minCorrespondences2D2D;
     const int k_minCorrespondences2D3D;
     const double k_minKeyFrameDistance;
     const int k_nearestImageMatches;

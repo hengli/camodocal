@@ -33,7 +33,6 @@ InfrastructureCalibration::InfrastructureCalibration(std::vector<CameraPtr>& cam
 #endif
  , m_cameraSystem(cameras.size())
  , k_maxDistanceRatio(0.7f)
- , k_minCorrespondences2D2D(20)
  , k_minCorrespondences2D3D(25)
  , k_minKeyFrameDistance(0.3)
  , k_nearestImageMatches(10)
@@ -307,6 +306,11 @@ InfrastructureCalibration::run(void)
         }
     }
 
+    for (size_t i = 0; i < m_cameras.size(); ++i)
+    {
+        m_cameraSystem.setCamera(i, m_cameras.at(i));
+    }
+
     if (m_verbose)
     {
         double sumError = 0.0;
@@ -346,11 +350,6 @@ InfrastructureCalibration::run(void)
         std::cout << "# INFO: Average number of frames per set: "
                   << static_cast<double>(nFrames) / static_cast<double>(m_framesets.size())
                   << std::endl;
-    }
-
-    for (size_t i = 0; i < m_cameras.size(); ++i)
-    {
-        m_cameraSystem.setCamera(i, m_cameras.at(i));
     }
 
     // without loss of generality, mark camera 0 as the reference frame
@@ -572,6 +571,7 @@ InfrastructureCalibration::saveFrameSets(const std::string& filename) const
     {
         const FrameSet& frameset = m_framesets.at(i);
 
+        graph.frameSetSegment(0).at(i).reset(new camodocal::FrameSet);
         graph.frameSetSegment(0).at(i)->frames().resize(m_cameras.size());
 
         for (size_t j = 0; j < frameset.frames.size(); ++j)
