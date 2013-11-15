@@ -36,8 +36,8 @@ void
 StereoCameraCalibration::addChessboardData(const std::vector<cv::Point2f>& cornersLeft,
                                            const std::vector<cv::Point2f>& cornersRight)
 {
-    m_calibLeft.imagePoints().push_back(cornersLeft);
-    m_calibRight.imagePoints().push_back(cornersRight);
+    m_calibLeft.addChessboardData(cornersLeft);
+    m_calibRight.addChessboardData(cornersRight);
 }
 
 bool
