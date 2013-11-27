@@ -19,6 +19,7 @@
 #include "../location_recognition/LocationRecognition.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "../visual_odometry/SlidingWindowBA.h"
+#include "OdometryError.h"
 
 #ifdef VCHARGE_VIZ
 #include "../../../../library/gpl/CameraEnums.h"
@@ -266,6 +267,8 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
             if (merge)
             {
+                f3D1->point() = 0.5 * (f3D1->point() + f3D2->point());
+
                 ++nMerged3DScenePoints;
             }
         }
@@ -274,6 +277,12 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         {
             std::cout << "# INFO: Merged " << nMerged3DScenePoints << " 3D scene points." << std::endl;
         }
+
+        prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
+
+        std::cout << "# INFO: Running BA on odometry data... " << std::endl;
+
+        optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
@@ -415,6 +424,8 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                     feature2D->feature3D() = f3D2;
                 }
             }
+
+            f3D2->point() = 0.5 * (f3D1->point() + f3D2->point());
             f3D2->attributes() = Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS;
         }
 
@@ -424,12 +435,6 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 #endif
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
-
-//        std::cout << "# INFO: Running BA on odometry data... " << std::endl;
-//
-//        optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
-//
-//        prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
         double minError, maxError, avgError;
         size_t featureCount;
@@ -544,6 +549,20 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
     if (beginStage <= 5)
     {
+        double minError, maxError, avgError;
+        size_t featureCount;
+
+        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Done." << std::endl;
+            std::cout << "# INFO: Overall reprojection error: avg = " << avgError
+                      << " px | max = " << maxError << " px" << std::endl;
+            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
+        }
+
         estimateCameraOdometryTransforms();
 
         double zGround = 0.0;
@@ -1951,6 +1970,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
     size_t nPoints = 0;
     size_t nPointsMultipleCams = 0;
+    size_t nResidualsOdometry = 0;
     boost::unordered_set<Point3DFeature*> scenePointSet;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -1959,6 +1979,11 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         for (size_t j = 0; j < segment.size(); ++j)
         {
             FrameSetPtr& frameSet = segment.at(j);
+
+            if (j > 0)
+            {
+                ++nResidualsOdometry;
+            }
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
@@ -1987,6 +2012,13 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 }
             }
         }
+    }
+
+    double wResidualOdometry = 3.0 * static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsOdometry);
+    if (m_verbose)
+    {
+        std::cout << "# INFO: Added " << nResidualsOdometry << " residuals from odometry data." << std::endl;
+        std::cout << "# INFO: Assigned weight of " << wResidualOdometry << " to each residual." << std::endl;
     }
 
     bool includeChessboardData = (flags & CAMERA_INTRINSICS) && !m_cameraCalibrations.empty();
@@ -2220,6 +2252,42 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
+    if (flags & ODOMETRY_6D_EXTRINSICS)
+    {
+        for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+        {
+            FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+            if (segment.size() <= 1)
+            {
+                continue;
+            }
+
+            FrameSetPtr frameSetPrev = segment.front();
+            for (size_t j = 1; j < segment.size(); ++j)
+            {
+                FrameSetPtr frameSet = segment.at(j);
+
+                Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
+                                             frameSetPrev->odometryMeasurement()->toMatrix();
+
+                ceres::CostFunction* costFunction =
+                    new ceres::AutoDiffCostFunction<OdometryError, 3, 3, 3, 3, 3>(
+                        new OdometryError(H_odo_meas));
+
+                ceres::LossFunction* lossFunction = new ceres::ScaledLoss(0, wResidualOdometry, ceres::TAKE_OWNERSHIP);
+
+                problem.AddResidualBlock(costFunction, lossFunction,
+                                         frameSetPrev->systemPose()->positionData(),
+                                         frameSetPrev->systemPose()->attitudeData(),
+                                         frameSet->systemPose()->positionData(),
+                                         frameSet->systemPose()->attitudeData());
+
+                frameSetPrev = frameSet;
+            }
+        }
+    }
+
     std::vector<std::vector<double> > chessboardCameraPoses[m_cameraSystem.cameraCount()];
 
     if (includeChessboardData)
@@ -2310,7 +2378,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
         std::vector<std::pair<const double*, const double*> > covarianceBlocks;
 
-        if (flags & ODOMETRY_6D_EXTRINSICS)
+        if (flags & CAMERA_ODOMETRY_EXTRINSICS)
         {
             for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
             {
@@ -2335,7 +2403,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
         if (covariance.Compute(covarianceBlocks, &problem))
         {
-            if (flags & ODOMETRY_6D_EXTRINSICS)
+            if (flags & CAMERA_ODOMETRY_EXTRINSICS)
             {
                 for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
                 {
