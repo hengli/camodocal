@@ -54,7 +54,6 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 2 - run robust pose graph SLAM and find inlier 2D-3D correspondences from loop closures
     // stage 3 - find local inter-camera 3D-3D correspondences
     // stage 4 - run BA
-    // stage 5 - run hand-eye calibration
 
     if (m_verbose)
     {
@@ -69,6 +68,8 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // visualize graph produced by previous stage
     switch (beginStage)
     {
+    case 0:
+        break;
     case 1:
         visualize("unopt-", ODOMETRY);
         visualizeExtrinsics("unopt-extrinsics");
@@ -86,8 +87,8 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         visualizeExtrinsics("opt3-extrinsics");
         break;
     default:
-        visualize("opt4-BA-", ODOMETRY);
-        visualizeExtrinsics("opt4-extrinsics");
+        visualize("map-", ODOMETRY);
+        visualizeExtrinsics("camodocal-extrinsics");
     }
 
 //    m_cameraSystem.readFromFile("../config/calib/calib_camera_kermit/2012_09_03/extrinsic.txt");
@@ -282,7 +283,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         std::cout << "# INFO: Running BA on odometry data... " << std::endl;
 
-        optimize(CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D, true);
+        optimize(CAMERA_ODOMETRY_EXTRINSICS | POINT_3D, true);
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
@@ -530,40 +531,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt4-BA-", ODOMETRY);
+        visualize("map-", ODOMETRY);
 
-        visualizeExtrinsics("opt4-extrinsics");
+        visualizeExtrinsics("camodocal-extrinsics");
 #endif
-
-        if (saveWorkingData)
-        {
-            boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_4.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
-
-            boost::filesystem::path graphPath(dataDir);
-            graphPath /= "frames_4.sg";
-            m_graph.writeToBinaryFile(graphPath.string());
-        }
-    }
-
-    if (beginStage <= 5)
-    {
-        double minError, maxError, avgError;
-        size_t featureCount;
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Overall reprojection error: avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
-            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
-        }
-
-        estimateCameraOdometryTransforms();
 
         double zGround = 0.0;
         if (estimateAbsoluteGroundHeight(zGround))
@@ -589,9 +560,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             }
         }
 
-#ifdef VCHARGE_VIZ
-        visualizeExtrinsics("camodocal-extrinsics");
-#endif
+        if (saveWorkingData)
+        {
+            boost::filesystem::path extrinsicPath(dataDir);
+            extrinsicPath /= "tmp_extrinsic_4.txt";
+            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+
+            boost::filesystem::path graphPath(dataDir);
+            graphPath /= "frames_4.sg";
+            m_graph.writeToBinaryFile(graphPath.string());
+        }
     }
 }
 
@@ -2014,11 +1992,16 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
-    double wResidualOdometry = 3.0 * static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsOdometry);
-    if (m_verbose)
+    double wResidualOdometry = 0.0;
+    if (flags & ODOMETRY_6D_EXTRINSICS)
     {
-        std::cout << "# INFO: Added " << nResidualsOdometry << " residuals from odometry data." << std::endl;
-        std::cout << "# INFO: Assigned weight of " << wResidualOdometry << " to each residual." << std::endl;
+        wResidualOdometry = 3.0 * static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsOdometry);
+
+        if (m_verbose)
+        {
+            std::cout << "# INFO: Added " << nResidualsOdometry << " residuals from odometry data." << std::endl;
+            std::cout << "# INFO: Assigned weight of " << wResidualOdometry << " to each residual." << std::endl;
+        }
     }
 
     bool includeChessboardData = (flags & CAMERA_INTRINSICS) && !m_cameraCalibrations.empty();
