@@ -57,6 +57,10 @@ private:
                                     int nViews,
                                     std::vector<std::vector<Point2DFeaturePtr> >& correspondences) const;
 
+    void solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr> >& correspondences,
+                        Eigen::Matrix4d& H,
+                        std::vector<size_t>& inliers) const;
+
     bool project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector3d& t,
                         const Eigen::Vector3d& src, Eigen::Vector2d& dst) const;
 

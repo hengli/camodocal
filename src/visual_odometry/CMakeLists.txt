@@ -26,6 +26,7 @@ camodocal_link_libraries(camodocal_visual_odometry
   camodocal_features2d
   camodocal_fivepoint
   camodocal_gpl
+  camodocal_pose_estimation
   camodocal_sparse_graph
   ceres
 )

@@ -1,5 +1,9 @@
 if(CERES_FOUND)
 
+if(VCHARGE_D3D)
+include_directories(../D3D)
+endif(VCHARGE_D3D)
+
 if(VCHARGE_VIZ)
 if(GLUT_FOUND)
 include_directories(
@@ -11,6 +15,7 @@ endif(VCHARGE_VIZ)
 
 include_directories(
   ../ceres-solver/include
+  ../D3D
   ../dbow2/DBoW2
   ../dbow2/DUtils
   ../dbow2/DUtilsCV
@@ -54,6 +59,12 @@ camodocal_link_libraries(camodocal_calib
   camodocal_visual_odometry
   ceres
 )
+
+if(VCHARGE_D3D)
+vcharge_link_libraries(camodocal_calib
+  D3D
+)
+endif(VCHARGE_D3D)
 
 if(VCHARGE_VIZ)
 if(GLUT_FOUND)

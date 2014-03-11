@@ -89,6 +89,8 @@ public:
                                             float cx = -1.0f, float cy = -1.0f,
                                             cv::Mat rmat = cv::Mat::eye(3, 3, CV_32F)) const = 0;
 
+    virtual int parameterCount(void) const = 0;
+
     virtual void readParameters(const std::vector<double>& parameters) = 0;
     virtual void writeParameters(std::vector<double>& parameters) const = 0;
 

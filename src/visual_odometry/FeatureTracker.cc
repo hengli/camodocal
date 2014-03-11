@@ -1,3 +1,4 @@
+#include <boost/make_shared.hpp>
 #include <Eigen/Dense>
 #include <glibmm.h>
 #include <opencv2/core/core.hpp>
@@ -99,7 +100,7 @@ FeatureTracker::setVerbose(bool verbose)
     mVerbose = verbose;
 }
 
-void 
+void
 FeatureTracker::preprocessImage(cv::Mat& image, const cv::Mat& mask) const
 {
     if (!image.empty())
@@ -436,7 +437,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask,
 
     for (size_t i = 0; i < mKpts.size(); ++i)
     {
-        Point2DFeaturePtr p(new Point2DFeature);
+        Point2DFeaturePtr p = boost::make_shared<Point2DFeature>();
         mDtor.row(i).copyTo(p->descriptor());
         p->keypoint() = mKpts.at(i);
         p->index() = i;
@@ -444,7 +445,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask,
         mPointFeatures.push_back(p);
     }
 
-    if (!mDtorPrev.empty())
+    if (mFramePrev)
     {
         std::vector<std::vector<cv::DMatch> > matches;
 
@@ -548,10 +549,31 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask,
 
             std::cout << "# INFO: # good matches: " << validMatchCount << std::endl;
         }
+
+        // remove singleton features from previous frame
+        std::vector<Point2DFeaturePtr>::iterator itF2D = mFramePrev->features2D().begin();
+
+        while (itF2D != mFramePrev->features2D().end())
+        {
+            Point2DFeaturePtr pf = *itF2D;
+
+            bool hasPrevMatch = (!pf->prevMatches().empty()) && (pf->bestPrevMatchId() != -1);
+            bool hasNextMatch = (!pf->nextMatches().empty()) && (pf->bestNextMatchId() != -1);
+
+            if (!hasPrevMatch && !hasNextMatch)
+            {
+                itF2D = mFramePrev->features2D().erase(itF2D);
+            }
+            else
+            {
+                ++itF2D;
+            }
+        }
     }
 
     mKptsPrev = mKpts;
     mDtor.copyTo(mDtorPrev);
+    mFramePrev = frame;
 
     if (!mImage.empty())
     {
@@ -1050,7 +1072,7 @@ CameraRigTemporalFeatureTracker::processImage(const cv::Mat& image, const cv::Ma
 
     for (size_t j = 0; j < metadata->kpts.size(); ++j)
     {
-        Point2DFeaturePtr p(new Point2DFeature);
+        Point2DFeaturePtr p = boost::make_shared<Point2DFeature>();
         metadata->dtor.row(j).copyTo(p->descriptor());
         p->keypoint() = metadata->kpts.at(j);
         p->index() = j;

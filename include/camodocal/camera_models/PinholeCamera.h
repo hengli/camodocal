@@ -115,6 +115,8 @@ public:
                                     float cx = -1.0f, float cy = -1.0f,
                                     cv::Mat rmat = cv::Mat::eye(3, 3, CV_32F)) const;
 
+    int parameterCount(void) const;
+
     const Parameters& getParameters(void) const;
     void setParameters(const Parameters& parameters);
 
@@ -133,6 +135,7 @@ private:
 };
 
 typedef boost::shared_ptr<PinholeCamera> PinholeCameraPtr;
+typedef boost::shared_ptr<const PinholeCamera> PinholeCameraConstPtr;
 
 template <typename T>
 void

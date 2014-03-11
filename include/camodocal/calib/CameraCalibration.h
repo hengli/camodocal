@@ -33,6 +33,9 @@ public:
     CameraPtr& camera(void);
     const CameraConstPtr camera(void) const;
 
+    Eigen::Matrix2d& measurementCovariance(void);
+    const Eigen::Matrix2d& measurementCovariance(void) const;
+
     cv::Mat& cameraPoses(void);
     const cv::Mat& cameraPoses(void) const;
 
@@ -66,6 +69,8 @@ private:
 
     std::vector<std::vector<cv::Point2f> > m_imagePoints;
     std::vector<std::vector<cv::Point3f> > m_scenePoints;
+
+    Eigen::Matrix2d m_measurementCovariance;
 
     bool m_verbose;
 };

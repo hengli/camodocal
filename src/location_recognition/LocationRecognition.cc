@@ -13,6 +13,7 @@ LocationRecognition::setup(const SparseGraph& graph)
 {
     m_frameTags.clear();
     m_frames.clear();
+    m_frameMap.clear();
 
     Surf64Vocabulary voc;
     voc.load("surf64.yml.gz");
@@ -48,6 +49,8 @@ LocationRecognition::setup(const SparseGraph& graph)
 
                 m_frames.push_back(frame);
 
+                m_frameMap.insert(std::make_pair(frame.get(), tag));
+
                 features.push_back(frameToBOW(frame));
             }
         }
@@ -63,15 +66,34 @@ void
 LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
                               std::vector<FrameTag>& matches) const
 {
+    boost::unordered_map<const Frame*,FrameTag>::const_iterator it = m_frameMap.find(frame.get());
+    if (it == m_frameMap.end())
+    {
+        return;
+    }
+
+    FrameTag tagQuery = it->second;
+
     DBoW2::QueryResults ret;
-    m_db.query(frameToBOW(frame), ret, k);
+    m_db.query(frameToBOW(frame), ret, 0);
 
     matches.clear();
     for (size_t i = 0; i < ret.size(); ++i)
     {
         FrameTag tag = m_frameTags.at(ret.at(i).Id);
 
+        if (tagQuery.frameSetSegmentId == tag.frameSetSegmentId &&
+            std::abs(tagQuery.frameSetId - tag.frameSetId) < 30)
+        {
+            continue;
+        }
+
         matches.push_back(tag);
+
+        if (matches.size() == k)
+        {
+            return;
+        }
     }
 }
 
@@ -79,15 +101,36 @@ void
 LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
                               std::vector<FramePtr>& matches) const
 {
+    boost::unordered_map<const Frame*,FrameTag>::const_iterator it = m_frameMap.find(frame.get());
+    if (it == m_frameMap.end())
+    {
+        return;
+    }
+
+    FrameTag tagQuery = it->second;
+
     DBoW2::QueryResults ret;
-    m_db.query(frameToBOW(frame), ret, k);
+    m_db.query(frameToBOW(frame), ret, 0);
 
     matches.clear();
     for (size_t i = 0; i < ret.size(); ++i)
     {
+        FrameTag tag = m_frameTags.at(ret.at(i).Id);
+
+        if (tagQuery.frameSetSegmentId == tag.frameSetSegmentId &&
+            std::abs(tagQuery.frameSetId - tag.frameSetId) < 20)
+        {
+            continue;
+        }
+
         const FramePtr& frame = m_frames.at(ret.at(i).Id);
 
         matches.push_back(frame);
+
+        if (matches.size() == k)
+        {
+            return;
+        }
     }
 }
 

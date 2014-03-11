@@ -881,6 +881,12 @@ CataCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
     return K_rect_cv;
 }
 
+int
+CataCamera::parameterCount(void) const
+{
+    return 9;
+}
+
 const CataCamera::Parameters&
 CataCamera::getParameters(void) const
 {
@@ -913,7 +919,7 @@ CataCamera::setParameters(const CataCamera::Parameters& parameters)
 void
 CataCamera::readParameters(const std::vector<double>& parameterVec)
 {
-    if (parameterVec.size() != 9)
+    if (parameterVec.size() != parameterCount())
     {
         return;
     }
@@ -936,7 +942,7 @@ CataCamera::readParameters(const std::vector<double>& parameterVec)
 void
 CataCamera::writeParameters(std::vector<double>& parameterVec) const
 {
-    parameterVec.resize(9);
+    parameterVec.resize(parameterCount());
     parameterVec.at(0) = mParameters.xi();
     parameterVec.at(1) = mParameters.k1();
     parameterVec.at(2) = mParameters.k2();

@@ -42,11 +42,16 @@ private:
     void optimize(bool optimizeScenePoints);
 
     cv::Mat buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
-                               std::vector<size_t>& indices) const;
+                               std::vector<size_t>& indices,
+                               bool hasScenePoint) const;
     std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& queryFeatures,
                                           const std::vector<Point2DFeaturePtr>& trainFeatures) const;
-    void rectifyImagePoint(const CameraConstPtr& camera,
-                           const cv::Point2f& src, cv::Point2f& dst) const;
+
+    void solveP3PRansac(const FrameConstPtr& frame1,
+                        const FrameConstPtr& frame2,
+                        const std::vector<cv::DMatch>& matches,
+                        Eigen::Matrix4d& H,
+                        std::vector<cv::DMatch>& inliers) const;
 
     double reprojectionError(const CameraConstPtr& camera,
                              const Eigen::Vector3d& P,
@@ -121,7 +126,6 @@ private:
     const int k_minCorrespondences2D3D;
     const double k_minKeyFrameDistance;
     const int k_nearestImageMatches;
-    const double k_nominalFocalLength;
     const double k_reprojErrorThresh;
 };
 

@@ -1,6 +1,7 @@
 #include "camodocal/infrastr_calib/InfrastructureCalibration.h"
 
 #include <boost/filesystem.hpp>
+#include <boost/make_shared.hpp>
 #include <iostream>
 #include <opencv2/core/eigen.hpp>
 
@@ -11,6 +12,8 @@
 #include "../gpl/OpenCVUtils.h"
 #include "../location_recognition/LocationRecognition.h"
 #include "../npoint/five-point/five-point.hpp"
+#include "../pose_estimation/P3P.h"
+#include "camodocal/sparse_graph/SparseGraphUtils.h"
 #include "ceres/ceres.h"
 
 #ifdef VCHARGE_VIZ
@@ -36,7 +39,6 @@ InfrastructureCalibration::InfrastructureCalibration(std::vector<CameraPtr>& cam
  , k_minCorrespondences2D3D(25)
  , k_minKeyFrameDistance(0.3)
  , k_nearestImageMatches(10)
- , k_nominalFocalLength(300.0)
  , k_reprojErrorThresh(2.0)
 {
 
@@ -51,7 +53,7 @@ InfrastructureCalibration::loadMap(const std::string& mapDirectory)
     }
 
     boost::filesystem::path graphPath(mapDirectory);
-    graphPath /= "frames_4.sg";
+    graphPath /= "frames_5.sg";
 
     if (!m_refGraph.readFromBinaryFile(graphPath.string()))
     {
@@ -75,7 +77,7 @@ InfrastructureCalibration::loadMap(const std::string& mapDirectory)
         std::cout << "# INFO: Setting up location recognition... " << std::flush;
     }
 
-    m_locrec.reset(new LocationRecognition);
+    m_locrec = boost::make_shared<LocationRecognition>();
     m_locrec->setup(m_refGraph);
 
     if (m_verbose)
@@ -105,12 +107,12 @@ InfrastructureCalibration::addFrameSet(const std::vector<cv::Mat>& images,
     // estimate camera pose corresponding to each image
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        frames.at(i).reset(new Frame);
+        frames.at(i) = boost::make_shared<Frame>();
         frames.at(i)->cameraId() = i;
 
-        threads.at(i).reset(new boost::thread(&InfrastructureCalibration::estimateCameraPose,
-                                              this, images.at(i), timestamp,
-                                              frames.at(i), preprocess));
+        threads.at(i) = boost::make_shared<boost::thread>(&InfrastructureCalibration::estimateCameraPose,
+                                                          this, images.at(i), timestamp,
+                                                          frames.at(i), preprocess);
     }
 
     for (size_t i = 0; i < m_cameras.size(); ++i)
@@ -415,7 +417,7 @@ InfrastructureCalibration::run(void)
 
             pos /= m_framesets.at(j).frames.size();
 
-            OdometryPtr odometry(new Odometry);
+            OdometryPtr odometry = boost::make_shared<Odometry>();
             odometry->timeStamp() = m_framesets.at(j).frames.at(0)->cameraPose()->timeStamp();
             odometry->position() = pos;
 
@@ -571,7 +573,7 @@ InfrastructureCalibration::saveFrameSets(const std::string& filename) const
     {
         const FrameSet& frameset = m_framesets.at(i);
 
-        graph.frameSetSegment(0).at(i).reset(new camodocal::FrameSet);
+        graph.frameSetSegment(0).at(i) = boost::make_shared<camodocal::FrameSet>();
         graph.frameSetSegment(0).at(i)->frames().resize(m_cameras.size());
 
         for (size_t j = 0; j < frameset.frames.size(); ++j)
@@ -596,8 +598,6 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
                                               FramePtr& frame,
                                               bool preprocess)
 {
-    double scaledReprojErrorThresh = k_reprojErrorThresh / k_nominalFocalLength;
-
     cv::Mat imageProc;
     if (preprocess)
     {
@@ -627,7 +627,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
 
     for (size_t i = 0; i < keypoints.size(); ++i)
     {
-        Point2DFeaturePtr feature2D(new Point2DFeature);
+        Point2DFeaturePtr feature2D = boost::make_shared<Point2DFeature>();
 
         feature2D->keypoint() = keypoints.at(i);
         descriptors.row(i).copyTo(feature2D->descriptor());
@@ -650,7 +650,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
 
     int bestInlierCount = 0;
     std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > bestCorr2D3D;
-    cv::Mat best_rvec_cv, best_tvec_cv;
+    Eigen::Matrix4d bestH;
 
     for (size_t i = 0; i < candidates.size(); ++i)
     {
@@ -658,7 +658,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
 
         FramePtr& trainFrame = m_refGraph.frameSetSegment(tag.frameSetSegmentId).at(tag.frameSetId)->frames().at(tag.frameId);
 
-        // find 2D-2D correspondences
+        // find 2D-3D correspondences
         std::vector<cv::DMatch> matches = matchFeatures(frame->features2D(), trainFrame->features2D());
 
         if (matches.size() < k_minCorrespondences2D3D)
@@ -666,43 +666,10 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
             continue;
         }
 
-        // find camera pose from EPnP
-        std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3D;
-        std::vector<cv::Point2f> imagePoints;
-        std::vector<cv::Point3f> scenePoints;
-        for (size_t j = 0; j < matches.size(); ++j)
-        {
-            cv::DMatch& match = matches.at(j);
-
-            Point2DFeaturePtr& p2D = frame->features2D().at(match.queryIdx);
-            Point3DFeaturePtr& p3D = trainFrame->features2D().at(match.trainIdx)->feature3D();
-
-            if (p3D.get() == 0)
-            {
-                continue;
-            }
-
-            corr2D3D.push_back(std::make_pair(p2D, p3D));
-
-            imagePoints.push_back(rkeypoints.at(match.queryIdx));
-
-            const Eigen::Vector3d& p = p3D->point();
-            scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
-        }
-
-        if (corr2D3D.size() < k_minCorrespondences2D3D)
-        {
-            continue;
-        }
-
-        cv::Mat rvec_cv, tvec_cv;
-        std::vector<int> inliers;
-
-        cv::solvePnPRansac(scenePoints, imagePoints,
-                           cv::Mat::eye(3, 3, CV_32F),
-                           cv::noArray(),
-                           rvec_cv, tvec_cv, false, 200,
-                           scaledReprojErrorThresh, 100, inliers, CV_EPNP);
+        // find camera pose from P3P RANSAC
+        Eigen::Matrix4d H;
+        std::vector<cv::DMatch> inliers;
+        solveP3PRansac(frame, trainFrame, matches, H, inliers);
 
         int nInliers = inliers.size();
 
@@ -718,11 +685,13 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
             bestCorr2D3D.clear();
             for (size_t j = 0; j < inliers.size(); ++j)
             {
-                bestCorr2D3D.push_back(corr2D3D.at(inliers.at(j)));
+                const cv::DMatch& match = inliers.at(j);
+
+                bestCorr2D3D.push_back(std::make_pair(frame->features2D().at(match.queryIdx),
+                                                      trainFrame->features2D().at(match.trainIdx)->feature3D()));
             }
 
-            rvec_cv.copyTo(best_rvec_cv);
-            tvec_cv.copyTo(best_tvec_cv);
+            bestH = H;
         }
     }
 
@@ -738,14 +707,8 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
                   << std::endl;
     }
 
-    Eigen::Vector3d rvec, tvec;
-    cv::cv2eigen(best_rvec_cv.reshape(0,3), rvec);
-    cv::cv2eigen(best_tvec_cv.reshape(0,3), tvec);
-
-    PosePtr pose(new Pose);
+    PosePtr pose = boost::make_shared<Pose>(bestH);
     pose->timeStamp() = timestamp;
-    pose->rotation() = AngleAxisToQuaternion(rvec);
-    pose->translation() = tvec;
 
     frame->cameraPose() = pose;
 
@@ -761,7 +724,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
         Point3DFeaturePtr feature3D;
         if (it == m_feature3DMap.end())
         {
-            feature3D.reset(new Point3DFeature);
+            feature3D = boost::make_shared<Point3DFeature>();
             feature3D->point() = p3D->point();
 
             m_feature3DMap.insert(std::make_pair(p3D.get(), feature3D));
@@ -792,8 +755,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     if (m_verbose)
     {
         std::cout << "# INFO: [Cam " << frame->cameraId() <<  "] Estimated camera pose" << std::endl;
-        std::cout << "           rvec: " << rvec.transpose() << std::endl;
-        std::cout << "           tvec: " << tvec.transpose() << std::endl;
+        std::cout << bestH << std::endl;
         std::cout << "           time: " << timeInSeconds() - tsStart << " s" << std::endl;
 
         double minError, maxError, avgError;
@@ -866,7 +828,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                     ceres::CostFunction* costFunction
                         = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(frame->cameraId()),
                                                                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS | POINT_3D);
+                                                                                CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D);
 
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
@@ -881,7 +843,7 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
                         = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(frame->cameraId()),
                                                                                 feature2D->feature3D()->point(),
                                                                                 Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
-                                                                                CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_6D_EXTRINSICS);
+                                                                                CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE);
 
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              T_cam_ref.at(frame->cameraId()).rotationData(),
@@ -933,11 +895,17 @@ InfrastructureCalibration::optimize(bool optimizeScenePoints)
 
 cv::Mat
 InfrastructureCalibration::buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
-                                              std::vector<size_t>& indices) const
+                                              std::vector<size_t>& indices,
+                                              bool hasScenePoint) const
 {
     for (size_t i = 0; i < features.size(); ++i)
     {
-         indices.push_back(i);
+        if (hasScenePoint && !features.at(i)->feature3D())
+        {
+            continue;
+        }
+
+        indices.push_back(i);
     }
 
     cv::Mat dtor(indices.size(), features.at(0)->descriptor().cols, features.at(0)->descriptor().type());
@@ -955,8 +923,8 @@ InfrastructureCalibration::matchFeatures(const std::vector<Point2DFeaturePtr>& q
                                          const std::vector<Point2DFeaturePtr>& trainFeatures) const
 {
     std::vector<size_t> queryIndices, trainIndices;
-    cv::Mat queryDtor = buildDescriptorMat(queryFeatures, queryIndices);
-    cv::Mat trainDtor = buildDescriptorMat(trainFeatures, trainIndices);
+    cv::Mat queryDtor = buildDescriptorMat(queryFeatures, queryIndices, false);
+    cv::Mat trainDtor = buildDescriptorMat(trainFeatures, trainIndices, true);
 
     if (queryDtor.cols != trainDtor.cols)
     {
@@ -1047,17 +1015,101 @@ InfrastructureCalibration::matchFeatures(const std::vector<Point2DFeaturePtr>& q
 }
 
 void
-InfrastructureCalibration::rectifyImagePoint(const CameraConstPtr& camera,
-                                             const cv::Point2f& src, cv::Point2f& dst) const
+InfrastructureCalibration::solveP3PRansac(const FrameConstPtr& frame1,
+                                          const FrameConstPtr& frame2,
+                                          const std::vector<cv::DMatch>& matches,
+                                          Eigen::Matrix4d& H,
+                                          std::vector<cv::DMatch>& inliers) const
 {
-    Eigen::Vector3d P;
+    inliers.clear();
 
-    camera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
+    double p = 0.99; // probability that at least one set of random samples does not contain an outlier
+    double v = 0.6; // probability of observing an outlier
 
-    P /= P(2);
+    double u = 1.0 - v;
+    int N = static_cast<int>(log(1.0 - p) / log(1.0 - u * u * u) + 0.5);
 
-    dst.x = P(0);
-    dst.y = P(1);
+    std::vector<size_t> indices;
+    for (size_t i = 0; i < matches.size(); ++i)
+    {
+        indices.push_back(i);
+    }
+
+    const std::vector<Point2DFeaturePtr>& features1 = frame1->features2D();
+    const std::vector<Point2DFeaturePtr>& features2 = frame2->features2D();
+
+    const CameraConstPtr& camera1 = m_cameraSystem.getCamera(frame1->cameraId());
+
+    // run RANSAC to find best H
+    Eigen::Matrix4d H_best;
+    std::vector<size_t> inlierIds_best;
+    for (int i = 0; i < N; ++i)
+    {
+        std::random_shuffle(indices.begin(), indices.end());
+
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > rays(3);
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > worldPoints(3);
+        for (int j = 0; j < 3; ++j)
+        {
+            const cv::DMatch& match = matches.at(indices.at(j));
+
+            worldPoints.at(j) = features2.at(match.trainIdx)->feature3D()->point();
+
+            const cv::KeyPoint& kpt1 = features1.at(match.queryIdx)->keypoint();
+
+            Eigen::Vector3d ray;
+            camera1->liftProjective(Eigen::Vector2d(kpt1.pt.x, kpt1.pt.y), ray);
+
+            rays.at(j) = ray.normalized();
+        }
+
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > solutions;
+        if (!solveP3P(rays, worldPoints, solutions))
+        {
+            continue;
+        }
+
+        for (size_t j = 0; j < solutions.size(); ++j)
+        {
+            Eigen::Matrix4d H_inv = solutions.at(j).inverse();
+
+            std::vector<size_t> inliersIds;
+            for (size_t k = 0; k < matches.size(); ++k)
+            {
+                const cv::DMatch& match = matches.at(k);
+
+                Eigen::Vector3d P2 = features2.at(match.trainIdx)->feature3D()->point();
+
+                Eigen::Vector3d P1 = transformPoint(H_inv, P1);
+                Eigen::Vector2d p1_pred;
+                camera1->spaceToPlane(P1, p1_pred);
+
+                const Point2DFeatureConstPtr& f1 = features1.at(match.queryIdx);
+
+                double err = hypot(f1->keypoint().pt.x - p1_pred(0),
+                                   f1->keypoint().pt.y - p1_pred(1));
+                if (err > k_reprojErrorThresh)
+                {
+                    continue;
+                }
+
+                inliersIds.push_back(k);
+            }
+
+            if (inliersIds.size() > inlierIds_best.size())
+            {
+                H_best = H_inv;
+                inlierIds_best = inliersIds;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < inlierIds_best.size(); ++i)
+    {
+        inliers.push_back(matches.at(inlierIds_best.at(i)));
+    }
+
+    H = H_best;
 }
 
 double

@@ -748,6 +748,12 @@ PinholeCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
     return K_rect_cv;
 }
 
+int
+PinholeCamera::parameterCount(void) const
+{
+    return 8;
+}
+
 const PinholeCamera::Parameters&
 PinholeCamera::getParameters(void) const
 {
@@ -780,7 +786,7 @@ PinholeCamera::setParameters(const PinholeCamera::Parameters& parameters)
 void
 PinholeCamera::readParameters(const std::vector<double>& parameterVec)
 {
-    if (parameterVec.size() != 8)
+    if (parameterVec.size() != parameterCount())
     {
         return;
     }
@@ -802,7 +808,7 @@ PinholeCamera::readParameters(const std::vector<double>& parameterVec)
 void
 PinholeCamera::writeParameters(std::vector<double>& parameterVec) const
 {
-    parameterVec.resize(8);
+    parameterVec.resize(parameterCount());
     parameterVec.at(0) = mParameters.k1();
     parameterVec.at(1) = mParameters.k2();
     parameterVec.at(2) = mParameters.p1();

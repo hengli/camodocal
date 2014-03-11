@@ -61,7 +61,7 @@ public:
 
     void addOdometry(double x, double y, double yaw, uint64_t timestamp);
 
-    void addGpsIns(double lat, double lon,
+    void addGpsIns(double lat, double lon, double alt,
                    double roll, double pitch, double yaw,
                    uint64_t timestamp);
 

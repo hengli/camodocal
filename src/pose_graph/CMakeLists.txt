@@ -14,5 +14,6 @@ camodocal_link_libraries(camodocal_pose_graph
   ${Boost_THREAD_LIBRARY}
   camodocal_camera_systems
   camodocal_location_recognition
+  camodocal_pose_estimation
   ceres
 )

@@ -1,5 +1,6 @@
 #include "CamOdoThread.h"
 
+#include <boost/make_shared.hpp>
 #include <iostream>
 
 #include "../gpl/EigenUtils.h"
@@ -324,7 +325,7 @@ CamOdoThread::threadFunction(void)
                     continue;
                 }
 
-                FramePtr frame(new Frame);
+                FramePtr frame = boost::make_shared<Frame>();
                 frame->cameraId() = m_cameraId;
                 image.copyTo(frame->image());
 
@@ -333,9 +334,9 @@ CamOdoThread::threadFunction(void)
                 bool camValid = tracker.addFrame(frame, m_camera->mask(), R, t);
 
                 // tag frame with odometry and GPS/INS data
-                frame->odometryMeasurement().reset(new Odometry);
+                frame->odometryMeasurement() = boost::make_shared<Odometry>();
                 *(frame->odometryMeasurement()) = *interpOdo;
-                frame->systemPose().reset(new Odometry);
+                frame->systemPose() = boost::make_shared<Odometry>();
                 *(frame->systemPose()) = *interpOdo;
 
                 if (interpGpsIns.get() != 0)
@@ -345,7 +346,7 @@ CamOdoThread::threadFunction(void)
 
                 if (m_poseSource == GPS_INS)
                 {
-                    OdometryPtr gpsIns(new Odometry);
+                    OdometryPtr gpsIns = boost::make_shared<Odometry>();
                     gpsIns->timeStamp() = interpGpsIns->timeStamp();
                     gpsIns->x() = interpGpsIns->translation()(1);
                     gpsIns->y() = -interpGpsIns->translation()(0);
@@ -355,9 +356,9 @@ CamOdoThread::threadFunction(void)
                     mat2RPY(R, roll, pitch, yaw);
                     gpsIns->yaw() = -yaw;
 
-                    frame->odometryMeasurement().reset(new Odometry);
+                    frame->odometryMeasurement() = boost::make_shared<Odometry>();
                     *(frame->odometryMeasurement()) = *gpsIns;
-                    frame->systemPose().reset(new Odometry);
+                    frame->systemPose() = boost::make_shared<Odometry>();
                     *(frame->systemPose()) = *gpsIns;
                 }
 

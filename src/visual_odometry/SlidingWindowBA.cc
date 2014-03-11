@@ -9,6 +9,7 @@
 #include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
+#include "../pose_estimation/P3P.h"
 
 namespace camodocal
 {
@@ -351,9 +352,6 @@ SlidingWindowBA::addFrame(FramePtr& frame,
     }
     else
     {
-        std::vector<cv::Point3f> scenePoints;
-        std::vector<cv::Point2f> imagePoints;
-
         // use features that are seen in both previous and current frames,
         // and have associated 3D scene points
         std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
@@ -381,20 +379,16 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             }
 
             triFeatureCorrespondences.push_back(fc);
-
-            const Eigen::Vector3d& p = f0->feature3D()->point();
-            scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
-
-            imagePoints.push_back(f1->keypoint().pt);
         }
 
+        std::vector<size_t> inliers;
         if (mMode == VO)
         {
-            if (scenePoints.size() < kMin2D3DFeatureCorrespondences)
+            if (triFeatureCorrespondences.size() < kMin2D3DFeatureCorrespondences)
             {
                 if (mVerbose)
                 {
-                    std::cout << "# INFO: Insufficient number of 2D-3D correspondences (#" << scenePoints.size() << ") for PnP RANSAC." << std::endl;
+                    std::cout << "# INFO: Insufficient number of 2D-3D correspondences (#" << triFeatureCorrespondences.size() << ") for P3P RANSAC." << std::endl;
                 }
 
                 return false;
@@ -402,42 +396,30 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             if (mVerbose)
             {
-                std::cout << "# INFO: Using " << scenePoints.size() << " scene points to compute pose via PnP RANSAC." << std::endl;
+                std::cout << "# INFO: Using " << triFeatureCorrespondences.size() << " scene points to compute pose via P3P RANSAC." << std::endl;
             }
 
-            std::vector<cv::Point2f> rectImagePoints;
-            rectifyImagePoints(imagePoints, rectImagePoints);
-
-            Eigen::Vector3d rvec, tvec;
-            cv::Mat rvec_cv, tvec_cv;
-
-            Eigen::Matrix3d R_est = R_rel * framePrev->cameraPose()->rotation();
-            rvec = RotationToAngleAxis(R_est);
-            cv::eigen2cv(rvec, rvec_cv);
-
-            cv::eigen2cv(framePrev->cameraPose()->translation(), tvec_cv);
-
-            cv::solvePnPRansac(scenePoints, rectImagePoints, cv::Mat::eye(3, 3, CV_64F), cv::noArray(),
-                               rvec_cv, tvec_cv, true, 100, kReprojErrorThresh / kNominalFocalLength, 100, cv::noArray(), CV_ITERATIVE);
-
-            cv::cv2eigen(rvec_cv, rvec);
-            cv::cv2eigen(tvec_cv, tvec);
+            Eigen::Matrix4d H;
+            solveP3PRansac(triFeatureCorrespondences, H, inliers);
 
             if (mVerbose)
             {
                 std::cout << "# INFO: Computed pose in frame " << mFrameCount - 1 << ":" << std::endl;
 
-                cv::Mat R_cv;
-                cv::Rodrigues(rvec_cv, R_cv);
-                std::cout << R_cv << std::endl;
-                std::cout << tvec_cv << std::endl;
+                std::cout << H << std::endl;
             }
 
-            frameCurr->cameraPose()->rotation() = AngleAxisToQuaternion(rvec);
-            frameCurr->cameraPose()->translation() = tvec;
+            frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(H.block<3,3>(0,0));
+            frameCurr->cameraPose()->translation() = H.block<3,1>(0,3);
         }
 
-        // remove feature correspondences marked as outliers in PnP RANSAC
+        // remove feature correspondences marked as outliers in P3P RANSAC
+        std::vector<bool> inlierFlag(triFeatureCorrespondences.size(), false);
+        for (size_t i = 0; i < inliers.size(); ++i)
+        {
+            inlierFlag.at(inliers.at(i)) = true;
+        }
+
         for (size_t i = 0; i < triFeatureCorrespondences.size(); ++i)
         {
             std::vector<Point2DFeaturePtr>& fc = triFeatureCorrespondences.at(i);
@@ -445,25 +427,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            double error;
-            if (mMode == VO)
-            {
-                error = kCamera->reprojectionError(f0->feature3D()->point(),
-                                                   frameCurr->cameraPose()->rotation(),
-                                                   frameCurr->cameraPose()->translation(),
-                                                   Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
-            }
-            else
-            {
-                error = reprojectionError(f0->feature3D()->point(),
-                                          m_T_cam_odo.rotation(),
-                                          m_T_cam_odo.translation(),
-                                          frameCurr->systemPose()->position(),
-                                          frameCurr->systemPose()->attitude(),
-                                          Eigen::Vector2d(f1->keypoint().pt.x, f1->keypoint().pt.y));
-            }
-
-            if (mMode == VO && error > kReprojErrorThresh)
+            if (mMode == VO && !inlierFlag.at(i))
             {
                 f0->bestNextMatchId() = -1;
                 f1->bestPrevMatchId() = -1;
@@ -480,12 +444,11 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             size_t count = 0;
             double totalError = 0.0;
 
-            for (size_t i = 0; i < scenePoints.size(); ++i)
+            for (size_t i = 0; i < inliers.size(); ++i)
             {
-                const cv::Point2f& feature2D = imagePoints.at(i);
+                const cv::Point2f& feature2D = triFeatureCorrespondences.at(i).at(1)->keypoint().pt;
 
-                const cv::Point3f& feature3D = scenePoints.at(i);
-                Eigen::Vector3d point3D(feature3D.x, feature3D.y, feature3D.z);
+                Eigen::Vector3d point3D = triFeatureCorrespondences.at(i).at(0)->feature3D()->point();
 
                 double error;
                 if (mMode == VO)
@@ -1170,6 +1133,93 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
     }
 }
 
+void
+SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr> >& correspondences,
+                                Eigen::Matrix4d& H,
+                                std::vector<size_t>& inliers) const
+{
+    inliers.clear();
+
+    double p = 0.99; // probability that at least one set of random samples does not contain an outlier
+    double v = 0.6; // probability of observing an outlier
+
+    double u = 1.0 - v;
+    int N = static_cast<int>(log(1.0 - p) / log(1.0 - u * u * u) + 0.5);
+
+    std::vector<size_t> indices;
+    for (size_t i = 0; i < correspondences.size(); ++i)
+    {
+        indices.push_back(i);
+    }
+
+    // run RANSAC to find best H
+    Eigen::Matrix4d H_best;
+    std::vector<size_t> inlierIds_best;
+    for (int i = 0; i < N; ++i)
+    {
+        std::random_shuffle(indices.begin(), indices.end());
+
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > rays(3);
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > worldPoints(3);
+        for (int j = 0; j < 3; ++j)
+        {
+            const std::vector<Point2DFeaturePtr>& corr = correspondences.at(indices.at(j));
+
+            worldPoints.at(j) = corr.at(0)->feature3D()->point();
+
+            const cv::KeyPoint& kpt2 = corr.at(1)->keypoint();
+
+            Eigen::Vector3d ray;
+            kCamera->liftProjective(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
+
+            rays.at(j) = ray.normalized();
+        }
+
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > solutions;
+        if (!solveP3P(rays, worldPoints, solutions))
+        {
+            continue;
+        }
+
+        for (size_t j = 0; j < solutions.size(); ++j)
+        {
+            Eigen::Matrix4d H_inv = solutions.at(j).inverse();
+
+            std::vector<size_t> inliersIds;
+            for (size_t k = 0; k < correspondences.size(); ++k)
+            {
+                const std::vector<Point2DFeaturePtr>& corr = correspondences.at(indices.at(k));
+
+                Eigen::Vector3d P1 = corr.at(0)->feature3D()->point();
+
+                Eigen::Vector3d P2 = transformPoint(H_inv, P1);
+                Eigen::Vector2d p2_pred;
+                kCamera->spaceToPlane(P2, p2_pred);
+
+                const Point2DFeatureConstPtr& f2 = corr.at(1);
+
+                double err = hypot(f2->keypoint().pt.x - p2_pred(0),
+                                   f2->keypoint().pt.y - p2_pred(1));
+                if (err > kReprojErrorThresh)
+                {
+                    continue;
+                }
+
+                inliersIds.push_back(k);
+            }
+
+            if (inliersIds.size() > inlierIds_best.size())
+            {
+                H_best = H_inv;
+                inlierIds_best = inliersIds;
+            }
+        }
+    }
+
+    H = H_best;
+    inliers = inlierIds_best;
+}
+
 bool
 SlidingWindowBA::project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector3d& t,
                                 const Eigen::Vector3d& src, Eigen::Vector2d& dst) const
@@ -1434,7 +1484,7 @@ SlidingWindowBA::optimize(void)
                     CostFunctionFactory::instance()->generateCostFunction(kCamera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
                                                                                           feature2D->keypoint().pt.y),
-                                                                          CAMERA_EXTRINSICS | POINT_3D);
+                                                                          CAMERA_POSE | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          frame->cameraPose()->rotationData(), frame->cameraPose()->translationData(),
@@ -1446,7 +1496,7 @@ SlidingWindowBA::optimize(void)
                     CostFunctionFactory::instance()->generateCostFunction(kCamera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
                                                                                           feature2D->keypoint().pt.y),
-                                                                          CAMERA_ODOMETRY_EXTRINSICS | ODOMETRY_3D_EXTRINSICS | POINT_3D);
+                                                                          CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D);
 
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          m_T_cam_odo.rotationData(),

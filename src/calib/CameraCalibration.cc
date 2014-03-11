@@ -84,6 +84,52 @@ CameraCalibration::calibrate(void)
         m_cameraPoses.at<double>(i,5) = tvecs.at(i).at<double>(2);
     }
 
+    // Compute measurement covariance.
+    std::vector<std::vector<cv::Point2f> > errVec(m_imagePoints.size());
+    Eigen::Vector2d errSum = Eigen::Vector2d::Zero();
+    size_t errCount = 0;
+    for (size_t i = 0; i < m_imagePoints.size(); ++i)
+    {
+        std::vector<cv::Point2f> estImagePoints;
+        m_camera->projectPoints(m_scenePoints.at(i), rvecs.at(i), tvecs.at(i),
+                                estImagePoints);
+
+        for (size_t j = 0; j < m_imagePoints.at(i).size(); ++j)
+        {
+            cv::Point2f pObs = m_imagePoints.at(i).at(j);
+            cv::Point2f pEst = estImagePoints.at(j);
+
+            cv::Point2f err = pObs - pEst;
+
+            errVec.at(i).push_back(err);
+
+            errSum += Eigen::Vector2d(err.x, err.y);
+        }
+
+        errCount += m_imagePoints.at(i).size();
+    }
+
+    Eigen::Vector2d errMean = errSum / static_cast<double>(errCount);
+
+    Eigen::Matrix2d measurementCovariance = Eigen::Matrix2d::Zero();
+    for (size_t i = 0; i < errVec.size(); ++i)
+    {
+        for (size_t j = 0; j < errVec.at(i).size(); ++j)
+        {
+            cv::Point2f err = errVec.at(i).at(j);
+            double d0 = err.x - errMean(0);
+            double d1 = err.y - errMean(1);
+
+            measurementCovariance(0,0) += d0 * d0;
+            measurementCovariance(0,1) += d0 * d1;
+            measurementCovariance(1,1) += d1 * d1;
+        }
+    }
+    measurementCovariance /= static_cast<double>(errCount);
+    measurementCovariance(1,0) = measurementCovariance(0,1);
+
+    m_measurementCovariance = measurementCovariance;
+
     return ret;
 }
 
@@ -127,6 +173,18 @@ const CameraConstPtr
 CameraCalibration::camera(void) const
 {
     return m_camera;
+}
+
+Eigen::Matrix2d&
+CameraCalibration::measurementCovariance(void)
+{
+    return m_measurementCovariance;
+}
+
+const Eigen::Matrix2d&
+CameraCalibration::measurementCovariance(void) const
+{
+    return m_measurementCovariance;
 }
 
 cv::Mat&
@@ -236,6 +294,11 @@ CameraCalibration::writeChessboardData(const std::string& filename) const
     writeData(ofs, m_boardSize.height);
     writeData(ofs, m_squareSize);
 
+    writeData(ofs, m_measurementCovariance(0,0));
+    writeData(ofs, m_measurementCovariance(0,1));
+    writeData(ofs, m_measurementCovariance(1,0));
+    writeData(ofs, m_measurementCovariance(1,1));
+
     writeData(ofs, m_cameraPoses.rows);
     writeData(ofs, m_cameraPoses.cols);
     writeData(ofs, m_cameraPoses.type());
@@ -289,6 +352,11 @@ CameraCalibration::readChessboardData(const std::string& filename)
     readData(ifs, m_boardSize.width);
     readData(ifs, m_boardSize.height);
     readData(ifs, m_squareSize);
+
+    readData(ifs, m_measurementCovariance(0,0));
+    readData(ifs, m_measurementCovariance(0,1));
+    readData(ifs, m_measurementCovariance(1,0));
+    readData(ifs, m_measurementCovariance(1,1));
 
     int rows, cols, type;
     readData(ifs, rows);
@@ -429,7 +497,7 @@ CameraCalibration::optimize(CameraPtr& camera,
                 CostFunctionFactory::instance()->generateCostFunction(camera,
                                                                       Eigen::Vector3d(spt.x, spt.y, spt.z),
                                                                       Eigen::Vector2d(ipt.x, ipt.y),
-                                                                      CAMERA_INTRINSICS | CAMERA_EXTRINSICS);
+                                                                      CAMERA_INTRINSICS | CAMERA_POSE);
 
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
             problem.AddResidualBlock(costFunction, lossFunction,

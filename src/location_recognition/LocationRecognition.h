@@ -27,6 +27,7 @@ private:
 
     std::vector<FrameTag> m_frameTags;
     std::vector<FramePtr> m_frames;
+    boost::unordered_map<const Frame*,FrameTag> m_frameMap;
 };
 
 }

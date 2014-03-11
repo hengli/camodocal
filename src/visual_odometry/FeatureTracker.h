@@ -144,6 +144,7 @@ protected:
 
     std::vector<cv::KeyPoint> mKpts, mKptsPrev;
     cv::Mat mDtor, mDtorPrev;
+    FramePtr mFramePrev;
 
     std::vector<Point2DFeaturePtr> mPointFeatures;
 

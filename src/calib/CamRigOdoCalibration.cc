@@ -2,6 +2,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/icl/interval_map.hpp>
+#include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 #include <iomanip>
 #include <iostream>
@@ -101,8 +102,8 @@ CamRigOdoCalibration::addFrameSet(const std::vector<cv::Mat>& images,
     std::vector<boost::shared_ptr<boost::thread> > threads(m_cameras.size());
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
-        threads.at(i).reset(new boost::thread(boost::bind(&CamRigOdoCalibration::addFrame, this,
-                                                          i, images.at(i), timestamp)));
+        threads.at(i) = boost::make_shared<boost::thread>(boost::bind(&CamRigOdoCalibration::addFrame, this,
+                                                          i, images.at(i), timestamp));
     }
 
     for (size_t i = 0; i < m_cameras.size(); ++i)
@@ -115,7 +116,7 @@ void
 CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
                                   uint64_t timestamp)
 {
-    OdometryPtr odometry(new Odometry);
+    OdometryPtr odometry = boost::make_shared<Odometry>();
     odometry->x() = x;
     odometry->y() = y;
     odometry->yaw() = yaw;
@@ -125,7 +126,7 @@ CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
 }
 
 void
-CamRigOdoCalibration::addGpsIns(double lat, double lon,
+CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
                                 double roll, double pitch, double yaw,
                                 uint64_t timestamp)
 {
@@ -134,11 +135,11 @@ CamRigOdoCalibration::addGpsIns(double lat, double lon,
     std::string utmZone;
     LLtoUTM(lat, lon, utmX, utmY, utmZone);
 
-    PosePtr pose(new Pose);
+    PosePtr pose = boost::make_shared<Pose>();
     pose->rotation() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
                        * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
                        * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
-    pose->translation() = Eigen::Vector3d(utmX, utmY, 0.0);
+    pose->translation() = Eigen::Vector3d(utmX, utmY, -alt);
 
     pose->timeStamp() = timestamp;
 
@@ -393,7 +394,7 @@ CamRigOdoCalibration::buildGraph(void)
         size_t frameId = 0;
         while (frameId < frames.size())
         {
-            FrameSetPtr frameSet(new FrameSet);
+            FrameSetPtr frameSet = boost::make_shared<FrameSet>();
             frameSet->frames().resize(m_cameras.size());
             frameSet->systemPose() = frames.at(frameId)->systemPose();
             frameSet->odometryMeasurement() = frames.at(frameId)->odometryMeasurement();

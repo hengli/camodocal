@@ -154,7 +154,7 @@ main(int argc, char** argv)
     // set options.poseSource = GPS_INS, and add GPS/INS
     // and image data here.
     //
-    // camRigOdoCalib.addGpsIns(lat, lon, roll, pitch, yaw, timestamp);
+    // camRigOdoCalib.addGpsIns(lat, lon, alt, roll, pitch, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
     //
     // If options.mode == CamRigOdoCalibration::ONLINE,

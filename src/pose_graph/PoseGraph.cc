@@ -4,11 +4,11 @@
 #include <camodocal/sparse_graph/SparseGraphUtils.h>
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
-#include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/core/eigen.hpp>
 
 #include "../gpl/EigenQuaternionParameterization.h"
 #include "../location_recognition/LocationRecognition.h"
+#include "../pose_estimation/P3P.h"
 #include "PoseGraphError.h"
 
 #ifdef VCHARGE_VIZ
@@ -22,15 +22,13 @@ PoseGraph::PoseGraph(CameraSystem& cameraSystem,
                      SparseGraph& graph,
                      float maxDistanceRatio,
                      int minLoopCorrespondences2D3D,
-                     int nImageMatches,
-                     double nominalFocalLength)
+                     int nImageMatches)
  : m_cameraSystem(cameraSystem)
  , m_graph(graph)
  , k_lossWidth(0.01)
  , k_maxDistanceRatio(maxDistanceRatio)
  , k_minLoopCorrespondences2D3D(minLoopCorrespondences2D3D)
  , k_nImageMatches(nImageMatches)
- , k_nominalFocalLength(nominalFocalLength)
  , m_verbose(false)
 {
 
@@ -224,8 +222,6 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
         return;
     }
 
-    reprojErrorThresh /= k_nominalFocalLength;
-
     Pose T_cam_odo(m_cameraSystem.getGlobalCameraPose(frameQuery->cameraId()));
 
     // find closest matching images
@@ -240,62 +236,32 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
     {
         FrameTag frameTag = frameTags.at(i);
 
-        if (frameTagQuery.frameSetSegmentId == frameTag.frameSetSegmentId &&
-            std::abs(frameTagQuery.frameSetId - frameTag.frameSetId) < 20)
-        {
-            continue;
-        }
-
         const FramePtr& frame = m_graph.frameSetSegment(frameTag.frameSetSegmentId).at(frameTag.frameSetId)->frames().at(frameTag.frameId);
 
-        // mark 3D-3D correspondences between maps
-        std::vector<cv::DMatch> matches = matchFeatures(frameQuery->features2D(), frame->features2D(), k_maxDistanceRatio);
+        // find 2D-3D correspondences between frame pair
+        std::vector<cv::DMatch> matches = matchFeatures(frame->features2D(), frameQuery->features2D(), k_maxDistanceRatio);
 
         if (matches.size() < k_minLoopCorrespondences2D3D)
         {
             continue;
         }
 
-        // find camera pose from EPnP
+        // find camera pose from P3P RANSAC
+        Eigen::Matrix4d H;
+        std::vector<cv::DMatch> inliers;
+        solveP3PRansac(frame, frameQuery, matches,
+                       H, inliers, reprojErrorThresh);
+
         std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3D;
-        std::vector<cv::Point2f> imagePoints;
-        std::vector<cv::Point3f> scenePoints;
-        for (size_t j = 0; j < matches.size(); ++j)
+        for (size_t j = 0; j < inliers.size(); ++j)
         {
-            cv::DMatch& match = matches.at(j);
+            const cv::DMatch& match = inliers.at(j);
 
-            Point2DFeaturePtr& p2D = frameQuery->features2D().at(match.queryIdx);
-            Point3DFeaturePtr& p3D = frame->features2D().at(match.trainIdx)->feature3D();
-
-            if (p3D.get() == 0)
-            {
-                continue;
-            }
-
-            cv::Point2f rectPt;
-            rectifyImagePoint(m_cameraSystem.getCamera(frameQuery->cameraId()), p2D->keypoint().pt, rectPt);
-
-            imagePoints.push_back(rectPt);
-
-            const Eigen::Vector3d& p = p3D->point();
-            scenePoints.push_back(cv::Point3f(p(0), p(1), p(2)));
+            Point3DFeaturePtr& p3D = frame->features2D().at(match.queryIdx)->feature3D();
+            Point2DFeaturePtr& p2D = frameQuery->features2D().at(match.trainIdx);
 
             corr2D3D.push_back(std::make_pair(p2D, p3D));
         }
-
-        if (corr2D3D.size() < k_minLoopCorrespondences2D3D)
-        {
-            continue;
-        }
-
-        cv::Mat rvec_cv, tvec_cv;
-        std::vector<int> inliers;
-
-        cv::solvePnPRansac(scenePoints, imagePoints,
-                           cv::Mat::eye(3, 3, CV_32F),
-                           cv::noArray(),
-                           rvec_cv, tvec_cv, false, 200,
-                           reprojErrorThresh, 100, inliers, CV_EPNP);
 
         int nInliers = inliers.size();
 
@@ -310,30 +276,12 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
             frameTagBest = frameTag;
 
             // compute loop closure constraint
-            Eigen::Vector3d rvec, tvec;
-            cv::cv2eigen(rvec_cv, rvec);
-            cv::cv2eigen(tvec_cv, tvec);
-
-            Eigen::Matrix4d H_cam = Eigen::Matrix4d::Identity();
-            H_cam.block<3,3>(0,0) = Eigen::AngleAxisd(rvec.norm(), rvec.normalized()).toRotationMatrix();
-            H_cam.block<3,1>(0,3) = tvec;
-
-            Eigen::Matrix4d H_0 = H_cam.inverse() * T_cam_odo.toMatrix().inverse();
-
-            Eigen::Matrix4d H_1 = frameBest->systemPose()->toMatrix();
-
-            Eigen::Matrix4d H_01 = H_1.inverse() * H_0;
+            Eigen::Matrix4d H_01 = frame->systemPose()->toMatrix().inverse() * H;
 
             transformBest.rotation() = Eigen::Quaterniond(H_01.block<3,3>(0,0));
             transformBest.translation() = H_01.block<3,1>(0,3);
 
-            // find inlier 2D-3D correspondences
-            corr2D3DBest.clear();
-
-            for (size_t j = 0; j < inliers.size(); ++j)
-            {
-                corr2D3DBest.push_back(corr2D3D.at(inliers.at(j)));
-            }
+            corr2D3DBest = corr2D3D;
         }
     }
 
@@ -343,6 +291,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
         edge->outVertex() = frameBest->systemPose();
         edge->type() = EDGE_LOOP_CLOSURE;
         edge->property() = transformBest;
+
         edge->weight().assign(6, 1.0);
 
         *(correspondences2D3D) = corr2D3DBest;
@@ -516,6 +465,167 @@ PoseGraph::classifySwitches(void)
                   << "/" << edgeSwitchMap.size() << std::endl;
         std::cout << "# INFO: # switches disabled: " << nSwitchesDisabled << std::endl;
     }
+}
+
+void
+PoseGraph::solveP3PRansac(const FrameConstPtr& frame1,
+                          const FrameConstPtr& frame2,
+                          const std::vector<cv::DMatch>& matches,
+                          Eigen::Matrix4d& H,
+                          std::vector<cv::DMatch>& inliers,
+                          double reprojErrorThresh) const
+{
+    inliers.clear();
+
+    double p = 0.99; // probability that at least one set of random samples does not contain an outlier
+    double v = 0.6; // probability of observing an outlier
+
+    double u = 1.0 - v;
+    int N = static_cast<int>(log(1.0 - p) / log(1.0 - u * u * u) + 0.5);
+
+    std::vector<size_t> indices;
+    for (size_t i = 0; i < matches.size(); ++i)
+    {
+        indices.push_back(i);
+    }
+
+    const std::vector<Point2DFeaturePtr>& features1 = frame1->features2D();
+    const std::vector<Point2DFeaturePtr>& features2 = frame2->features2D();
+
+    const CameraConstPtr& camera2 = m_cameraSystem.getCamera(frame2->cameraId());
+
+    // run RANSAC to find best H
+    Eigen::Matrix4d H_best;
+    std::vector<size_t> inlierIds_best;
+    for (int i = 0; i < N; ++i)
+    {
+        std::random_shuffle(indices.begin(), indices.end());
+
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > rays(3);
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > worldPoints(3);
+        for (int j = 0; j < 3; ++j)
+        {
+            const cv::DMatch& match = matches.at(indices.at(j));
+
+            worldPoints.at(j) = features1.at(match.queryIdx)->feature3D()->point();
+
+            const cv::KeyPoint& kpt2 = features2.at(match.trainIdx)->keypoint();
+
+            Eigen::Vector3d ray;
+            camera2->liftProjective(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
+
+            rays.at(j) = ray.normalized();
+        }
+
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > solutions;
+        if (!solveP3P(rays, worldPoints, solutions))
+        {
+            continue;
+        }
+
+        for (size_t j = 0; j < solutions.size(); ++j)
+        {
+            Eigen::Matrix4d H_inv = solutions.at(j).inverse();
+
+            std::vector<size_t> inliersIds;
+            for (size_t k = 0; k < matches.size(); ++k)
+            {
+                const cv::DMatch& match = matches.at(k);
+
+                Eigen::Vector3d P1 = features1.at(match.queryIdx)->feature3D()->point();
+
+                Eigen::Vector3d P2 = transformPoint(H_inv, P1);
+                Eigen::Vector2d p2_pred;
+                camera2->spaceToPlane(P2, p2_pred);
+
+                const Point2DFeatureConstPtr& f2 = features2.at(match.trainIdx);
+
+                double err = hypot(f2->keypoint().pt.x - p2_pred(0),
+                                   f2->keypoint().pt.y - p2_pred(1));
+                if (err > reprojErrorThresh)
+                {
+                    continue;
+                }
+
+                inliersIds.push_back(k);
+            }
+
+            if (inliersIds.size() > inlierIds_best.size())
+            {
+                H_best = solutions.at(j);
+                inlierIds_best = inliersIds;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < inlierIds_best.size(); ++i)
+    {
+        inliers.push_back(matches.at(inlierIds_best.at(i)));
+    }
+
+    H = H_best * m_cameraSystem.getGlobalCameraPose(frame2->cameraId()).inverse();
+}
+
+cv::Mat
+PoseGraph::buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
+                              std::vector<size_t>& indices,
+                              bool hasScenePoint) const
+{
+    for (size_t i = 0; i < features.size(); ++i)
+    {
+        if (hasScenePoint && !features.at(i)->feature3D())
+        {
+            continue;
+        }
+
+        indices.push_back(i);
+    }
+
+    cv::Mat dtor(indices.size(), features.at(0)->descriptor().cols, features.at(0)->descriptor().type());
+
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        features.at(indices.at(i))->descriptor().copyTo(dtor.row(i));
+    }
+
+    return dtor;
+}
+
+std::vector<cv::DMatch>
+PoseGraph::matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
+                         const std::vector<Point2DFeaturePtr>& features2,
+                         float maxDistanceRatio) const
+{
+    cv::BFMatcher descriptorMatcher(cv::NORM_L2, false);
+
+    std::vector<size_t> indices1, indices2;
+    cv::Mat dtor1 = buildDescriptorMat(features1, indices1, true);
+    cv::Mat dtor2 = buildDescriptorMat(features2, indices2, false);
+
+    std::vector<std::vector<cv::DMatch> > candidateMatches;
+    descriptorMatcher.knnMatch(dtor1, dtor2, candidateMatches, 2);
+
+    std::vector<cv::DMatch> matches;
+    for (size_t i = 0; i < candidateMatches.size(); ++i)
+    {
+        std::vector<cv::DMatch>& match = candidateMatches.at(i);
+
+        if (match.size() < 2)
+        {
+            continue;
+        }
+
+        float distanceRatio = match.at(0).distance / match.at(1).distance;
+
+        if (distanceRatio < maxDistanceRatio)
+        {
+            matches.push_back(cv::DMatch(indices1.at(match.at(0).queryIdx),
+                                         indices2.at(match.at(0).trainIdx),
+                                         match.at(0).distance));
+        }
+    }
+
+    return matches;
 }
 
 #ifdef VCHARGE_VIZ

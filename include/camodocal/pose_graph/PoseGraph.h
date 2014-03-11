@@ -19,8 +19,7 @@ public:
               SparseGraph& graph,
               float maxDistanceRatio,
               int minLoopCorrespondences2D3D,
-              int nImageMatches,
-              double nominalFocalLength);
+              int nImageMatches);
 
     void setVerbose(bool onoff);
 
@@ -54,6 +53,21 @@ private:
     bool iterateEM(bool useRobustOptimization);
     void classifySwitches(void);
 
+    void solveP3PRansac(const FrameConstPtr& frame1,
+                        const FrameConstPtr& frame2,
+                        const std::vector<cv::DMatch>& matches,
+                        Eigen::Matrix4d& H,
+                        std::vector<cv::DMatch>& inliers,
+                        double reprojErrorThresh = 2.0) const;
+
+    cv::Mat buildDescriptorMat(const std::vector<Point2DFeaturePtr>& features,
+                               std::vector<size_t>& indices,
+                               bool hasScenePoint) const;
+
+    std::vector<cv::DMatch> matchFeatures(const std::vector<Point2DFeaturePtr>& features1,
+                                          const std::vector<Point2DFeaturePtr>& features2,
+                                          float maxDistanceRatio) const;
+
 #ifdef VCHARGE_VIZ
     void visualizeLoopClosureEdges(void);
 #endif
@@ -69,7 +83,6 @@ private:
     const int k_minLoopCorrespondences2D3D;
     const float k_maxDistanceRatio;
     const int k_nImageMatches;
-    const double k_nominalFocalLength;
 
     bool m_verbose;
 };

@@ -17,19 +17,12 @@ namespace camodocal
 enum
 {
     CAMERA_INTRINSICS = 0x1,
-    CAMERA_EXTRINSICS = 0x2,
+    CAMERA_POSE = 0x2,
     POINT_3D = 0x4,
     ODOMETRY_INTRINSICS = 0x8,
-    ODOMETRY_3D_EXTRINSICS = 0x10,
-    ODOMETRY_6D_EXTRINSICS = 0x20,
-    CAMERA_ODOMETRY_EXTRINSICS = 0x40
-};
-
-enum
-{
-    OPTIMIZE_CAMERA_ODOMETRY_Z = 0x1,
-    OPTIMIZE_ODOMETRY_3D = 0x2,
-    OPTIMIZE_ODOMETRY_6D = 0x4
+    ODOMETRY_3D_POSE = 0x10,
+    ODOMETRY_6D_POSE = 0x20,
+    CAMERA_ODOMETRY_TRANSFORM = 0x40
 };
 
 class CostFunctionFactory
@@ -42,6 +35,12 @@ public:
     ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
                                               const Eigen::Vector3d& observed_P,
                                               const Eigen::Vector2d& observed_p,
+                                              int flags) const;
+
+    ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
+                                              const Eigen::Vector3d& observed_P,
+                                              const Eigen::Vector2d& observed_p,
+                                              const Eigen::Matrix2d& precisionMat,
                                               int flags) const;
 
     ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
