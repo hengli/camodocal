@@ -166,10 +166,18 @@ CamRigOdoCalibration::start(void)
         std::cout << "# INFO: Running camera-odometry calibration for each of the " << m_cameras.size() << " cameras." << std::endl;
 
         // run odometry-camera calibration for each camera
-        std::for_each(m_camOdoThreads.begin(), m_camOdoThreads.end(), std::mem_fun(&CamOdoThread::launch));
+        for (size_t i = 0; i < m_camOdoThreads.size(); ++i)
+        {
+            m_camOdoThreads.at(i)->launch();
+        }
 
         m_camOdoWatchdogThread->launch();
         m_camOdoWatchdogThread->join();
+
+        for (size_t i = 0; i < m_camOdoThreads.size(); ++i)
+        {
+            m_camOdoThreads.at(i)->join();
+        }
 
 #ifdef VCHARGE_VIZ
         closeWindow = true;
@@ -281,8 +289,6 @@ CamRigOdoCalibration::cameraSystem(void) const
 void
 CamRigOdoCalibration::onCamOdoThreadFinished(CamOdoThread* camOdoThread)
 {
-    camOdoThread->join();
-
     if (m_options.verbose)
     {
         double minError, maxError, avgError;
