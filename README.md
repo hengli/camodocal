@@ -77,11 +77,7 @@ Build Instructions for Ubuntu
 * Boost >= 1.4.0 (Ubuntu package: libboost-all-dev)
 * CUDA >= 4.2
 * Eigen3 (Ubuntu package: libeigen3-dev)
-* GLib (Ubuntu package: libglib2.0-dev)
 * glog
-* GThread (Ubuntu package: libglib2.0-dev)
-* gtkmm (Ubuntu package: libglibmm-2.4-dev)
-* libsigc++ (Ubuntu package: libsigc++-2.0-dev)
 * OpenCV >= 2.4.0
 * SuiteSparse (Ubuntu package: libsuitesparse-dev)
 

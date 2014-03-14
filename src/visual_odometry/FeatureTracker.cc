@@ -1,6 +1,6 @@
 #include <boost/make_shared.hpp>
+#include <boost/thread.hpp>
 #include <Eigen/Dense>
-#include <glibmm.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/gpu/gpu.hpp>
@@ -788,13 +788,13 @@ bool
 CameraRigTemporalFeatureTracker::addFrame(const std::vector<cv::Mat>& images,
                                           const std::vector<cv::Mat>& masks)
 {
-    Glib::Threads::Thread* threads[mCameraMetadata.size()];
+    boost::shared_ptr<boost::thread> threads[mCameraMetadata.size()];
 
     for (size_t i = 0; i < mCameraMetadata.size(); ++i)
     {
         CameraMetadata& metadata = mCameraMetadata.at(i);
 
-        threads[i] = Glib::Threads::Thread::create(sigc::bind(sigc::mem_fun(*this, &CameraRigTemporalFeatureTracker::processImage), images.at(i), masks.at(i), &metadata));
+        threads[i] = boost::make_shared<boost::thread>(&CameraRigTemporalFeatureTracker::processImage, this, images.at(i), masks.at(i), &metadata);
     }
 
     for (size_t i = 0; i < mCameraMetadata.size(); ++i)

@@ -12,15 +12,12 @@ camodocal_library(camodocal_visual_odometry SHARED
 )
 
 camodocal_link_libraries(camodocal_visual_odometry
+  ${Boost_THREAD_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_FLANN_LIBRARY}
   ${OPENCV_HIGHGUI_LIBRARY}
   ${OPENCV_NONFREE_LIBRARY}
   ${OPENCV_GPU_LIBRARY}
-  ${GLIBMM2_LIBRARY}
-  ${SIGC++_LIBRARY}
-  ${GLIB2_LIBRARY}
-  ${GTHREAD2_LIBRARY}
   camodocal_brisk
   camodocal_camera_models
   camodocal_features2d

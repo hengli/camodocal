@@ -84,11 +84,6 @@ configure_file(CamOdoCalPathConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/CamOdoCalPat
 include_directories(
   # External
   ${EIGEN3_INCLUDE_DIR}
-  ${GLIB2_MAIN_INCLUDE_DIR}
-  ${GLIB2_INTERNAL_INCLUDE_DIR}
-  ${GLIBMM2_MAIN_INCLUDE_DIR}
-  ${GLIBMM2_INTERNAL_INCLUDE_DIR}
-  ${SIGC++_INCLUDE_DIR}
   ${OPENCV_INCLUDE_DIRS}
 
   # All library includes are prefixed with the path to avoid conflicts
