@@ -8,10 +8,12 @@
 #include <opencv2/nonfree/features2d.hpp>
 
 #include "../brisk/include/brisk/brisk.h"
+#include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/gpl.h"
 #include "../gpl/EigenUtils.h"
 #include "../gpl/OpenCVUtils.h"
 #include "../npoint/five-point/five-point.hpp"
+#include "ceres/ceres.h"
 #include "FeatureTracker.h"
 
 namespace camodocal
@@ -21,83 +23,83 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
                                DescriptorType descriptorType,
                                MatchTestType matchTestType,
                                bool preprocess)
- : mMaxDistanceRatio(0.7f)
- , mDetectorType(detectorType)
- , mDescriptorType(descriptorType)
- , mMatchTestType(matchTestType)
- , mPreprocess(preprocess)
- , mVerbose(false)
+ : m_maxDistanceRatio(0.7f)
+ , m_detectorType(detectorType)
+ , m_descriptorType(descriptorType)
+ , m_matchTestType(matchTestType)
+ , m_preprocess(preprocess)
+ , m_verbose(false)
 {
     bool crossCheck = false;
 
     switch (detectorType)
     {
     case FAST_DETECTOR:
-        mFeatureDetector = cv::Ptr<cv::FeatureDetector>(new cv::FastFeatureDetector(25));
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::FastFeatureDetector(25));
         break;
     case ORB_DETECTOR:
-        mFeatureDetector = cv::Ptr<cv::FeatureDetector>(new cv::OrbFeatureDetector(1000));
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::OrbFeatureDetector(1000));
         break;
     case ORB_GPU_DETECTOR:
-        mORB_GPU = ORBGPU::instance(1000);
+        m_ORB_GPU = ORBGPU::instance(1000);
         break;
     case STAR_DETECTOR:
-//        mFeatureDetector = new cv::GridAdaptedFeatureDetector(new cv::StarDetector(15, 5, 10, 8, 20), 500, 3, 2);
-        mFeatureDetector = cv::Ptr<cv::FeatureDetector>(new cv::StarDetector(16, 25, 10, 8, 5));
+//        m_featureDetector = new cv::GridAdaptedFeatureDetector(new cv::StarDetector(15, 5, 10, 8, 20), 500, 3, 2);
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::StarDetector(16, 25, 10, 8, 5));
         break;
     case SURF_GPU_DETECTOR:
-        mSURF_GPU = SurfGPU::instance(200.0);
+        m_SURF_GPU = SurfGPU::instance(200.0);
         break; 
     case SURF_DETECTOR:
     default:
-        mFeatureDetector = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(500.0, 5, 2));
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(500.0, 5, 2));
     }
 
     switch (descriptorType)
     {
     case BRISK_DESCRIPTOR:
-        mDescriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::BriskDescriptorExtractor);
-        mDescriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
+        m_descriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::BriskDescriptorExtractor);
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
         break;
     case ORB_DESCRIPTOR:
-        mDescriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::OrbDescriptorExtractor);
-        mDescriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
+        m_descriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::OrbDescriptorExtractor);
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
         break;
     case ORB_GPU_DESCRIPTOR:
-        mORB_GPU = ORBGPU::instance(1000);
+        m_ORB_GPU = ORBGPU::instance(1000);
         break;
     case SURF_GPU_DESCRIPTOR:
-        mSURF_GPU = SurfGPU::instance(200.0);
+        m_SURF_GPU = SurfGPU::instance(200.0);
         break;
     case SURF_DESCRIPTOR:
     default:
-        mDescriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::SurfDescriptorExtractor(5, 2));
-        mDescriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_L2, crossCheck));
+        m_descriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::SurfDescriptorExtractor(5, 2));
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_L2, crossCheck));
     }
 }
 
 cv::Mat&
 FeatureTracker::cameraMatrix(void)
 {
-    return mCameraMatrix;
+    return m_cameraMatrix;
 }
 
 const cv::Mat&
 FeatureTracker::getSketch(void) const
 {
-    return mSketch;
+    return m_sketch;
 }
 
 void
 FeatureTracker::setMaxDistanceRatio(float maxDistanceRatio)
 {
-    mMaxDistanceRatio = maxDistanceRatio;
+    m_maxDistanceRatio = maxDistanceRatio;
 }
 
 void
 FeatureTracker::setVerbose(bool verbose)
 {
-    mVerbose = verbose;
+    m_verbose = verbose;
 }
 
 void
@@ -115,23 +117,23 @@ FeatureTracker::detectFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& 
 {
     double ts = timeInSeconds();
 
-    switch (mDetectorType)
+    switch (m_detectorType)
     {
     case ORB_GPU_DETECTOR:
     {
-        mORB_GPU->detect(image, keypoints, mask);
+        m_ORB_GPU->detect(image, keypoints, mask);
         break;
     }
     case SURF_GPU_DETECTOR:
     {
-        mSURF_GPU->detect(image, keypoints, mask);
+        m_SURF_GPU->detect(image, keypoints, mask);
         break;
     }
     default:
-        mFeatureDetector->detect(image, keypoints, mask);
+        m_featureDetector->detect(image, keypoints, mask);
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << "# INFO: Feature detection took " << timeInSeconds() - ts << "s." << std::endl;
     }
@@ -144,23 +146,23 @@ FeatureTracker::computeDescriptors(const cv::Mat& image,
 {
     double ts = timeInSeconds();
 
-    switch (mDescriptorType)
+    switch (m_descriptorType)
     {
     case ORB_GPU_DESCRIPTOR:
     {
-        mORB_GPU->compute(image, keypoints, descriptors);
+        m_ORB_GPU->compute(image, keypoints, descriptors);
         break;
     }
     case SURF_GPU_DESCRIPTOR:
     {
-        mSURF_GPU->compute(image, keypoints, descriptors);
+        m_SURF_GPU->compute(image, keypoints, descriptors);
         break;
     }
     default:
-        mDescriptorExtractor->compute(image, keypoints, descriptors);
+        m_descriptorExtractor->compute(image, keypoints, descriptors);
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << "# INFO: Descriptor computation took " << timeInSeconds() - ts << "s." << std::endl;
     }
@@ -177,7 +179,7 @@ FeatureTracker::matchPointFeaturesWithBestMatchTest(const cv::Mat& dtor1,
     matches.clear();
 
     std::vector<cv::DMatch> rawMatches;
-    mDescriptorMatcher->match(dtor1, dtor2, rawMatches);
+    m_descriptorMatcher->match(dtor1, dtor2, rawMatches);
 
     for (size_t i = 0; i < rawMatches.size(); ++i)
     {
@@ -186,7 +188,7 @@ FeatureTracker::matchPointFeaturesWithBestMatchTest(const cv::Mat& dtor1,
         matches.push_back(match);
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << "# INFO: Descriptor matching took " << timeInSeconds() - ts << "s." << std::endl;
     }
@@ -205,36 +207,36 @@ FeatureTracker::matchPointFeaturesWithRadiusTest(const cv::Mat& dtor1,
 
     std::vector<std::vector<cv::DMatch> > rawMatches;
 
-    switch (mDescriptorType)
+    switch (m_descriptorType)
     {
     case ORB_DESCRIPTOR:
     case ORB_GPU_DESCRIPTOR:
     {
-        if ((mMatchTestType & 0x10) == 0x10)
+        if ((m_matchTestType & 0x10) == 0x10)
         {
-            mORB_GPU->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
+            m_ORB_GPU->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
         }
         else
         {
-            mDescriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
+            m_descriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
         }
         break;
     }
     case SURF_DESCRIPTOR:
     case SURF_GPU_DESCRIPTOR:
     {
-        if ((mMatchTestType & 0x10) == 0x10)
+        if ((m_matchTestType & 0x10) == 0x10)
         {
-            mSURF_GPU->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
+            m_SURF_GPU->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
         }
         else
         {
-            mDescriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
+            m_descriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
         }
         break;
     }
     default:
-        mDescriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
+        m_descriptorMatcher->radiusMatch(dtor1, dtor2, rawMatches, maxDistance, mask, true);
     }
 
     for (size_t i = 0; i < rawMatches.size(); ++i)
@@ -252,7 +254,7 @@ FeatureTracker::matchPointFeaturesWithRadiusTest(const cv::Mat& dtor1,
         }
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << "# INFO: Descriptor matching took " << timeInSeconds() - ts << "s." << std::endl;
     }
@@ -269,36 +271,36 @@ FeatureTracker::matchPointFeaturesWithRatioTest(const cv::Mat& dtor1,
     matches.clear();
 
     std::vector<std::vector<cv::DMatch> > rawMatches;
-    switch (mDescriptorType)
+    switch (m_descriptorType)
     {
     case ORB_DESCRIPTOR:
     case ORB_GPU_DESCRIPTOR:
     {
-        if ((mMatchTestType & 0x10) == 0x10)
+        if ((m_matchTestType & 0x10) == 0x10)
         {
-            mORB_GPU->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
+            m_ORB_GPU->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
         }
         else
         {
-            mDescriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
+            m_descriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
         }
         break;
     }
     case SURF_DESCRIPTOR:
     case SURF_GPU_DESCRIPTOR:
     {
-        if ((mMatchTestType & 0x10) == 0x10)
+        if ((m_matchTestType & 0x10) == 0x10)
         {
-            mSURF_GPU->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
+            m_SURF_GPU->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
         }
         else
         {
-            mDescriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
+            m_descriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
         }
         break;
     }
     default:
-        mDescriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
+        m_descriptorMatcher->knnMatch(dtor1, dtor2, rawMatches, knn, mask, true);
     }
 
     for (size_t i = 0; i < rawMatches.size(); ++i)
@@ -314,7 +316,7 @@ FeatureTracker::matchPointFeaturesWithRatioTest(const cv::Mat& dtor1,
 
         float distanceRatio = rawMatch.at(0).distance / rawMatch.at(1).distance;
 
-        if (distanceRatio < mMaxDistanceRatio)
+        if (distanceRatio < m_maxDistanceRatio)
         {
             match.push_back(rawMatch.at(0));
         }
@@ -325,7 +327,7 @@ FeatureTracker::matchPointFeaturesWithRatioTest(const cv::Mat& dtor1,
         }
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << "# INFO: Descriptor matching took " << timeInSeconds() - ts << "s." << std::endl;
     }
@@ -377,13 +379,13 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
                                                MatchTestType matchTestType,
                                                bool preprocess)
  : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
- , kCamera(camera)
- , mInit(false)
+ , k_camera(camera)
+ , m_init(false)
  , m_BA(camera)
- , kMaxDelta(80.0f)
- , kMinFeatureCorrespondences(15)
- , kNominalFocalLength(300.0)
- , kReprojErrorThresh(1.0)
+ , k_maxDelta(80.0f)
+ , k_minFeatureCorrespondences(15)
+ , k_nominalFocalLength(300.0)
+ , k_reprojErrorThresh(1.0)
 {
 
 }
@@ -393,76 +395,76 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 {
     if (frame->image().channels() > 1)
     {
-        cv::cvtColor(frame->image(), mImage, CV_BGR2GRAY);
+        cv::cvtColor(frame->image(), m_image, CV_BGR2GRAY);
     }
     else
     {
-        frame->image().copyTo(mImage);
+        frame->image().copyTo(m_image);
     }
 
     if (mask.empty())
     {
-        mMask = cv::Mat();
+        m_mask = cv::Mat();
     }
     else
     {
-        mMask = mask > 0;
+        m_mask = mask > 0;
     }
 
-    if (mPreprocess)
+    if (m_preprocess)
     {
-        preprocessImage(mImage, mMask);
+        preprocessImage(m_image, m_mask);
     }
 
-    detectFeatures(mImage, mKpts, mMask);
-    computeDescriptors(mImage, mKpts, mDtor);
+    detectFeatures(m_image, m_kpts, m_mask);
+    computeDescriptors(m_image, m_kpts, m_dtor);
 
     if (m_BA.empty())
     {
-        mFrames.clear();
-        mPoses.clear();
+        m_frames.clear();
+        m_poses.clear();
     }
 
-    if (m_BA.windowSize() == 1 && mPoses.size() > 1)
+    if (m_BA.windowSize() == 1 && m_poses.size() > 1)
     {
-        mFrames.clear();
-        mFrames.push_back(m_BA.currentFrame());
-        mPoses = m_BA.poses();
+        m_frames.clear();
+        m_frames.push_back(m_BA.currentFrame());
+        m_poses = m_BA.poses();
     }
-    m_BA.setVerbose(mVerbose);
+    m_BA.setVerbose(m_verbose);
 
     std::vector<Point2DFeaturePtr> pointFeaturesPrev;
-    pointFeaturesPrev.swap(mPointFeatures);
+    pointFeaturesPrev.swap(m_pointFeatures);
 
-    for (size_t i = 0; i < mKpts.size(); ++i)
+    for (size_t i = 0; i < m_kpts.size(); ++i)
     {
         Point2DFeaturePtr p = boost::make_shared<Point2DFeature>();
-        mDtor.row(i).copyTo(p->descriptor());
-        p->keypoint() = mKpts.at(i);
+        m_dtor.row(i).copyTo(p->descriptor());
+        p->keypoint() = m_kpts.at(i);
         p->index() = i;
 
-        mPointFeatures.push_back(p);
+        m_pointFeatures.push_back(p);
     }
 
-    if (mFramePrev)
+    if (m_framePrev)
     {
         std::vector<std::vector<cv::DMatch> > matches;
 
-        windowedMatchingMask(mKpts, mKptsPrev, kMaxDelta, kMaxDelta, mMatchingMask);
+        windowedMatchingMask(m_kpts, m_kptsPrev, k_maxDelta, k_maxDelta, m_matchingMask);
 
-        cv::Mat matchingMaskROI(mMatchingMask, cv::Rect(0, 0, mKptsPrev.size(), mKpts.size()));
+        cv::Mat matchingMask_rOI(m_matchingMask, cv::Rect(0, 0, m_kptsPrev.size(), m_kpts.size()));
 
-        switch (mMatchTestType)
+        switch (m_matchTestType)
         {
         case BEST_MATCH:
-            matchPointFeaturesWithBestMatchTest(mDtor, mDtorPrev, matches, matchingMaskROI);
+            matchPointFeaturesWithBestMatchTest(m_dtor, m_dtorPrev, matches, matchingMask_rOI);
             break;
         case RADIUS:
-            matchPointFeaturesWithRadiusTest(mDtor, mDtorPrev, matches, matchingMaskROI);
+            matchPointFeaturesWithRadiusTest(m_dtor, m_dtorPrev, matches, matchingMask_rOI);
             break;
         case RATIO:
         default:
-            matchPointFeaturesWithRatioTest(mDtor, mDtorPrev, matches, matchingMaskROI);
+            matchPointFeaturesWithRatioTest(m_dtor, m_dtorPrev, matches, matchingMask_rOI);
         }
 
         for (size_t i = 0; i < matches.size(); ++i)
@@ -473,20 +475,20 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
                 int queryIdx = match.at(j).queryIdx;
                 int trainIdx = match.at(j).trainIdx;
 
-                if (queryIdx >= 0 && queryIdx < mPointFeatures.size() &&
+                if (queryIdx >= 0 && queryIdx < m_pointFeatures.size() &&
                     trainIdx >= 0 && trainIdx < pointFeaturesPrev.size())
                 {
-                    mPointFeatures.at(queryIdx)->prevMatches().push_back(pointFeaturesPrev.at(trainIdx));
-                    mPointFeatures.at(queryIdx)->bestPrevMatchId() = 0;
+                    m_pointFeatures.at(queryIdx)->prevMatches().push_back(pointFeaturesPrev.at(trainIdx));
+                    m_pointFeatures.at(queryIdx)->bestPrevMatchId() = 0;
 
-                    pointFeaturesPrev.at(trainIdx)->nextMatches().push_back(mPointFeatures.at(queryIdx));
+                    pointFeaturesPrev.at(trainIdx)->nextMatches().push_back(m_pointFeatures.at(queryIdx));
                     pointFeaturesPrev.at(trainIdx)->bestNextMatchId() = 0;
                 }
                 else
                 {
-                    if (queryIdx < 0 || queryIdx >= mPointFeatures.size())
+                    if (queryIdx < 0 || queryIdx >= m_pointFeatures.size())
                     {
-                        std::cout << "# WARNING: Query idx does not have a valid value " << queryIdx << " " << mPointFeatures.size() << std::endl;
+                        std::cout << "# WARNING: Query idx does not have a valid value " << queryIdx << " " << m_pointFeatures.size() << std::endl;
                     }
                     if (trainIdx < 0 || trainIdx >= pointFeaturesPrev.size())
                     {
@@ -499,9 +501,9 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         // cross-check
         int invalidMatchCount = 0;
 
-        for (size_t i = 0; i < mPointFeatures.size(); ++i)
+        for (size_t i = 0; i < m_pointFeatures.size(); ++i)
         {
-            Point2DFeaturePtr& pf = mPointFeatures.at(i);
+            Point2DFeaturePtr& pf = m_pointFeatures.at(i);
             if (pf->prevMatches().empty() || pf->bestPrevMatchId() == -1)
             {
                 continue;
@@ -532,14 +534,14 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
             }
         }
 
-        if (mVerbose)
+        if (m_verbose)
         {
             std::cout << "# INFO: Removed " << invalidMatchCount << " matches via cross-checking." << std::endl;
 
             int validMatchCount = 0;
-            for (size_t i = 0; i < mPointFeatures.size(); ++i)
+            for (size_t i = 0; i < m_pointFeatures.size(); ++i)
             {
-                Point2DFeaturePtr& pf = mPointFeatures.at(i);
+                Point2DFeaturePtr& pf = m_pointFeatures.at(i);
                 if (!pf->prevMatches().empty() && pf->bestPrevMatchId() != -1)
                 {
                     ++validMatchCount;
@@ -550,9 +552,9 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         }
 
         // remove singleton features from previous frame
-        std::vector<Point2DFeaturePtr>::iterator itF2D = mFramePrev->features2D().begin();
+        std::vector<Point2DFeaturePtr>::iterator itF2D = m_framePrev->features2D().begin();
 
-        while (itF2D != mFramePrev->features2D().end())
+        while (itF2D != m_framePrev->features2D().end())
         {
             Point2DFeaturePtr pf = *itF2D;
 
@@ -561,7 +563,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 
             if (!hasPrevMatch && !hasNextMatch)
             {
-                itF2D = mFramePrev->features2D().erase(itF2D);
+                itF2D = m_framePrev->features2D().erase(itF2D);
             }
             else
             {
@@ -570,29 +572,29 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         }
     }
 
-    mKptsPrev = mKpts;
-    mDtor.copyTo(mDtorPrev);
-    mFramePrev = frame;
+    m_kptsPrev = m_kpts;
+    m_dtor.copyTo(m_dtorPrev);
+    m_framePrev = frame;
 
-    if (!mImage.empty())
+    if (!m_image.empty())
     {
-        mImage.copyTo(frame->image());
+        m_image.copyTo(frame->image());
     }
 
-    frame->features2D() = mPointFeatures;
-    for (size_t i = 0; i < mPointFeatures.size(); ++i)
+    frame->features2D() = m_pointFeatures;
+    for (size_t i = 0; i < m_pointFeatures.size(); ++i)
     {
         frame->features2D().at(i)->frame() = frame;
     }
 
-    if (!mInit)
+    if (!m_init)
     {
         m_BA.addFrame(frame);
 
-        mPoses.push_back(frame->cameraPose()->toMatrix());
-        mFrames.push_back(m_BA.currentFrame());
+        m_poses.push_back(frame->cameraPose()->toMatrix());
+        m_frames.push_back(m_BA.currentFrame());
 
-        mInit = true;
+        m_init = true;
 
         return true;
     }
@@ -600,14 +602,14 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
     bool voValid = m_BA.addFrame(frame);
     if (voValid)
     {
-        mPoses.push_back(frame->cameraPose()->toMatrix());
-        mFrames.push_back(m_BA.currentFrame());
+        m_poses.push_back(frame->cameraPose()->toMatrix());
+        m_frames.push_back(m_BA.currentFrame());
 
         // update all windowed poses
         std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > window = m_BA.poses();
         for (size_t j = 0; j < window.size(); ++j)
         {
-           mPoses.at(mPoses.size() + j - window.size()) = window.at(j);
+           m_poses.at(m_poses.size() + j - window.size()) = window.at(j);
         }
     }
     else
@@ -617,7 +619,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 
         voValid = false;
 
-        if (mVerbose)
+        if (m_verbose)
         {
             std::cout << "# INFO: Sliding window BA failed." << std::endl;
         }
@@ -625,14 +627,14 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 
     if (!voValid)
     {
-        for (size_t i = 0; i < mPointFeatures.size(); ++i)
+        for (size_t i = 0; i < m_pointFeatures.size(); ++i)
         {
-            mPointFeatures.at(i)->bestPrevMatchId() = -1;
+            m_pointFeatures.at(i)->bestPrevMatchId() = -1;
         }
     }
 
-    cv::cvtColor(mImage, mSketch, CV_GRAY2BGR);
-    cv::drawKeypoints(mSketch, mKpts, mSketch, cv::Scalar(0, 0, 255));
+    cv::cvtColor(m_image, m_sketch, CV_GRAY2BGR);
+    cv::drawKeypoints(m_sketch, m_kpts, m_sketch, cv::Scalar(0, 0, 255));
 
     visualizeTracks();
 
@@ -642,19 +644,77 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 void
 TemporalFeatureTracker::clear(void)
 {
-    mInit = false;
+    m_init = false;
 
-    mKpts.clear();
-    mKptsPrev.clear();
+    m_kpts.clear();
+    m_kptsPrev.clear();
 
-    mDtor = cv::Mat();
-    mDtorPrev = cv::Mat();
+    m_dtor = cv::Mat();
+    m_dtorPrev = cv::Mat();
 
-    mPointFeatures.clear();
+    m_pointFeatures.clear();
 
     m_BA.clear();
-    mFrames.clear();
-    mPoses.clear();
+    m_frames.clear();
+    m_poses.clear();
+}
+
+void
+TemporalFeatureTracker::runBundleAdjustment(void)
+{
+    if (m_frames.size() < 2)
+    {
+        return;
+    }
+
+    ceres::Problem problem;
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    options.max_num_iterations = 1000;
+
+    for (size_t i = 0; i < m_frames.size(); ++i)
+    {
+        FramePtr& frame = m_frames.at(i);
+
+        std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
+
+        for (size_t j = 0; j < features2D.size(); ++j)
+        {
+            Point2DFeaturePtr& feature2D = features2D.at(j);
+            Point3DFeaturePtr& feature3D = feature2D->feature3D();
+
+            if (!feature2D->feature3D())
+            {
+                continue;
+            }
+
+            ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
+
+            ceres::CostFunction* costFunction =
+                CostFunctionFactory::instance()->generateCostFunction(k_camera,
+                                                                      Eigen::Vector2d(feature2D->keypoint().pt.x,
+                                                                                      feature2D->keypoint().pt.y),
+                                                                      CAMERA_POSE | POINT_3D);
+
+            problem.AddResidualBlock(costFunction, lossFunction,
+                                     frame->cameraPose()->rotationData(), frame->cameraPose()->translationData(),
+                                     feature3D->pointData());
+        }
+
+        ceres::LocalParameterization* quaternionParameterization =
+            new ceres::QuaternionParameterization;
+
+        problem.SetParameterization(frame->cameraPose()->rotationData(), quaternionParameterization);
+    }
+
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+
+    if (m_verbose)
+    {
+        std::cout << summary.BriefReport() << std::endl;
+    }
 }
 
 void
@@ -664,9 +724,9 @@ TemporalFeatureTracker::getMatches(std::vector<cv::Point2f>& matchedPoints,
     matchedPoints.clear();
     matchedPointsPrev.clear();
 
-    for (size_t i = 0; i < mPointFeatures.size(); ++i)
+    for (size_t i = 0; i < m_pointFeatures.size(); ++i)
     {
-        const Point2DFeatureConstPtr& pt = mPointFeatures.at(i);
+        const Point2DFeatureConstPtr& pt = m_pointFeatures.at(i);
 
         if (pt->prevMatches().empty() || pt->bestPrevMatchId() == -1)
         {
@@ -686,19 +746,19 @@ TemporalFeatureTracker::getMatches(std::vector<cv::Point2f>& matchedPoints,
 std::vector<FramePtr>&
 TemporalFeatureTracker::getFrames(void)
 {
-    return mFrames;
+    return m_frames;
 }
 
 const std::vector<FramePtr>&
 TemporalFeatureTracker::getFrames(void) const
 {
-    return mFrames;
+    return m_frames;
 }
 
 const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >&
 TemporalFeatureTracker::getPoses(void) const
 {
-    return mPoses;
+    return m_poses;
 }
 
 std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >
@@ -715,11 +775,11 @@ TemporalFeatureTracker::visualizeTracks(void)
 
     cv::Scalar green(0, 255, 0);
 
-    for (size_t i = 0; i < mPointFeatures.size(); ++i)
+    for (size_t i = 0; i < m_pointFeatures.size(); ++i)
     {
         std::vector<cv::Point2f> pts;
 
-        Point2DFeaturePtr pt = mPointFeatures.at(i);
+        Point2DFeaturePtr pt = m_pointFeatures.at(i);
         pts.push_back(pt->keypoint().pt);
         while (!pt->prevMatches().empty() && pt->bestPrevMatchId() != -1)
         {
@@ -743,352 +803,20 @@ TemporalFeatureTracker::visualizeTracks(void)
             const cv::Point2f& p1 = pts.at(j);
             const cv::Point2f& p2 = pts.at(j + 1);
 
-            if (p1.x < 0.0 || p1.x > mSketch.cols - 1 ||
-                p1.y < 0.0 || p1.y > mSketch.rows - 1 ||
-                p2.x < 0.0 || p2.x > mSketch.cols - 1 ||
-                p2.y < 0.0 || p2.y > mSketch.rows - 1)
+            if (p1.x < 0.0 || p1.x > m_sketch.cols - 1 ||
+                p1.y < 0.0 || p1.y > m_sketch.rows - 1 ||
+                p2.x < 0.0 || p2.x > m_sketch.cols - 1 ||
+                p2.y < 0.0 || p2.y > m_sketch.rows - 1)
             {
                 continue;
             }
 
-            cv::line(mSketch,
+            cv::line(m_sketch,
                      cv::Point(cvRound(p1.x * drawMultiplier),
                                cvRound(p1.y * drawMultiplier)),
                      cv::Point(cvRound(p2.x * drawMultiplier),
                                cvRound(p2.y * drawMultiplier)),
                      green, 2, CV_AA, drawShiftBits);
-        }
-    }
-}
-
-/***************************************************/
-/* Camera Rig Temporal Feature Tracker                           */
-/***************************************************/
-
-CameraRigTemporalFeatureTracker::CameraRigTemporalFeatureTracker(const std::vector<CameraConstPtr>& cameras,
-                                                                 DetectorType detectorType,
-                                                                 DescriptorType descriptorType,
-                                                                 MatchTestType matchTestType,
-                                                                 bool preprocess)
- : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
- , kMaxDelta(200.0f)
- , kMinFeatureCorrespondences(15)
- , kNominalFocalLength(300.0)
- , kReprojErrorThresh(4.0)
-{
-    int nCameras = cameras.size();
-
-    for (int i = 0; i < nCameras; ++i)
-    {
-        mCameraMetadata.push_back(CameraMetadata(cameras.at(i)));
-    }
-}
-
-bool
-CameraRigTemporalFeatureTracker::addFrame(const std::vector<cv::Mat>& images,
-                                          const std::vector<cv::Mat>& masks)
-{
-    boost::shared_ptr<boost::thread> threads[mCameraMetadata.size()];
-
-    for (size_t i = 0; i < mCameraMetadata.size(); ++i)
-    {
-        CameraMetadata& metadata = mCameraMetadata.at(i);
-
-        threads[i] = boost::make_shared<boost::thread>(&CameraRigTemporalFeatureTracker::processImage, this, images.at(i), masks.at(i), &metadata);
-    }
-
-    for (size_t i = 0; i < mCameraMetadata.size(); ++i)
-    {
-        threads[i]->join();
-    }
-
-    std::vector<std::vector<Point2DFeaturePtr> > pointFeatures(mCameraMetadata.size());
-    for (size_t i = 0; i < mCameraMetadata.size(); ++i)
-    {
-        pointFeatures.at(i) = mCameraMetadata.at(i).pointFeatures;
-    }
-
-    visualizeTracks();
-
-    return true;
-}
-
-void
-CameraRigTemporalFeatureTracker::clear(void)
-{
-    mCameraMetadata.clear();
-}
-
-const cv::Mat&
-CameraRigTemporalFeatureTracker::getSketch(int idx) const
-{
-    return mCameraMetadata.at(idx).sketch;
-}
-
-void
-CameraRigTemporalFeatureTracker::processImage(const cv::Mat& image, const cv::Mat& mask,
-                                              CameraMetadata* metadata)
-{
-    if (image.channels() > 1)
-    {
-        cv::cvtColor(image, metadata->image, CV_BGR2GRAY);
-    }
-    else
-    {
-        image.copyTo(metadata->image);
-    }
-
-    if (mask.empty())
-    {
-        metadata->mask = cv::Mat();
-    }
-    else
-    {
-        metadata->mask = mask > 0;
-    }
-
-    if (mPreprocess)
-    {
-        preprocessImage(metadata->image, metadata->mask);
-    }
-
-    detectFeatures(metadata->image, metadata->kpts, metadata->mask);
-    computeDescriptors(metadata->image, metadata->kpts, metadata->dtor);
-
-    std::vector<Point2DFeaturePtr> pointFeaturesPrev;
-    pointFeaturesPrev.swap(metadata->pointFeatures);
-
-    std::vector<Point2DFeaturePtr> pointFeatures;
-
-    for (size_t j = 0; j < metadata->kpts.size(); ++j)
-    {
-        Point2DFeaturePtr p = boost::make_shared<Point2DFeature>();
-        metadata->dtor.row(j).copyTo(p->descriptor());
-        p->keypoint() = metadata->kpts.at(j);
-        p->index() = j;
-
-        pointFeatures.push_back(p);
-    }
-
-    if (!metadata->dtorPrev.empty())
-    {
-        std::vector<std::vector<cv::DMatch> > matches;
-
-        windowedMatchingMask(metadata->kpts, metadata->kptsPrev, kMaxDelta, kMaxDelta, mMatchingMask);
-
-        cv::Mat matchingMaskROI(mMatchingMask, cv::Rect(0, 0, metadata->kptsPrev.size(), metadata->kpts.size()));
-
-        switch (mMatchTestType)
-        {
-        case BEST_MATCH:
-            matchPointFeaturesWithBestMatchTest(metadata->dtor, metadata->dtorPrev, matches, matchingMaskROI);
-            break;
-        case RADIUS:
-            matchPointFeaturesWithRadiusTest(metadata->dtor, metadata->dtorPrev, matches, matchingMaskROI);
-            break;
-        case RATIO:
-        default:
-            matchPointFeaturesWithRatioTest(metadata->dtor, metadata->dtorPrev, matches, matchingMaskROI);
-        }
-
-        for (size_t j = 0; j < matches.size(); ++j)
-        {
-            std::vector<cv::DMatch>& match = matches.at(j);
-            for (size_t k = 0; k < match.size(); ++k)
-            {
-                int queryIdx = match.at(k).queryIdx;
-                int trainIdx = match.at(k).trainIdx;
-
-                if (queryIdx >= 0 && queryIdx < pointFeatures.size() &&
-                    trainIdx >= 0 && trainIdx < pointFeaturesPrev.size())
-                {
-                    pointFeatures.at(queryIdx)->prevMatches().push_back(pointFeaturesPrev.at(trainIdx));
-                    pointFeatures.at(queryIdx)->bestPrevMatchId() = 0;
-
-                    pointFeaturesPrev.at(trainIdx)->nextMatches().push_back(pointFeatures.at(queryIdx));
-                    pointFeaturesPrev.at(trainIdx)->bestNextMatchId() = 0;
-                }
-                else
-                {
-                    if (queryIdx < 0 || queryIdx >= pointFeatures.size())
-                    {
-                        std::cout << "# WARNING: Query idx does not have a valid value " << queryIdx << " " << pointFeatures.size() << std::endl;
-                    }
-                    if (trainIdx < 0 || trainIdx >= pointFeaturesPrev.size())
-                    {
-                        std::cout << "# WARNING: Train idx does not have a valid value " << trainIdx << " " << pointFeaturesPrev.size() << std::endl;
-                    }
-                }
-            }
-        }
-
-        // cross-check
-        int invalidMatchCount = 0;
-
-        for (size_t i = 0; i < pointFeatures.size(); ++i)
-        {
-            Point2DFeaturePtr& pf = pointFeatures.at(i);
-            if (pf->prevMatches().empty() || pf->bestPrevMatchId() == -1)
-            {
-                continue;
-            }
-
-            Point2DFeaturePtr pfPrev = pf->prevMatch().lock();
-            if (pfPrev.get() == 0)
-            {
-                continue;
-            }
-
-            if (pfPrev->nextMatches().empty() || pfPrev->bestNextMatchId() == -1)
-            {
-                pf->bestPrevMatchId() = -1;
-
-                ++invalidMatchCount;
-
-                continue;
-            }
-
-            Point2DFeaturePtr nextMatch = pfPrev->nextMatch().lock();
-            if (nextMatch.get() == 0 || nextMatch.get() != pf.get())
-            {
-                pf->bestPrevMatchId() = -1;
-
-                ++invalidMatchCount;
-            }
-        }
-
-//        // filter out matches not satisfying epipolar constraint
-//        Eigen::Matrix4d H_rel_odo = odoPose.inverse() * mOdoPosePrev;
-//        Eigen::Matrix4d H_rel_cam = H_odo_cam * H_rel_odo * H_odo_cam.inverse();
-//
-//        Eigen::Vector2d pp(metadata->cameraParameters.imageWidth() / 2.0,
-//                           metadata->cameraParameters.imageHeight() / 2.0);
-//
-//        for (size_t i = 0; i < pointFeatures.size(); ++i)
-//        {
-//            Point2DFeaturePtr& pf = pointFeatures.at(i);
-//            if (pf->prevMatches().empty() || pf->bestPrevMatchId() == -1)
-//            {
-//                continue;
-//            }
-//
-//            Point2DFeaturePtr& pfPrev = pf->prevMatch();
-//
-//            cv::Point2f rectPtPrev_cv, rectPt_cv;
-//            rectifyImagePoint(metadata->camera, metadata->cameraParameters,
-//                              pfPrev->keypoint().pt, rectPtPrev_cv);
-//            rectifyImagePoint(metadata->camera, metadata->cameraParameters,
-//                              pf->keypoint().pt, rectPt_cv);
-//
-//            Eigen::Vector3d rectPtPrev;
-//            rectPtPrev(0) = (rectPtPrev_cv.x - pp(0)) / kNominalFocalLength;
-//            rectPtPrev(1) = (rectPtPrev_cv.y - pp(1)) / kNominalFocalLength;
-//            rectPtPrev(2) = 1.0;
-//
-//            Eigen::Vector3d rectPt;
-//            rectPt(0) = (rectPt_cv.x - pp(0)) / kNominalFocalLength;
-//            rectPt(1) = (rectPt_cv.y - pp(1)) / kNominalFocalLength;
-//            rectPt(2) = 1.0;
-//
-//            double reprojErr = sqrt(sampsonError(H_rel_cam, rectPtPrev, rectPt)) * kNominalFocalLength;
-//
-//            if (reprojErr > kReprojErrorThresh)
-//            {
-//                pf->prevMatches().clear();
-//                pf->bestPrevMatchId() = -1;
-//
-//                ++invalidMatchCount;
-//            }
-//        }
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Removed " << invalidMatchCount << " matches via cross-checking." << std::endl;
-
-            int validMatchCount = 0;
-            for (size_t i = 0; i < pointFeatures.size(); ++i)
-            {
-                Point2DFeaturePtr& pf = pointFeatures.at(i);
-                if (!pf->prevMatches().empty() && pf->bestPrevMatchId() != -1)
-                {
-                    ++validMatchCount;
-                }
-            }
-
-            std::cout << "# INFO: # good matches: " << validMatchCount << std::endl;
-        }
-    }
-
-    metadata->pointFeatures = pointFeatures;
-
-    metadata->kptsPrev = metadata->kpts;
-    metadata->dtor.copyTo(metadata->dtorPrev);
-
-    cv::cvtColor(metadata->image, metadata->sketch, CV_GRAY2BGR);
-    cv::drawKeypoints(metadata->sketch, metadata->kpts, metadata->sketch, cv::Scalar(0, 0, 255));
-}
-
-void
-CameraRigTemporalFeatureTracker::rectifyImagePoint(const CameraConstPtr& camera,
-                                                   const cv::Point2f& src, cv::Point2f& dst) const
-{
-    Eigen::Vector3d P;
-
-    camera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
-
-    P /= P(2);
-
-    dst.x = P(0);
-    dst.y = P(1);
-}
-
-void
-CameraRigTemporalFeatureTracker::visualizeTracks(void)
-{
-    int drawShiftBits = 4;
-    int drawMultiplier = 1 << drawShiftBits;
-
-    cv::Scalar green(0, 255, 0);
-
-    for (size_t i = 0; i < mCameraMetadata.size(); ++i)
-    {
-        CameraMetadata& metadata = mCameraMetadata.at(i);
-
-        for (size_t j = 0; j < metadata.pointFeatures.size(); ++j)
-        {
-            std::vector<cv::Point2f> pts;
-
-            Point2DFeaturePtr pt = metadata.pointFeatures.at(j);
-            pts.push_back(pt->keypoint().pt);
-            while (!pt->prevMatches().empty() && pt->bestPrevMatchId() != -1)
-            {
-                pt = pt->prevMatches().at(pt->bestPrevMatchId()).lock();
-
-                if (pt.get() == 0)
-                {
-                    break;
-                }
-
-                pts.push_back(pt->keypoint().pt);
-            }
-
-            if (pts.size() < 2)
-            {
-                continue;
-            }
-
-            for (size_t k = 0; k < pts.size() - 1; ++k)
-            {
-                const cv::Point2f& p1 = pts.at(k);
-                const cv::Point2f& p2 = pts.at(k + 1);
-
-                cv::line(metadata.sketch,
-                         cv::Point(cvRound(p1.x * drawMultiplier),
-                                   cvRound(p1.y * drawMultiplier)),
-                         cv::Point(cvRound(p2.x * drawMultiplier),
-                                   cvRound(p2.y * drawMultiplier)),
-                         green, 2, CV_AA, drawShiftBits);
-            }
         }
     }
 }

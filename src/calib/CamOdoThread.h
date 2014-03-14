@@ -11,6 +11,11 @@
 #include "camodocal/camera_models/Camera.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
 
+#ifdef VCHARGE_VIZ
+#include "../../../../visualization/overlay/GLOverlayExtended.h"
+#include "../visual_odometry/FeatureTracker.h"
+#endif
+
 namespace camodocal
 {
 
@@ -53,6 +58,11 @@ private:
     void addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                             const std::vector<OdometryPtr>& odoPoses,
                             std::vector<FramePtr>& frameSegment);
+
+#ifdef VCHARGE_VIZ
+    void visualizeMap(vcharge::GLOverlayExtended& overlay,
+                      TemporalFeatureTracker& tracker);
+#endif
 
     PoseSource m_poseSource;
 

@@ -85,6 +85,15 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
     findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
 
+    for (size_t i = 0; i < framePrev->features2D().size(); ++i)
+    {
+        framePrev->features2D().at(i)->bestNextMatchId() = -1;
+    }
+    for (size_t i = 0; i < frameCurr->features2D().size(); ++i)
+    {
+        frameCurr->features2D().at(i)->bestPrevMatchId() = -1;
+    }
+
     if (m_verbose)
     {
         std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
@@ -206,92 +215,6 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         if (m_verbose)
         {
             std::cout << "# INFO: Triangulated " << points3D.size() << " points." << std::endl;
-
-            size_t count = 0;
-            double errorTotal = 0.0;
-            double errorMax = std::numeric_limits<double>::min();
-
-            for (size_t i = 0; i < points3D.size(); ++i)
-            {
-                const cv::Point2f& feature2D = imagePoints[0].at(indices.at(i));
-
-                const Eigen::Vector3d& feature3D = points3D.at(i);
-
-                double error;
-                if (m_mode == VO)
-                {
-                    error = k_camera->reprojectionError(feature3D,
-                                                       framePrev->cameraPose()->rotation(),
-                                                       framePrev->cameraPose()->translation(),
-                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
-                }
-                else
-                {
-                    error = reprojectionError(feature3D,
-                                              m_T_cam_odo.rotation(),
-                                              m_T_cam_odo.translation(),
-                                              framePrev->systemPose()->position(),
-                                              framePrev->systemPose()->attitude(),
-                                              Eigen::Vector2d(feature2D.x, feature2D.y));
-                }
-
-                errorTotal += error;
-
-                if (error > errorMax)
-                {
-                    errorMax = error;
-                }
-
-                ++count;
-            }
-
-            double errorAvg = errorTotal / count;
-
-            printf("# INFO: Reprojection error in frame 0: avg = %.2f px | max = %.2f px.\n",
-                   errorAvg, errorMax);
-
-            count = 0;
-            errorTotal = 0.0;
-            errorMax = std::numeric_limits<double>::min();
-
-            for (size_t i = 0; i < points3D.size(); ++i)
-            {
-                const cv::Point2f& feature2D = imagePoints[1].at(indices.at(i));
-
-                const Eigen::Vector3d& feature3D = points3D.at(i);
-
-                double error;
-                if (m_mode == VO)
-                {
-                    error = k_camera->reprojectionError(feature3D,
-                                                       frameCurr->cameraPose()->rotation(),
-                                                       frameCurr->cameraPose()->translation(),
-                                                       Eigen::Vector2d(feature2D.x, feature2D.y));
-                }
-                else
-                {
-                    error = reprojectionError(feature3D,
-                                              m_T_cam_odo.rotation(),
-                                              m_T_cam_odo.translation(),
-                                              frameCurr->systemPose()->position(),
-                                              frameCurr->systemPose()->attitude(),
-                                              Eigen::Vector2d(feature2D.x, feature2D.y));
-                }
-
-                errorTotal += error;
-
-                if (error > errorMax)
-                {
-                    errorMax = error;
-                }
-
-                ++count;
-            }
-
-            errorAvg = errorTotal / count;
-
-            printf("# INFO: Reprojection error in frame 1: avg = %.2f px | max = %.2f px.\n",
-                   errorAvg, errorMax);
         }
 
         if (points3D.size() < k_min2D3DFeatureCorrespondences)
@@ -324,23 +247,9 @@ SlidingWindowBA::addFrame(FramePtr& frame)
                 point3D->features2D().push_back(pt);
                 pt->feature3D() = point3D;
             }
-        }
 
-        // remove untriangulated feature correspondences
-        for (size_t i = 0; i < featureCorrespondences.size(); ++i)
-        {
-            std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
-
-            Point2DFeaturePtr& f0 = fc.at(0);
-            Point2DFeaturePtr& f1 = fc.at(1);
-
-            if (f1->feature3D())
-            {
-                continue;
-            }
-
-            f0->bestNextMatchId() = -1;
-            f1->bestPrevMatchId() = -1;
+            f0->bestNextMatchId() = 0;
+            f1->bestPrevMatchId() = 0;
         }
     }
     else
@@ -412,15 +321,13 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            if (m_mode == VO && !inlierFlag.at(i))
-            {
-                f0->bestNextMatchId() = -1;
-                f1->bestPrevMatchId() = -1;
-            }
-            else
+            if (inlierFlag.at(i))
             {
                 f1->feature3D() = f0->feature3D();
                 f1->feature3D()->features2D().push_back(f1);
+
+                f0->bestNextMatchId() = 0;
+                f1->bestPrevMatchId() = 0;
             }
         }
 
@@ -536,95 +443,6 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             if (m_verbose)
             {
                 std::cout << "# INFO: Triangulated " << points3D.size() << " new points." << std::endl;
-
-                if (!points3D.empty())
-                {
-                    size_t count = 0;
-                    double errorTotal = 0.0;
-                    double errorMax = std::numeric_limits<double>::min();
-
-                    for (size_t i = 0; i < points3D.size(); ++i)
-                    {
-                        const cv::Point2f& feature2D = ipoints[0].at(indices.at(i));
-
-                        const Eigen::Vector3d& feature3D = points3D.at(i);
-
-                        double error;
-                        if (m_mode == VO)
-                        {
-                            error = k_camera->reprojectionError(feature3D,
-                                                               framePrev->cameraPose()->rotation(),
-                                                               framePrev->cameraPose()->translation(),
-                                                               Eigen::Vector2d(feature2D.x, feature2D.y));
-                        }
-                        else
-                        {
-                            error = reprojectionError(feature3D,
-                                                      m_T_cam_odo.rotation(),
-                                                      m_T_cam_odo.translation(),
-                                                      framePrev->systemPose()->position(),
-                                                      framePrev->systemPose()->attitude(),
-                                                      Eigen::Vector2d(feature2D.x, feature2D.y));
-                        }
-
-                        errorTotal += error;
-
-                        if (error > errorMax)
-                        {
-                            errorMax = error;
-                        }
-
-                        ++count;
-                    }
-
-                    double errorAvg = errorTotal / count;
-
-                    printf("# INFO: Reprojection error in frame n-1: avg = %.2f px | max = %.2f px.\n",
-                           errorAvg, errorMax);
-
-                    count = 0;
-                    errorTotal = 0.0;
-                    errorMax = std::numeric_limits<double>::min();
-
-                    for (size_t i = 0; i < points3D.size(); ++i)
-                    {
-                        const cv::Point2f& feature2D = ipoints[1].at(indices.at(i));
-
-                        const Eigen::Vector3d& feature3D = points3D.at(i);
-
-                        double error;
-                        if (m_mode == VO)
-                        {
-                            error = k_camera->reprojectionError(feature3D,
-                                                               frameCurr->cameraPose()->rotation(),
-                                                               frameCurr->cameraPose()->translation(),
-                                                               Eigen::Vector2d(feature2D.x, feature2D.y));
-                        }
-                        else
-                        {
-                            error = reprojectionError(feature3D,
-                                                      m_T_cam_odo.rotation(),
-                                                      m_T_cam_odo.translation(),
-                                                      frameCurr->systemPose()->position(),
-                                                      frameCurr->systemPose()->attitude(),
-                                                      Eigen::Vector2d(feature2D.x, feature2D.y));
-                        }
-
-                        errorTotal += error;
-
-                        if (error > errorMax)
-                        {
-                            errorMax = error;
-                        }
-
-                        ++count;
-                    }
-
-                    errorAvg = errorTotal / count;
-
-                    printf("# INFO: Reprojection error in frame n: avg = %.2f px | max = %.2f px.\n",
-                           errorAvg, errorMax);
-                }
             }
 
             for (size_t i = 0; i < points3D.size(); ++i)
@@ -635,6 +453,9 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
                 std::vector<Point2DFeaturePtr>& fc = untriFeatureCorrespondences.at(indices.at(i));
 
+                Point2DFeaturePtr& f0 = fc.at(0);
+                Point2DFeaturePtr& f1 = fc.at(1);
+
                 for (int j = 0; j < 2; ++j)
                 {
                     Point2DFeaturePtr& pt = fc.at(j);
@@ -642,23 +463,9 @@ SlidingWindowBA::addFrame(FramePtr& frame)
                     point3D->features2D().push_back(pt);
                     pt->feature3D() = point3D;
                 }
-            }
 
-            // remove untriangulated feature correspondences
-            for (size_t i = 0; i < untriFeatureCorrespondences.size(); ++i)
-            {
-                std::vector<Point2DFeaturePtr>& fc = untriFeatureCorrespondences.at(i);
-
-                Point2DFeaturePtr& f0 = fc.at(0);
-                Point2DFeaturePtr& f1 = fc.at(1);
-
-                if (f1->feature3D())
-                {
-                    continue;
-                }
-
-                f0->bestNextMatchId() = -1;
-                f1->bestPrevMatchId() = -1;
+                f0->bestNextMatchId() = 0;
+                f1->bestPrevMatchId() = 0;
             }
         }
     }
@@ -746,14 +553,29 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         if (prune)
         {
-            Point2DFeaturePtr& f0 = fc.at(0);
-            Point2DFeaturePtr& f1 = fc.at(1);
+            Point2DFeaturePtr feature2D = fc.at(1);
 
-            f0->feature3D() = Point3DFeaturePtr();
-            f1->feature3D() = Point3DFeaturePtr();
+            while (feature2D)
+            {
+                if (feature2D->prevMatches().empty() || feature2D->bestPrevMatchId() == -1)
+                {
+                    break;
+                }
 
-            f0->bestNextMatchId() = -1;
-            f1->bestPrevMatchId() = -1;
+                Point2DFeaturePtr feature2DPrev = feature2D->prevMatch().lock();
+                if (!feature2DPrev)
+                {
+                    break;
+                }
+
+                feature2DPrev->feature3D() = Point3DFeaturePtr();
+                feature2D->feature3D() = Point3DFeaturePtr();
+
+                feature2DPrev->bestNextMatchId() = -1;
+                feature2D->bestPrevMatchId() = -1;
+
+                feature2D = feature2DPrev;
+            }
 
             ++nPrunedScenePoints;
         }
@@ -1275,7 +1097,7 @@ SlidingWindowBA::optimize(void)
     ceres::Problem problem;
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
     options.max_num_iterations = 20;
 
     for (std::list<FramePtr>::iterator it = m_window.begin(); it != m_window.end(); ++it)
@@ -1388,11 +1210,6 @@ SlidingWindowBA::optimize(void)
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-
-    if (m_verbose)
-    {
-        std::cout << summary.BriefReport() << std::endl;
-    }
 }
 
 }

@@ -8,7 +8,6 @@
 #include "utils.h"
 #ifdef VCHARGE_VIZ
 #include "../../../../library/gpl/CameraEnums.h"
-#include "../../../../visualization/overlay/GLOverlayExtended.h"
 #include "CalibrationWindow.h"
 #endif
 
@@ -387,107 +386,7 @@ CamOdoThread::threadFunction(void)
         }
 
 #ifdef VCHARGE_VIZ
-        {
-            // visualize camera poses and 3D scene points
-            const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& poses = tracker.getPoses();
-
-            overlay.clear();
-            overlay.pointSize(2.0f);
-            overlay.lineWidth(1.0f);
-
-            // draw 3D scene points
-//                switch (cameraId)
-//                {
-//                case CAMERA_FRONT:
-//                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-//                    break;
-//                case CAMERA_LEFT:
-//                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-//                    break;
-//                case CAMERA_REAR:
-//                    overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
-//                    break;
-//                case CAMERA_RIGHT:
-//                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-//                    break;
-//                default:
-//                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-//                }
-//
-//                overlay.begin(VCharge::POINTS);
-//
-//                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > scenePoints = tracker.getScenePoints();
-//                for (size_t j = 0; j < scenePoints.size(); ++j)
-//                {
-//                    Eigen::Vector3d& p = scenePoints.at(j);
-//
-//                    overlay.vertex3f(p(2), -p(0), -p(1));
-//                }
-//
-//                overlay.end();
-
-            // draw cameras
-            for (size_t j = 0; j < poses.size(); ++j)
-            {
-                Eigen::Matrix4d H = poses.at(j).inverse();
-
-                double xBound = 0.1;
-                double yBound = 0.1;
-                double zFar = 0.2;
-
-                std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
-                frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
-                frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
-                frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
-
-                for (size_t k = 0; k < frustum.size(); ++k)
-                {
-                    frustum.at(k) = H.block<3,3>(0,0) * frustum.at(k) + H.block<3,1>(0,3);
-                }
-
-                overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
-                overlay.begin(VCharge::LINES);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(0)(2), -frustum.at(0)(0), -frustum.at(0)(1));
-                    overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                }
-
-                overlay.end();
-
-                switch (m_cameraId)
-                {
-                case vcharge::CAMERA_FRONT:
-                    overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
-                    break;
-                case vcharge::CAMERA_LEFT:
-                    overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                case vcharge::CAMERA_REAR:
-                    overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
-                    break;
-                case vcharge::CAMERA_RIGHT:
-                    overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
-                    break;
-                default:
-                    overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
-                }
-
-                overlay.begin(VCharge::POLYGON);
-
-                for (int k = 1; k < 5; ++k)
-                {
-                    overlay.vertex3f(frustum.at(k)(2), -frustum.at(k)(0), -frustum.at(k)(1));
-                }
-
-                overlay.end();
-            }
-
-            overlay.publish();
-        }
+        visualizeMap(overlay, tracker);
 #endif
 
         int currentMotionCount = 0;
@@ -583,5 +482,114 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
 
     m_frameSegments.push_back(frameSegment);
 }
+
+#ifdef VCHARGE_VIZ
+
+void
+CamOdoThread::visualizeMap(vcharge::GLOverlayExtended& overlay,
+                           TemporalFeatureTracker& tracker)
+{
+    // visualize camera poses and 3D scene points
+    const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& poses = tracker.getPoses();
+
+    overlay.clear();
+    overlay.pointSize(2.0f);
+    overlay.lineWidth(1.0f);
+
+    // draw 3D scene points
+//    switch (cameraId)
+//    {
+//    case CAMERA_FRONT:
+//        overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
+//        break;
+//    case CAMERA_LEFT:
+//        overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
+//        break;
+//    case CAMERA_REAR:
+//        overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
+//        break;
+//    case CAMERA_RIGHT:
+//        overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
+//        break;
+//    default:
+//        overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
+//    }
+//
+//    overlay.begin(VCharge::POINTS);
+//
+//    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > scenePoints = tracker.getScenePoints();
+//    for (size_t j = 0; j < scenePoints.size(); ++j)
+//    {
+//        Eigen::Vector3d& p = scenePoints.at(j);
+//
+//        overlay.vertex3f(p(2), -p(0), -p(1));
+//    }
+//
+//    overlay.end();
+
+    // draw cameras
+    for (size_t i = 0; i < poses.size(); ++i)
+    {
+        Eigen::Matrix4d H = poses.at(i).inverse();
+
+        double xBound = 0.1;
+        double yBound = 0.1;
+        double zFar = 0.2;
+
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > frustum;
+        frustum.push_back(Eigen::Vector3d(0.0, 0.0, 0.0));
+        frustum.push_back(Eigen::Vector3d(-xBound, -yBound, zFar));
+        frustum.push_back(Eigen::Vector3d(xBound, -yBound, zFar));
+        frustum.push_back(Eigen::Vector3d(xBound, yBound, zFar));
+        frustum.push_back(Eigen::Vector3d(-xBound, yBound, zFar));
+
+        for (size_t j = 0; j < frustum.size(); ++j)
+        {
+            frustum.at(j) = transformPoint(H, frustum.at(j));
+        }
+
+        overlay.color4f(1.0f, 1.0f, 1.0f, 1.0f);
+        overlay.begin(VCharge::LINES);
+
+        for (int j = 1; j < 5; ++j)
+        {
+            overlay.vertex3f(frustum.at(0)(2), -frustum.at(0)(0), -frustum.at(0)(1));
+            overlay.vertex3f(frustum.at(j)(2), -frustum.at(j)(0), -frustum.at(j)(1));
+        }
+
+        overlay.end();
+
+        switch (m_cameraId)
+        {
+        case vcharge::CAMERA_FRONT:
+            overlay.color4f(1.0f, 0.0f, 0.0f, 0.5f);
+            break;
+        case vcharge::CAMERA_LEFT:
+            overlay.color4f(0.0f, 1.0f, 0.0f, 0.5f);
+            break;
+        case vcharge::CAMERA_REAR:
+            overlay.color4f(0.0f, 0.0f, 1.0f, 0.5f);
+            break;
+        case vcharge::CAMERA_RIGHT:
+            overlay.color4f(1.0f, 1.0f, 0.0f, 0.5f);
+            break;
+        default:
+            overlay.color4f(1.0f, 1.0f, 1.0f, 0.5f);
+        }
+
+        overlay.begin(VCharge::POLYGON);
+
+        for (int j = 1; j < 5; ++j)
+        {
+            overlay.vertex3f(frustum.at(j)(2), -frustum.at(j)(0), -frustum.at(j)(1));
+        }
+
+        overlay.end();
+    }
+
+    overlay.publish();
+}
+
+#endif
 
 }

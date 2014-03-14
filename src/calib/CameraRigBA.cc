@@ -16,7 +16,6 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "ceres/ceres.h"
-#include "ceres/covariance.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
@@ -116,6 +115,14 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         if (m_verbose)
         {
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, CAMERA);
+
+            printf("# INFO: Reprojection error: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
+
             std::cout << "# INFO: Triangulating feature correspondences... " << std::endl;
         }
 
@@ -139,16 +146,15 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
-        double minError, maxError, avgError;
-        size_t featureCount;
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
         if (m_verbose)
         {
-            std::cout << "# INFO: Reprojection error after triangulation: avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+            printf("# INFO: Reprojection error after triangulation: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -167,14 +173,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY); // | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
         if (m_verbose)
         {
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
             std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after BA (odometry): avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            printf("# INFO: Reprojection error after BA (odometry): avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -384,16 +392,15 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
-        double minError, maxError, avgError;
-        size_t featureCount;
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
         if (m_verbose)
         {
-            std::cout << "# INFO: Reprojection error after robust pose-graph optimization: avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+            printf("# INFO: Reprojection error after robust pose-graph optimization: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -534,17 +541,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
-        double minError, maxError, avgError;
-        size_t featureCount;
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
         if (m_verbose)
         {
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
             std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after local matching: avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            printf("# INFO: Reprojection error after local matching: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -609,21 +615,18 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             optimize(CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D, true);
         }
 
-        prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
-
-        double minError, maxError, avgError;
-        size_t featureCount;
-
-        reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
-
         prune(PRUNE_BEHIND_CAMERA | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
         if (m_verbose)
         {
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
             std::cout << "# INFO: Done." << std::endl;
-            std::cout << "# INFO: Reprojection error after full BA: avg = " << avgError
-                      << " px | max = " << maxError << " px" << std::endl;
-            std::cout << "# INFO: # 2D feature points: " << featureCount << std::endl;
+            printf("# INFO: Reprojection error after full BA: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -883,7 +886,7 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -894,7 +897,7 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
                 {
                     Point2DFeaturePtr& pf = features2D.at(l);
 
-                    if (pf->feature3D().get() != 0)
+                    if (pf->feature3D())
                     {
                         pf->feature3D() = Point3DFeaturePtr();
                     }
@@ -919,7 +922,7 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
             {
                 FramePtr& frame = segment.at(k)->frames().at(i);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     frameSegments.resize(frameSegments.size() + 1);
                 }
@@ -933,14 +936,14 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
             {
                 std::vector<FramePtr>& frameSegment = frameSegments.at(k);
 
-                if (frameSegment.size() < 3)
+                if (frameSegment.size() < 2)
                 {
                     continue;
                 }
 
-                for (size_t l = 2; l < frameSegment.size(); ++l)
+                for (size_t l = 1; l < frameSegment.size(); ++l)
                 {
-                    triangulateFeatures(frameSegment.at(l-2), frameSegment.at(l-1), frameSegment.at(l),
+                    triangulateFeatures(frameSegment.at(l-1), frameSegment.at(l),
                                         m_cameraSystem.getCamera(i), T_cam_odo);
                 }
             }
@@ -949,195 +952,101 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
 }
 
 void
-CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& frame3,
+CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
                                  const CameraConstPtr& camera,
                                  const Pose& T_cam_odo)
 {
-    // triangulate new feature correspondences seen in last 3 frames
+    // triangulate new feature correspondences seen in last 2 frames
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
 
-    // use features that are seen in frames 0, 1, and 2
-    find2D2DCorrespondences(frame3->features2D(), 3, featureCorrespondences);
+    // use features that are seen in both frames
+    find2D2DCorrespondences(frame2->features2D(), 2, featureCorrespondences);
 
-//    if (m_verbose)
-//    {
-//        std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 3 frames." << std::endl;
-//    }
-
-    std::vector<cv::Point2f> ipoints[3];
+    std::vector<cv::Point2f> ipoints[2];
 
     std::vector<std::vector<Point2DFeaturePtr> > untriFeatureCorrespondences;
     for (size_t i = 0; i < featureCorrespondences.size(); ++i)
     {
         std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
 
-        Point2DFeaturePtr& f0 = fc.at(0);
-        Point2DFeaturePtr& f1 = fc.at(1);
-        Point2DFeaturePtr& f2 = fc.at(2);
+        Point2DFeaturePtr& f1 = fc.at(0);
+        Point2DFeaturePtr& f2 = fc.at(1);
 
-        if (f0->feature3D().get() == 0 && f1->feature3D().get() == 0)
+        if (!f1->feature3D())
         {
-            ipoints[0].push_back(f0->keypoint().pt);
-            ipoints[1].push_back(f1->keypoint().pt);
-            ipoints[2].push_back(f2->keypoint().pt);
+            ipoints[0].push_back(f1->keypoint().pt);
+            ipoints[1].push_back(f2->keypoint().pt);
 
             untriFeatureCorrespondences.push_back(fc);
         }
-
-        if (f0->feature3D().get() != 0 && f1->feature3D().get() != 0)
+        else
         {
             f2->feature3D() = f1->feature3D();
             f2->feature3D()->features2D().push_back(f2);
         }
     }
 
-//    if (m_verbose)
-//    {
-//        std::cout << "# INFO: Found " << untriFeatureCorrespondences.size() << " untriangulated feature correspondences." << std::endl;
-//    }
-
     if (!untriFeatureCorrespondences.empty())
     {
+        Eigen::Matrix4d H_cam_odo = T_cam_odo.toMatrix();
+        Eigen::Matrix4d H_odo_cam = H_cam_odo.inverse();
+
+        Eigen::Matrix4d H_cam1 = frame1->systemPose()->toMatrix() * H_cam_odo;
+        Eigen::Matrix4d H_cam2 = frame2->systemPose()->toMatrix() * H_cam_odo;
+        Eigen::Matrix4d H_cam2_inv = H_cam2.inverse();
+
+        Eigen::Matrix4d H = H_cam2_inv * H_cam1;
+
         std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
         std::vector<size_t> indices;
 
-        Eigen::Matrix4d H_odo_cam = T_cam_odo.toMatrix().inverse();
+        for (size_t i = 0; i < ipoints[0].size(); ++i)
+        {
+            const cv::Point2f& p1_cv = ipoints[0].at(i);
+            const cv::Point2f& p2_cv = ipoints[1].at(i);
 
-        Eigen::Matrix4d H1 = H_odo_cam * frame1->systemPose()->toMatrix().inverse();
-        Eigen::Matrix4d H2 = H_odo_cam * frame2->systemPose()->toMatrix().inverse();
-        Eigen::Matrix4d H3 = H_odo_cam * frame3->systemPose()->toMatrix().inverse();
+            Eigen::Vector3d spt1;
+            camera->liftSphere(Eigen::Vector2d(p1_cv.x, p1_cv.y), spt1);
 
-        tvt(camera,
-            H1, ipoints[0],
-            H2, ipoints[1],
-            H3, ipoints[2],
-            points3D, indices);
+            Eigen::Vector3d spt2;
+            camera->liftSphere(Eigen::Vector2d(p2_cv.x, p2_cv.y), spt2);
 
-//        if (m_verbose)
-//        {
-//            std::cout << "# INFO: Triangulated " << points3D.size() << " new points." << std::endl;
-//
-//            if (!points3D.empty())
-//            {
-//                size_t count = 0;
-//                double errorTotal = 0.0;
-//                double errorMax = std::numeric_limits<double>::min();
-//
-//                for (size_t i = 0; i < points3D.size(); ++i)
-//                {
-//                    const cv::Point2f& feature2D = ipoints[0].at(indices.at(i));
-//
-//                    const Eigen::Vector3d& feature3D = points3D.at(i);
-//
-//                    OdometryReprojectionError reprojErr(cameraParameters,
-//                                                        feature2D.x, feature2D.y);
-//
-//                    double residuals[2];
-//                    reprojErr(T_cam_odo.rotationData(),
-//                              T_cam_odo.translationData(),
-//                              frame1->systemPose()->positionData(),
-//                              frame1->systemPose()->attitudeData(),
-//                              feature3D.data(), residuals);
-//
-//                    double error = hypot(residuals[0], residuals[1]);
-//                    errorTotal += error;
-//
-//                    if (error > errorMax)
-//                    {
-//                        errorMax = error;
-//                    }
-//
-//                    ++count;
-//                }
-//
-//                double errorAvg = errorTotal / count;
-//
-//                std::cout << "# INFO: Reprojection error in frame n-2: avg = " << errorAvg
-//                          << " px | max = " << errorMax << " px." << std::endl;
-//
-//                count = 0;
-//                errorTotal = 0.0;
-//                errorMax = std::numeric_limits<double>::min();
-//
-//                for (size_t i = 0; i < points3D.size(); ++i)
-//                {
-//                    const cv::Point2f& feature2D = ipoints[1].at(indices.at(i));
-//
-//                    const Eigen::Vector3d& feature3D = points3D.at(i);
-//
-//                    OdometryReprojectionError reprojErr(cameraParameters,
-//                                                        feature2D.x, feature2D.y);
-//
-//                    double residuals[2];
-//                    reprojErr(T_cam_odo.rotationData(),
-//                              T_cam_odo.translationData(),
-//                              frame2->systemPose()->positionData(),
-//                              frame2->systemPose()->attitudeData(),
-//                              feature3D.data(), residuals);
-//
-//                    double error = hypot(residuals[0], residuals[1]);
-//                    errorTotal += error;
-//
-//                    if (error > errorMax)
-//                    {
-//                        errorMax = error;
-//                    }
-//
-//                    ++count;
-//                }
-//
-//                errorAvg = errorTotal / count;
-//
-//                std::cout << "# INFO: Reprojection error in frame n-1: avg = " << errorAvg
-//                          << " px | max = " << errorMax << " px." << std::endl;
-//
-//                count = 0;
-//                errorTotal = 0.0;
-//                errorMax = std::numeric_limits<double>::min();
-//
-//                for (size_t i = 0; i < points3D.size(); ++i)
-//                {
-//                    const cv::Point2f& feature2D = ipoints[2].at(indices.at(i));
-//
-//                    const Eigen::Vector3d& feature3D = points3D.at(i);
-//
-//                    OdometryReprojectionError reprojErr(cameraParameters,
-//                                                        feature2D.x, feature2D.y);
-//
-//                    double residuals[2];
-//                    reprojErr(T_cam_odo.rotationData(),
-//                              T_cam_odo.translationData(),
-//                              frame3->systemPose()->positionData(),
-//                              frame3->systemPose()->attitudeData(),
-//                              feature3D.data(), residuals);
-//
-//                    double error = hypot(residuals[0], residuals[1]);
-//                    errorTotal += error;
-//
-//                    if (error > errorMax)
-//                    {
-//                        errorMax = error;
-//                    }
-//
-//                    ++count;
-//                }
-//
-//                errorAvg = errorTotal / count;
-//
-//                std::cout << "# INFO: Reprojection error in frame n: avg = " << errorAvg
-//                          << " px | max = " << errorMax << " px." << std::endl;
-//            }
-//        }
+            Eigen::MatrixXd A(3,2);
+            A.col(0) = H.block<3,3>(0,0) * spt1;
+            A.col(1) = - spt2;
+
+            Eigen::Vector3d b = - H.block<3,1>(0,3);
+
+            Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+
+            // check if scene point is behind camera
+            if (gamma(0) < 0.0 || gamma(1) < 0.0)
+            {
+                continue;
+            }
+
+            Eigen::Vector3d P = gamma(0) * spt1;
+            P = transformPoint(H_cam1, P);
+
+            // validate scene point
+            if (transformPoint(H_cam2_inv, P)(2) < 0.0)
+            {
+                continue;
+            }
+
+            points3D.push_back(P);
+            indices.push_back(i);
+        }
 
         for (size_t i = 0; i < points3D.size(); ++i)
         {
-            Point3DFeaturePtr point3D(new Point3DFeature);
+            Point3DFeaturePtr point3D = boost::make_shared<Point3DFeature>();
 
             point3D->point() = points3D.at(i);
 
             std::vector<Point2DFeaturePtr>& fc = untriFeatureCorrespondences.at(indices.at(i));
 
-            for (int j = 0; j < 3; ++j)
+            for (int j = 0; j < 2; ++j)
             {
                 Point2DFeaturePtr& pt = fc.at(j);
 
@@ -1146,15 +1055,6 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& f
             }
         }
     }
-
-//    if (m_verbose)
-//        double minError, maxError, avgError;
-//        size_t featureCount;
-//
-//        frameReprojectionError(frame3, cameraParameters, T_cam_odo, minError, maxError, avgError, featureCount);
-//
-//        std::cout << "# INFO: Frame reprojection error: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
-//    }
 }
 
 void
@@ -1335,56 +1235,6 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             frameSetId = 0;
         }
     }
-
-//    std::vector<Correspondence2D2D>::iterator it = correspondences2D2D.begin();
-//    while (it != correspondences2D2D.end())
-//    {
-//        Point2DFeaturePtr& p1 = it->first;
-//        Point2DFeaturePtr& p2 = it->second;
-//
-//        FramePtr frame1 = p1->frame().lock();
-//        FramePtr frame2 = p2->frame().lock();
-//
-//        if (frame1.get() == 0 || frame2.get() == 0)
-//        {
-//            std::cout << "# WARNING: Parent frame is missing." << std::endl;
-//            continue;
-//        }
-//
-//        if (p1->feature3D().get() == 0 && p2->feature3D().get() == 0)
-//        {
-//            Eigen::Vector3d scenePoint;
-//            if (!triangulate3DPoint(p1, p2, scenePoint))
-//            {
-//                it = correspondences2D2D.erase(it);
-//                continue;
-//            }
-//
-//            Point3DFeaturePtr feature3D(new Point3DFeature);
-//            feature3D->point() = scenePoint;
-//            feature3D->features2D().push_back(p1);
-//            feature3D->features2D().push_back(p2);
-//
-//            p1->feature3D() = feature3D;
-//            p2->feature3D() = feature3D;
-//        }
-//        else
-//        {
-//            if (p1->feature3D().get() == 0)
-//            {
-//                p1->feature3D() = p2->feature3D();
-//                p1->feature3D()->features2D().push_back(p1);
-//            }
-//
-//            if (p2->feature3D().get() == 0)
-//            {
-//                p2->feature3D() = p1->feature3D();
-//                p2->feature3D()->features2D().push_back(p1);
-//            }
-//        }
-//
-//        ++it;
-//    }
 }
 
 void
@@ -1784,177 +1634,6 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 
         mutex.unlock();
     }
-}
-
-bool
-CameraRigBA::project3DPoint(const CameraConstPtr& camera,
-                            const Eigen::Matrix4d& H,
-                            const Eigen::Vector4d& src, Eigen::Vector3d& dst) const
-{
-    // transform point from world frame to camera frame
-    Eigen::Vector3d P = H.block<3,3>(0,0) * (src.block<3,1>(0,0) / src(3)) + H.block<3,1>(0,3);
-
-    // check if point is behind camera
-    if (P(2) < 0.0)
-    {
-        return false;
-    }
-
-    Eigen::Vector2d p;
-    camera->spaceToPlane(P, p);
-    dst << p, 1.0;
-
-    return true;
-}
-
-void
-CameraRigBA::tvt(const CameraConstPtr& camera,
-                 const Eigen::Matrix4d& H1,
-                 const std::vector<cv::Point2f>& imagePoints1,
-                 const Eigen::Matrix4d& H2,
-                 const std::vector<cv::Point2f>& imagePoints2,
-                 const Eigen::Matrix4d& H3,
-                 const std::vector<cv::Point2f>& imagePoints3,
-                 std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
-                 std::vector<size_t>& inliers) const
-{
-    Eigen::Matrix<double, 3, 4> P1 = H1.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P2 = H2.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P3 = H3.block<3,4>(0,0);
-
-    Eigen::Matrix4d H12 = H2 * H1.inverse();
-    Eigen::Matrix4d H23 = H3 * H2.inverse();
-    Eigen::Matrix4d H13 = H3 * H1.inverse();
-
-    Eigen::Matrix3d E12 = skew(Eigen::Vector3d(H12.block<3,1>(0,3))) * H12.block<3,3>(0,0);
-    Eigen::Matrix3d E23 = skew(Eigen::Vector3d(H23.block<3,1>(0,3))) * H23.block<3,3>(0,0);
-    Eigen::Matrix3d E13 = skew(Eigen::Vector3d(H13.block<3,1>(0,3))) * H13.block<3,3>(0,0);
-
-    // linear triangulation
-    for (size_t i = 0; i < imagePoints1.size(); ++i)
-    {
-        const cv::Point2f& p1_cv = imagePoints1.at(i);
-        const cv::Point2f& p2_cv = imagePoints2.at(i);
-        const cv::Point2f& p3_cv = imagePoints3.at(i);
-
-        cv::Point2f rect_p1_cv, rect_p2_cv, rect_p3_cv;
-        rectifyImagePoint(camera, p1_cv, rect_p1_cv);
-        rectifyImagePoint(camera, p2_cv, rect_p2_cv);
-        rectifyImagePoint(camera, p3_cv, rect_p3_cv);
-
-        Eigen::Matrix4d J;
-        J.row(0) = P2.row(2) * rect_p2_cv.x - P2.row(0);
-        J.row(1) = P2.row(2) * rect_p2_cv.y - P2.row(1);
-        J.row(2) = P3.row(2) * rect_p3_cv.x - P3.row(0);
-        J.row(3) = P3.row(2) * rect_p3_cv.y - P3.row(1);
-
-        Eigen::JacobiSVD<Eigen::MatrixXd> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        Eigen::Vector4d scenePoint = svd.matrixV().block<4,1>(0,3);
-
-        scenePoint /= scenePoint(3);
-
-        // validate scene point
-        Eigen::Vector3d p1, p2, p3;
-        if (!project3DPoint(camera, H1, scenePoint, p1))
-        {
-            continue;
-        }
-        if (!project3DPoint(camera, H2, scenePoint, p2))
-        {
-            continue;
-        }
-        if (!project3DPoint(camera, H3, scenePoint, p3))
-        {
-            continue;
-        }
-
-        points3D.push_back(scenePoint.block<3,1>(0,0));
-        inliers.push_back(i);
-    }
-}
-
-bool
-CameraRigBA::triangulate3DPoint(const Point2DFeatureConstPtr& p1,
-                                const Point2DFeatureConstPtr& p2,
-                                Eigen::Vector3d& scenePoint,
-                                double reprojErrorThresh) const
-{
-    FrameConstPtr frame1 = p1->frame().lock();
-    FrameConstPtr frame2 = p2->frame().lock();
-
-    if (frame1.get() == 0 || frame2.get() == 0)
-    {
-        std::cout << "# WARNING: Parent frame is missing." << std::endl;
-        return false;
-    }
-
-    const CameraPtr& cam1 = m_cameraSystem.getCamera(frame1->cameraId());
-    const CameraPtr& cam2 = m_cameraSystem.getCamera(frame2->cameraId());
-
-    const cv::Point2f& pt1 = p1->keypoint().pt;
-    const cv::Point2f& pt2 = p2->keypoint().pt;
-
-    // projective rays
-    Eigen::Vector3d ray1, ray2;
-    cam1->liftProjective(Eigen::Vector2d(pt1.x, pt1.y), ray1);
-    cam2->liftProjective(Eigen::Vector2d(pt2.x, pt2.y), ray2);
-
-    ray1 = m_cameraSystem.getGlobalCameraPose(frame1->cameraId()).block<3,3>(0,0) * ray1;
-    ray2 = m_cameraSystem.getGlobalCameraPose(frame2->cameraId()).block<3,3>(0,0) * ray2;
-
-    ray1.normalize();
-    ray2.normalize();
-
-    // compute Plucker line correspondence
-    Eigen::Matrix<double,6,1> l1, l2;
-    l1 << ray1, m_cameraSystem.getGlobalCameraPose(frame1->cameraId()).block<3,1>(0,3).cross(ray1);
-    l2 << ray2, m_cameraSystem.getGlobalCameraPose(frame2->cameraId()).block<3,1>(0,3).cross(ray2);
-
-    Eigen::Vector3d q1 = l1.head(3);
-    Eigen::Vector3d q1p = l1.tail(3);
-
-    Eigen::Vector3d q2 = l2.head(3);
-    Eigen::Vector3d q2p = l2.tail(3);
-
-    Eigen::Vector3d q1xq1p = q1.cross(q1p);
-
-    Eigen::Matrix4d H;
-    H = frame2->systemPose()->toMatrix().inverse() *
-        frame1->systemPose()->toMatrix();
-
-    Eigen::MatrixXd A(3,2);
-    A.col(0) = H.block<3,3>(0,0) * q1;
-    A.col(1) = -q2;
-
-    Eigen::Vector3d b = q2.cross(q2p) - H.block<3,3>(0,0) * q1xq1p - H.block<3,1>(0,3);
-
-    Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-
-    scenePoint = q1xq1p + gamma(0) * q1;
-
-    if (isnan(scenePoint(0)) || isnan(scenePoint(1)) || isnan(scenePoint(2)))
-    {
-        return false;
-    }
-
-    scenePoint = frame1->systemPose()->toMatrix().block<3,3>(0,0) * scenePoint + frame1->systemPose()->toMatrix().block<3,1>(0,3);
-
-    Pose T_cam1_odo(m_cameraSystem.getGlobalCameraPose(frame1->cameraId()));
-    double e1 = reprojectionError(cam1, scenePoint, T_cam1_odo.rotation(), T_cam1_odo.translation(),
-                                  frame1->systemPose()->position(), frame1->systemPose()->attitude(),
-                                  Eigen::Vector2d(pt1.x, pt1.y));
-
-    Pose T_cam2_odo(m_cameraSystem.getGlobalCameraPose(frame2->cameraId()));
-    double e2 = reprojectionError(cam2, scenePoint, T_cam2_odo.rotation(), T_cam2_odo.translation(),
-                                  frame2->systemPose()->position(), frame2->systemPose()->attitude(),
-                                  Eigen::Vector2d(pt2.x, pt2.y));
-
-    if (e1 > reprojErrorThresh || e2 > reprojErrorThresh)
-    {
-        return false;
-    }
-
-    return true;
 }
 
 void
@@ -2532,110 +2211,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     if (m_verbose)
     {
         std::cout << summary.BriefReport() << std::endl;
-    }
-
-    bool computeCovariances = false;
-    if (flags & ODOMETRY_6D_POSE)
-    {
-        computeCovariances = true;
-    }
-    if (flags & POINT_3D)
-    {
-        computeCovariances = true;
-    }
-
-    if (0)
-//    if (computeCovariances)
-    {
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Computing covariances... " << std::flush;
-        }
-
-        // compute covariances
-        ceres::Covariance::Options covOptions;
-        covOptions.num_threads = 8;
-        covOptions.algorithm_type = ceres::SPARSE_QR;
-        covOptions.apply_loss_function = true;
-
-        ceres::Covariance covariance(covOptions);
-
-        std::vector<std::pair<const double*, const double*> > covarianceBlocks;
-
-        if (flags & CAMERA_ODOMETRY_TRANSFORM)
-        {
-            for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
-            {
-                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
-                                                          T_cam_odo.at(i).rotationData()));
-                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).rotationData(),
-                                                          T_cam_odo.at(i).translationData()));
-                covarianceBlocks.push_back(std::make_pair(T_cam_odo.at(i).translationData(),
-                                                          T_cam_odo.at(i).translationData()));
-            }
-        }
-
-        if (flags & POINT_3D)
-        {
-            for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
-                    it != scenePointSet.end(); ++it)
-            {
-                covarianceBlocks.push_back(std::make_pair((*it)->pointData(),
-                                                          (*it)->pointData()));
-            }
-        }
-
-        if (covariance.Compute(covarianceBlocks, &problem))
-        {
-            if (flags & CAMERA_ODOMETRY_TRANSFORM)
-            {
-                for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
-                {
-                    double covariance_rr[4*4];
-                    double covariance_rt[4*3];
-                    double covariance_tt[3*3];
-
-                    covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
-                                                  T_cam_odo.at(i).rotationData(),
-                                                  covariance_rr);
-                    covariance.GetCovarianceBlock(T_cam_odo.at(i).rotationData(),
-                                                  T_cam_odo.at(i).translationData(),
-                                                  covariance_rt);
-                    covariance.GetCovarianceBlock(T_cam_odo.at(i).translationData(),
-                                                  T_cam_odo.at(i).translationData(),
-                                                  covariance_tt);
-
-                    memcpy(T_cam_odo.at(i).covariance().block<4,4>(0,0).data(), covariance_rr, sizeof(double) * 16);
-                    memcpy(T_cam_odo.at(i).covariance().block<4,3>(0,4).data(), covariance_rt, sizeof(double) * 12);
-                    memcpy(T_cam_odo.at(i).covariance().block<3,3>(4,4).data(), covariance_tt, sizeof(double) * 9);
-                    T_cam_odo.at(i).covariance().block<3,4>(4,0) = T_cam_odo.at(i).covariance().block<4,3>(0,4).transpose();
-                }
-            }
-
-            if (flags & POINT_3D)
-            {
-                for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
-                        it != scenePointSet.end(); ++it)
-                {
-                    double covariance_PP[3*3];
-
-                    covariance.GetCovarianceBlock((*it)->pointData(),
-                                                  (*it)->pointData(),
-                                                  covariance_PP);
-
-                    memcpy((*it)->pointCovarianceData(), covariance_PP, sizeof(double) * 9);
-                }
-            }
-
-            if (m_verbose)
-            {
-                std::cout << "Finished." << std::endl;
-            }
-        }
-        else
-        {
-            std::cout << std::endl << "# ERROR: Ceres was unable to compute the covariances." << std::endl;
-        }
     }
 
     if (flags & CAMERA_ODOMETRY_TRANSFORM)

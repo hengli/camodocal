@@ -20,7 +20,7 @@ public:
     };
 
     SlidingWindowBA(const CameraConstPtr& camera,
-                    int N = 10, int n = 3, int mode = VO,
+                    int N = 20, int n = 6, int mode = VO,
                     Eigen::Matrix4d globalCameraPose = Eigen::Matrix4d());
 
     Eigen::Matrix4d globalCameraPose(void);

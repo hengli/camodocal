@@ -83,26 +83,26 @@ protected:
                               float maxDeltaX, float maxDeltaY,
                               cv::Mat& mask) const;
 
-    int mCameraIdx;
-    cv::Mat mCameraMatrix;
+    int m_cameraIdx;
+    cv::Mat m_cameraMatrix;
 
-    cv::Mat mSketch;
+    cv::Mat m_sketch;
 
-    float mMaxDistanceRatio;
+    float m_maxDistanceRatio;
 
-    cv::Ptr<cv::FeatureDetector> mFeatureDetector;
-    cv::Ptr<cv::DescriptorExtractor> mDescriptorExtractor;
-    cv::Ptr<cv::DescriptorMatcher> mDescriptorMatcher;
+    cv::Ptr<cv::FeatureDetector> m_featureDetector;
+    cv::Ptr<cv::DescriptorExtractor> m_descriptorExtractor;
+    cv::Ptr<cv::DescriptorMatcher> m_descriptorMatcher;
 
-    cv::Ptr<SurfGPU> mSURF_GPU;
-    cv::Ptr<ORBGPU> mORB_GPU;
+    cv::Ptr<SurfGPU> m_SURF_GPU;
+    cv::Ptr<ORBGPU> m_ORB_GPU;
 
-    DetectorType mDetectorType;
-    DescriptorType mDescriptorType;
-    MatchTestType mMatchTestType;
-    bool mPreprocess;
+    DetectorType m_detectorType;
+    DescriptorType m_descriptorType;
+    MatchTestType m_matchTestType;
+    bool m_preprocess;
 
-    bool mVerbose;
+    bool m_verbose;
 };
 
 class TemporalFeatureTracker: public FeatureTracker
@@ -116,6 +116,8 @@ public:
     bool addFrame(FramePtr& frame, const cv::Mat& mask);
     void clear(void);
 
+    void runBundleAdjustment(void);
+
     void getMatches(std::vector<cv::Point2f>& matchedPoints,
                     std::vector<cv::Point2f>& matchedPointsPrev) const;
     std::vector<FramePtr>& getFrames(void);
@@ -127,78 +129,28 @@ public:
 protected:
     void visualizeTracks(void);
 
-    const CameraConstPtr kCamera;
+    const CameraConstPtr k_camera;
 
-    cv::Mat mImage;
-    cv::Mat mMask;
+    cv::Mat m_image;
+    cv::Mat m_mask;
 
-    bool mInit;
+    bool m_init;
 
-    std::vector<cv::KeyPoint> mKpts, mKptsPrev;
-    cv::Mat mDtor, mDtorPrev;
-    FramePtr mFramePrev;
+    std::vector<cv::KeyPoint> m_kpts, m_kptsPrev;
+    cv::Mat m_dtor, m_dtorPrev;
+    FramePtr m_framePrev;
 
-    std::vector<Point2DFeaturePtr> mPointFeatures;
+    std::vector<Point2DFeaturePtr> m_pointFeatures;
 
     SlidingWindowBA m_BA;
-    std::vector<FramePtr> mFrames;
-    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > mPoses;
+    std::vector<FramePtr> m_frames;
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses;
 
-    cv::Mat mMatchingMask;
-    const float kMaxDelta;
-    const int kMinFeatureCorrespondences;
-    const double kNominalFocalLength;
-    const double kReprojErrorThresh;
-};
-
-class CameraRigTemporalFeatureTracker: public FeatureTracker
-{
-public:
-    CameraRigTemporalFeatureTracker(const std::vector<CameraConstPtr>& cameras,
-                                    DetectorType detectorType = ORB_DETECTOR,
-                                    DescriptorType descriptorType = ORB_DESCRIPTOR,
-                                    MatchTestType matchTestType = RATIO,
-                                    bool preprocess = false);
-    bool addFrame(const std::vector<cv::Mat>& images,
-                  const std::vector<cv::Mat>& masks);
-    void clear(void);
-
-    const cv::Mat& getSketch(int idx) const;
-
-protected:
-    class CameraMetadata
-    {
-    public:
-        CameraMetadata(const CameraConstPtr& _camera)
-         : camera(_camera)
-        {
-
-        }
-
-        CameraConstPtr camera;
-        cv::Mat image;
-        cv::Mat mask;
-        std::vector<cv::KeyPoint> kpts, kptsPrev;
-        cv::Mat dtor, dtorPrev;
-        std::vector<Point2DFeaturePtr> pointFeatures;
-        cv::Mat sketch;
-    };
-
-    void processImage(const cv::Mat& image, const cv::Mat& mask,
-                      CameraMetadata* metadata);
-
-    void rectifyImagePoint(const CameraConstPtr& camera,
-                           const cv::Point2f& src, cv::Point2f& dst) const;
-
-    void visualizeTracks(void);
-
-    std::vector<CameraMetadata> mCameraMetadata;
-
-    cv::Mat mMatchingMask;
-    const float kMaxDelta;
-    const int kMinFeatureCorrespondences;
-    const double kNominalFocalLength;
-    const double kReprojErrorThresh;
+    cv::Mat m_matchingMask;
+    const float k_maxDelta;
+    const int k_minFeatureCorrespondences;
+    const double k_nominalFocalLength;
+    const double k_reprojErrorThresh;
 };
 
 }

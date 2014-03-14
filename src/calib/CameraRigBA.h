@@ -61,7 +61,7 @@ private:
 
     void triangulateFeatureCorrespondences(void);
 
-    void triangulateFeatures(FramePtr& frame1, FramePtr& frame2, FramePtr& frame3,
+    void triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
                              const CameraConstPtr& camera,
                              const Pose& T_cam_odo);
 
@@ -82,26 +82,6 @@ private:
     void matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
                            std::vector<Correspondence2D2D>* corr2D2D,
                            double reprojErrorThresh = 2.0);
-
-    bool project3DPoint(const CameraConstPtr& camera,
-                        const Eigen::Matrix4d& H,
-                        const Eigen::Vector4d& src,
-                        Eigen::Vector3d& dst) const;
-
-    void tvt(const CameraConstPtr& camera,
-             const Eigen::Matrix4d& H1,
-             const std::vector<cv::Point2f>& imagePoints1,
-             const Eigen::Matrix4d& H2,
-             const std::vector<cv::Point2f>& imagePoints2,
-             const Eigen::Matrix4d& H3,
-             const std::vector<cv::Point2f>& imagePoints3,
-             std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
-             std::vector<size_t>& inliers) const;
-
-    bool triangulate3DPoint(const Point2DFeatureConstPtr& p1,
-                            const Point2DFeatureConstPtr& p2,
-                            Eigen::Vector3d& scenePoint,
-                            double reprojErrorThresh = 4.0) const;
 
     void prune(int flags = PRUNE_BEHIND_CAMERA, int poseType = ODOMETRY);
 
