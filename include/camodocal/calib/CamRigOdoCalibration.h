@@ -2,13 +2,16 @@
 #define CAMRIGODOCALIBRATION_H
 
 #include <boost/multi_array.hpp>
-#include <glibmm.h>
 
 #include "camodocal/calib/AtomicData.h"
 #include "camodocal/calib/PoseSource.h"
 #include "camodocal/calib/SensorDataBuffer.h"
 #include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
+
+#ifdef VCHARGE_VIZ
+#include <boost/asio.hpp>
+#endif
 
 namespace camodocal
 {
@@ -18,7 +21,7 @@ class CamOdoThread;
 class CamOdoWatchdogThread;
 class CamRigThread;
 
-class CamRigOdoCalibration: public sigc::trackable
+class CamRigOdoCalibration
 {
 public:
     enum Mode
@@ -73,17 +76,16 @@ public:
     const CameraSystem& cameraSystem(void) const;
 
 private:
-    void launchCamOdoThreads(void);
-
     void onCamOdoThreadFinished(CamOdoThread* odoCamThread);
-    void onCamRigThreadFinished(CamRigThread* camRigThread);
 
     void buildGraph(void);
 
-    bool displayHandler(void);
+#ifdef VCHARGE_VIZ
+    void pollWindow(boost::asio::io_service* io, bool* stop);
+    void displayHandler(boost::asio::deadline_timer* timer, bool* stop);
     static void keyboardHandler(unsigned char key, int x, int y);
+#endif
 
-    Glib::RefPtr<Glib::MainLoop> m_mainLoop;
     std::vector<CamOdoThread*> m_camOdoThreads;
     CamOdoWatchdogThread* m_camOdoWatchdogThread;
     CamRigThread* m_camRigThread;

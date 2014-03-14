@@ -1,61 +1,63 @@
 #include "CamOdoWatchdogThread.h"
 
+#include <boost/make_shared.hpp>
+
 namespace camodocal
 {
 
 CamOdoWatchdogThread::CamOdoWatchdogThread(boost::multi_array<bool, 1>& completed,
                                            bool& stop)
- : mCompleted(completed)
- , mStop(stop)
+ : m_running(false)
+ , m_completed(completed)
+ , m_stop(stop)
 {
 
 }
 
 CamOdoWatchdogThread::~CamOdoWatchdogThread()
 {
-    g_return_if_fail(mThread == 0);
+
 }
 
 void
 CamOdoWatchdogThread::launch(void)
 {
-    mThread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &CamOdoWatchdogThread::threadFunction));
+    m_running = true;
+
+    m_thread = boost::make_shared<boost::thread>(&CamOdoWatchdogThread::threadFunction, this);
 }
 
 void
 CamOdoWatchdogThread::join(void)
 {
-    if (mRunning)
+    if (m_running)
     {
-        mThread->join();
+        m_thread->join();
     }
-    mThread = 0;
 }
 
 bool
 CamOdoWatchdogThread::running(void) const
 {
-    return mRunning;
+    return m_running;
 }
 
-sigc::signal<void>&
+boost::signals2::signal<void ()>&
 CamOdoWatchdogThread::signalFinished(void)
 {
-    return mSignalFinished;
+    return m_signalFinished;
 }
 
 void
 CamOdoWatchdogThread::threadFunction(void)
 {
-    mRunning = true;
-
-    while (!mStop)
+    while (!m_stop)
     {
         bool stop = true;
 
-        for (size_t i = 0; i < mCompleted.size(); ++i)
+        for (size_t i = 0; i < m_completed.size(); ++i)
         {
-            if (!mCompleted[i])
+            if (!m_completed[i])
             {
                 stop = false;
                 break;
@@ -64,15 +66,15 @@ CamOdoWatchdogThread::threadFunction(void)
 
         if (stop)
         {
-            mStop = stop;
+            m_stop = stop;
         }
 
         usleep(1000);
     }
 
-    mRunning = false;
+    m_running = false;
 
-    mSignalFinished();
+    m_signalFinished();
 }
 
 }

@@ -5,8 +5,7 @@
 #include <GL/glu.h>
 #include <GL/gl.h>
 
-#include <boost/thread/mutex.hpp>
-#include <glibmm.h>
+#include <boost/thread.hpp>
 #include <opencv2/core/core.hpp>
 #include <string>
 
@@ -46,21 +45,21 @@ private:
     static void resizeGLScene(int width, int height);
     static void drawGLTimer(int extra);
 
-    static CalibrationWindow* mInstance;
-    static void (*mKeyboardHandler)(unsigned char key, int x, int y);
+    static CalibrationWindow* m_instance;
+    static void (*m_keyboardHandler)(unsigned char key, int x, int y);
 
-    std::string mTitle;
-    int mImageWidth;
-    int mImageHeight;
-    int mChannels;
-    Glib::Thread* mDisplayThread;
-    int mWindow;
-    GLuint mGLTex[4];
-    cv::Mat mView[4];
+    std::string m_title;
+    int m_imageWidth;
+    int m_imageHeight;
+    int m_channels;
+    boost::shared_ptr<boost::thread> m_displayThread;
+    int m_window;
+    GLuint m_glTex[4];
+    cv::Mat m_view[4];
     std::string mText[4];
-    bool mQuit;
+    bool m_quit;
 
-    boost::mutex mDataMutex;
+    boost::mutex m_dataMutex;
 };
 
 }

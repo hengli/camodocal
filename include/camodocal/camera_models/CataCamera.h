@@ -121,6 +121,7 @@ public:
     void distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u,
                     Eigen::Matrix2d& J) const;
 
+    void initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale = 1.0) const;
     cv::Mat initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                     float fx = -1.0f, float fy = -1.0f,
                                     cv::Size imageSize = cv::Size(0, 0),

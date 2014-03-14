@@ -1,7 +1,8 @@
 #ifndef CAMRIGTHREAD_H
 #define CAMRIGTHREAD_H
 
-#include <glibmm.h>
+#include <boost/signals2.hpp>
+#include <boost/thread.hpp>
 
 #include "camodocal/camera_models/Camera.h"
 #include "camodocal/camera_systems/CameraSystem.h"
@@ -25,23 +26,23 @@ public:
     void launch(void);
     void join(void);
     bool running(void) const;
-    sigc::signal<void>& signalFinished(void);
+    boost::signals2::signal<void ()>& signalFinished(void);
 
 private:
     void threadFunction(void);
 
-    Glib::Threads::Thread* mThread;
-    bool mRunning;
-    sigc::signal<void> mSignalFinished;
+    boost::shared_ptr<boost::thread> m_thread;
+    bool m_running;
+    boost::signals2::signal<void ()> m_signalFinished;
 
-    CameraSystem& mCameraSystem;
-    SparseGraph& mGraph;
+    CameraSystem& m_cameraSystem;
+    SparseGraph& m_graph;
 
-    int mBeginStage;
-    bool mOptimizeIntrinsics;
-    bool mSaveWorkingData;
-    std::string mDataDir;
-    bool mVerbose;
+    int m_beginStage;
+    bool m_optimizeIntrinsics;
+    bool m_saveWorkingData;
+    std::string m_dataDir;
+    bool m_verbose;
 };
 
 }

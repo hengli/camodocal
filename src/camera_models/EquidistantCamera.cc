@@ -406,6 +406,18 @@ EquidistantCamera::estimateIntrinsics(const cv::Size& boardSize,
     setParameters(params);
 }
 
+/**
+ * \brief Lifts a point from the image plane to the unit sphere
+ *
+ * \param p image coordinates
+ * \param P coordinates of the point on the sphere
+ */
+void
+EquidistantCamera::liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
+{
+    liftProjective(p, P);
+}
+
 /** 
  * \brief Lifts a point from the image plane to its projective ray
  *
@@ -495,6 +507,38 @@ EquidistantCamera::undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p)
 //    // Apply generalised projection matrix
 //    p << mParameters.gamma1() * p_d(0) + mParameters.u0(),
 //         mParameters.gamma2() * p_d(1) + mParameters.v0();
+}
+
+void
+EquidistantCamera::initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale) const
+{
+    cv::Size imageSize(mParameters.imageWidth(), mParameters.imageHeight());
+
+    cv::Mat mapX = cv::Mat::zeros(imageSize, CV_32F);
+    cv::Mat mapY = cv::Mat::zeros(imageSize, CV_32F);
+
+    for (int v = 0; v < imageSize.height; ++v)
+    {
+        for (int u = 0; u < imageSize.width; ++u)
+        {
+            double mx_u = m_inv_K11 / fScale * u + m_inv_K13 / fScale;
+            double my_u = m_inv_K22 / fScale * v + m_inv_K23 / fScale;
+
+            double theta, phi;
+            backprojectSymmetric(Eigen::Vector2d(mx_u, my_u), theta, phi);
+
+            Eigen::Vector3d P;
+            P << sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta);
+
+            Eigen::Vector2d p;
+            spaceToPlane(P, p);
+
+            mapX.at<float>(v,u) = p(0);
+            mapY.at<float>(v,u) = p(1);
+        }
+    }
+
+    cv::convertMaps(mapX, mapY, map1, map2, CV_32FC1, false);
 }
 
 cv::Mat

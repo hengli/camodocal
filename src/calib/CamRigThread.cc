@@ -1,5 +1,7 @@
 #include "CamRigThread.h"
 
+#include <boost/make_shared.hpp>
+
 #include "CameraRigBA.h"
 
 namespace camodocal
@@ -12,64 +14,62 @@ CamRigThread::CamRigThread(CameraSystem& cameraSystem,
                            bool saveWorkingData,
                            std::string dataDir,
                            bool verbose)
- : mThread(0)
- , mRunning(false)
- , mCameraSystem(cameraSystem)
- , mGraph(graph)
- , mBeginStage(beginStage)
- , mOptimizeIntrinsics(optimizeIntrinsics)
- , mSaveWorkingData(saveWorkingData)
- , mDataDir(dataDir)
- , mVerbose(verbose)
+ : m_running(false)
+ , m_cameraSystem(cameraSystem)
+ , m_graph(graph)
+ , m_beginStage(beginStage)
+ , m_optimizeIntrinsics(optimizeIntrinsics)
+ , m_saveWorkingData(saveWorkingData)
+ , m_dataDir(dataDir)
+ , m_verbose(verbose)
 {
 
 }
 
 CamRigThread::~CamRigThread()
 {
-    g_return_if_fail(mThread == 0);
+
 }
 
 void
 CamRigThread::launch(void)
 {
-    mThread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &CamRigThread::threadFunction));
+    m_running = true;
+
+    m_thread = boost::make_shared<boost::thread>(&CamRigThread::threadFunction, this);
 }
 
 void
 CamRigThread::join(void)
 {
-    if (mRunning)
+    if (m_running)
     {
-        mThread->join();
+        m_thread->join();
     }
-    mThread = 0;
 }
 
 bool
 CamRigThread::running(void) const
 {
-    return mRunning;
+    return m_running;
 }
 
-sigc::signal<void>&
+boost::signals2::signal<void ()>&
 CamRigThread::signalFinished(void)
 {
-    return mSignalFinished;
+    return m_signalFinished;
 }
 
 void
 CamRigThread::threadFunction(void)
 {
-    mRunning = true;
+    CameraRigBA ba(m_cameraSystem, m_graph);
+    ba.setVerbose(m_verbose);
+    ba.run(m_beginStage, m_optimizeIntrinsics, m_saveWorkingData, m_dataDir);
 
-    CameraRigBA ba(mCameraSystem, mGraph);
-    ba.setVerbose(mVerbose);
-    ba.run(mBeginStage, mOptimizeIntrinsics, mSaveWorkingData, mDataDir);
+    m_running = false;
 
-    mRunning = false;
-
-    mSignalFinished();
+    m_signalFinished();
 }
 
 }

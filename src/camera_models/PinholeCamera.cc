@@ -427,6 +427,20 @@ PinholeCamera::estimateIntrinsics(const cv::Size& boardSize,
 }
 
 /**
+ * \brief Lifts a point from the image plane to the unit sphere
+ *
+ * \param p image coordinates
+ * \param P coordinates of the point on the sphere
+ */
+void
+PinholeCamera::liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
+{
+    liftProjective(p, P);
+
+    P.normalize();
+}
+
+/**
  * \brief Lifts a point from the image plane to its projective ray
  *
  * \param p image coordinates
@@ -679,6 +693,35 @@ PinholeCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u,
 
     J << dxdmx, dxdmy,
          dydmx, dydmy;
+}
+
+void
+PinholeCamera::initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale) const
+{
+    cv::Size imageSize(mParameters.imageWidth(), mParameters.imageHeight());
+
+    cv::Mat mapX = cv::Mat::zeros(imageSize, CV_32F);
+    cv::Mat mapY = cv::Mat::zeros(imageSize, CV_32F);
+
+    for (int v = 0; v < imageSize.height; ++v)
+    {
+        for (int u = 0; u < imageSize.width; ++u)
+        {
+            double mx_u = m_inv_K11 / fScale * u + m_inv_K13 / fScale;
+            double my_u = m_inv_K22 / fScale * v + m_inv_K23 / fScale;
+
+            Eigen::Vector3d P;
+            P << mx_u, my_u, 1.0;
+
+            Eigen::Vector2d p;
+            spaceToPlane(P, p);
+
+            mapX.at<float>(v,u) = p(0);
+            mapY.at<float>(v,u) = p(1);
+        }
+    }
+
+    cv::convertMaps(mapX, mapY, map1, map2, CV_32FC1, false);
 }
 
 cv::Mat

@@ -2,7 +2,8 @@
 #define CAMODOWATCHDOG_THREAD_H
 
 #include <boost/multi_array.hpp>
-#include <glibmm.h>
+#include <boost/signals2.hpp>
+#include <boost/thread.hpp>
 
 namespace camodocal
 {
@@ -17,17 +18,17 @@ public:
     void launch(void);
     void join(void);
     bool running(void) const;
-    sigc::signal<void>& signalFinished(void);
+    boost::signals2::signal<void ()>& signalFinished(void);
 
 private:
     void threadFunction(void);
 
-    Glib::Threads::Thread* mThread;
-    bool mRunning;
-    sigc::signal<void> mSignalFinished;
+    boost::shared_ptr<boost::thread> m_thread;
+    bool m_running;
+    boost::signals2::signal<void ()> m_signalFinished;
 
-    boost::multi_array<bool, 1>& mCompleted;
-    bool& mStop;
+    boost::multi_array<bool, 1>& m_completed;
+    bool& m_stop;
 };
 
 }

@@ -2,6 +2,7 @@
 
 #include <boost/dynamic_bitset.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 #include <boost/unordered_set.hpp>
 #include <camodocal/calib/PlanarHandEyeCalibration.h>
@@ -2446,13 +2447,17 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
 
+//                ceres::CostFunction* costFunction =
+//                    new ceres::AutoDiffCostFunction<OdometryError, 1, 3, 3, 3, 3>(
+//                        new OdometryError(H_odo_meas, odometryPrecisionMat));
+
                 ceres::CostFunction* costFunction =
                     new ceres::AutoDiffCostFunction<OdometryError, 1, 3, 3, 3, 3>(
-                        new OdometryError(H_odo_meas, odometryPrecisionMat));
+                        new OdometryError(H_odo_meas));
 
-//                ceres::LossFunction* lossFunction = new ceres::ScaledLoss(0, wResidualOdometry, ceres::TAKE_OWNERSHIP);
+                ceres::LossFunction* lossFunction = new ceres::ScaledLoss(0, wResidualOdometry, ceres::TAKE_OWNERSHIP);
 
-                problem.AddResidualBlock(costFunction, 0,
+                problem.AddResidualBlock(costFunction, lossFunction,
                                          frameSetPrev->systemPose()->positionData(),
                                          frameSetPrev->systemPose()->attitudeData(),
                                          frameSet->systemPose()->positionData(),
@@ -2838,185 +2843,301 @@ bool
 CameraRigBA::estimateAbsoluteGroundHeight(double& zGround) const
 {
 #ifdef VCHARGE_D3D
-//    for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
-//    {
-//        if (m_cameraSystem.getCamera(i)->modelType() != Camera::MEI)
-//        {
-//            continue;
-//        }
-//
-//        const CataCameraPtr camera = boost::static_pointer_cast<CataCamera>(m_cameraSystem.getCamera(i));
-//
-//        double xi = camera->getParameters().xi();
-//        double k1 = camera->getParameters().k1();
-//        double k2 = camera->getParameters().k2();
-//        double p1 = camera->getParameters().p1();
-//        double p2 = camera->getParameters().p2();
-//
-//        Eigen::Matrix3d cameraK = Eigen::Matrix3d::Identity();
-//        cameraK(0,0) = camera->getParameters().gamma1();
-//        cameraK(1,1) = camera->getParameters().gamma2();
-//        cameraK(0,2) = camera->getParameters().u0();
-//        cameraK(1,2) = camera->getParameters().v0();
-//
-//        Eigen::Matrix4d H_sys_cam = m_cameraSystem.getGlobalCameraPose(i).inverse();
-//
-//        // planes for ground direction
-//        int numGroundPlanes = 10;
-//        float groundPlaneMargin = 0.075f;
-//
-//        D3D::Grid<Eigen::Vector4d> groundDirectionPlanes;
-//
-//        float deltaGround = 2.0f * groundPlaneMargin / (numGroundPlanes - 1);
-//
-//        Eigen::Vector3d directionT = Eigen::Vector3d::UnitZ();
-//        Eigen::Vector3d direction = H_sys_cam.block<3,3>(0,0) * directionT;
-//
-//        float baseDist = H_sys_cam(2,3) - groundPlaneMargin;
-//
-//        groundDirectionPlanes.resize(numGroundPlanes, 1, 1);
-//
-//        for (int pi = 0; pi < numGroundPlanes; ++pi)
-//        {
-//            groundDirectionPlanes(pi,0)(0) = direction(0);
-//            groundDirectionPlanes(pi,0)(1) = direction(1);
-//            groundDirectionPlanes(pi,0)(2) = direction(2);
-//            groundDirectionPlanes(pi,0)(3) = baseDist + pi * deltaGround;
-//        }
-//
-//        std::vector<std::vector<FramePtr> > frames(1);
-//        std::vector<std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > > poses(1);
-//        std::vector<std::vector<uint64_t> > timestamps(1);
-//        for (size_t j = 0; j < m_graph.frameSetSegments().size(); ++j)
-//        {
-//            const FrameSetSegment& segment = m_graph.frameSetSegment(j);
-//
-//            for (size_t k = 0; k < segment.size(); ++k)
-//            {
-//                const FrameSetPtr& frameSet = segment.at(k);
-//                const FramePtr& frame = frameSet->frames().at(i);
-//
-//                if (frame)
-//                {
-//                    frames.back().push_back(frame);
-//
-//                    Eigen::Matrix4d H_cam = H_sys_cam * frameSet->systemPose()->toMatrix().inverse();
-//                    poses.back().push_back(H_cam);
-//
-//                    timestamps.back().push_back(frameSet->systemPose()->timeStamp());
-//                }
-//                else
-//                {
-//                    if (!frames.back().empty())
-//                    {
-//                        frames.resize(frames.size() + 1);
-//                        poses.resize(frames.size() + 1);
-//                        timestamps.resize(frames.size() + 1);
-//                    }
-//
-//                    continue;
-//                }
-//            }
-//        }
-//        if (frames.back().empty())
-//        {
-//            if (frames.size() == 1)
-//            {
-//                continue;
-//            }
-//            else
-//            {
-//                frames.resize(frames.size() - 1);
-//                poses.resize(frames.size() - 1);
-//                timestamps.resize(frames.size() - 1);
-//            }
-//        }
-//
-//        for (size_t i = 0; i < frames.size(); ++i)
-//        {
-//            if (frames.at(i).size() < 3)
-//            {
-//                continue;
-//            }
-//
-//            D3D_CUDA::DeviceImage devImg;
-//            D3D_CUDA::CudaFishEyeImageProcessor cFEIP;
-//            D3D::CudaFishEyePlaneSweep cFEPS;
-//
-//            cFEPS.setMatchingCosts(D3D::FISH_EYE_PLANE_SWEEP_ZNCC);
-//            cFEPS.setZRange(0.2, 10);
-//            cFEPS.setMatchWindowSize(9,9);
-//            cFEPS.setOcclusionMode(D3D::FISH_EYE_PLANE_SWEEP_OCCLUSION_NONE);
-//            cFEPS.setPlaneGenerationMode(D3D::FISH_EYE_PLANE_SWEEP_PLANEMODE_UNIFORM_DISPARITY);
-//            cFEPS.enableSubPixel();
-//            cFEPS.enableOutputBestCosts();
-//
-//            std::list<std::pair<int, uint64_t> > cFEPSImageIds;
-//
-//            for (size_t j = 0; j < frames.at(i).size(); ++j)
-//            {
-//                const cv::Mat& image = frames.at(i).at(j)->image();
-//                const Eigen::Matrix4d& H_cam = poses.at(i).at(j);
-//                uint64_t timestamp = timestamps.at(i).at(j);
-//
-//                D3D::FishEyeCameraMatrix<double> cameraMat(cameraK, H_cam.block<3,3>(0,0), H_cam.block<3,1>(0,3), xi);
-//
-//                devImg.reallocatePitchedAndUpload(image);
-//                cFEIP.setInputImg(devImg, cameraMat);
-//
-//                std::pair<D3D_CUDA::DeviceImage, D3D::FishEyeCameraMatrix<double> > undistRes;
-//                undistRes = cFEIP.undistort(1.0, 1.0, k1, k2, p1, p2);
-//
-//                cFEPSImageIds.push_back(std::make_pair(cFEPS.addDeviceImage(undistRes.first, undistRes.second),
-//                                                       timestamp));
-//
-//                if (cFEPSImageIds.size() == 3)
-//                {
-//                    std::list<std::pair<int, uint64_t> >::iterator it = cFEPSImageIds.begin();
-//                    ++it;
-//                    std::pair<int, uint64_t> refId = *it;
-//
-//                    cFEPS.process(refId.first, groundDirectionPlanes);
-//                    D3D::FishEyeDepthMap<float, double> dMGround;
-//                    dMGround = cFEPS.getBestDepth();
-//                    D3D::Grid<float> bestCostsGround;
-//                    bestCostsGround = cFEPS.getBestCosts();
-//
-//                    cFEPS.setNumPlanes(128);
-//
-//                    cFEPS.process(refId.first);
-//                    D3D::FishEyeDepthMap<float,double> dM = cFEPS.getBestDepth();
-//                    D3D::Grid<float> bestCosts = cFEPS.getBestCosts();
-//
-//                    for (unsigned int y = 0; y < dM.getHeight(); ++y)
-//                    {
-//                        for (unsigned int x = 0; x < dM.getWidth(); ++x)
-//                        {
-//                            if (bestCosts(x,y) > 0.15f)
-//                            {
-//                                dM(x,y) = -1.0f;
-//                            }
-//                        }
-//                    }
-//
-//                    // display the depth maps
-//                    dM.displayInvDepthColored(0.2, 5, 20);
-//
+    double iScale = 0.5;
+
+    float minZ = 0.5f;
+    float maxZ = 3.5f;
+    float minDepth = 0.2f;
+    float maxDepth = 5.0f;
+    int nGroundPlaneHypots = 128;
+    int nImagesPerMatch = 3;
+
+    D3D_CUDA::DeviceImage devImg;
+    D3D_CUDA::CudaFishEyeImageProcessor cFEIP;
+
+    std::vector<std::pair<double, size_t> > zGrounds;
+
+    for (size_t cameraId = 0; cameraId < m_cameraSystem.cameraCount(); ++cameraId)
+    {
+        if (m_cameraSystem.getCamera(cameraId)->modelType() != Camera::MEI)
+        {
+            continue;
+        }
+
+        const CataCameraPtr camera = boost::static_pointer_cast<CataCamera>(m_cameraSystem.getCamera(cameraId));
+
+        double xi = camera->getParameters().xi();
+        double k1 = camera->getParameters().k1();
+        double k2 = camera->getParameters().k2();
+        double p1 = camera->getParameters().p1();
+        double p2 = camera->getParameters().p2();
+
+        Eigen::Matrix3d cameraK = Eigen::Matrix3d::Identity();
+        cameraK(0,0) = camera->getParameters().gamma1() * iScale;
+        cameraK(1,1) = camera->getParameters().gamma2() * iScale;
+        cameraK(0,2) = camera->getParameters().u0() * iScale;
+        cameraK(1,2) = camera->getParameters().v0() * iScale;
+
+        Eigen::Matrix3d cameraKOrig = Eigen::Matrix3d::Identity();
+        cameraKOrig(0,0) = camera->getParameters().gamma1();
+        cameraKOrig(1,1) = camera->getParameters().gamma2();
+        cameraKOrig(0,2) = camera->getParameters().u0();
+        cameraKOrig(1,2) = camera->getParameters().v0();
+
+        CataCamera::Parameters params;
+        params = camera->getParameters();
+        params.gamma1() *= iScale;
+        params.gamma2() *= iScale;
+        params.u0() *= iScale;
+        params.v0() *= iScale;
+        params.k1() = 0.0;
+        params.k2() = 0.0;
+        params.p1() = 0.0;
+        params.p2() = 0.0;
+
+        CataCameraPtr cameraWNoDist = boost::make_shared<CataCamera>();
+        cameraWNoDist->setParameters(params);
+
+        Eigen::Matrix4d H_cam_sys = m_cameraSystem.getGlobalCameraPose(cameraId);
+        Eigen::Matrix4d H_sys_cam = H_cam_sys.inverse();
+
+        // generate ground plane hypotheses
+        float delta = (maxZ - minZ) / static_cast<float>(nGroundPlaneHypots - 1);
+
+        Eigen::Vector3d direction = H_sys_cam.block<3,3>(0,0) * Eigen::Vector3d::UnitZ();
+
+        D3D::Grid<Eigen::Vector4d> groundPlaneHypots;
+        groundPlaneHypots.resize(nGroundPlaneHypots, 1, 1);
+        for (int i = 0; i < nGroundPlaneHypots; ++i)
+        {
+            groundPlaneHypots(i,0)(0) = direction(0);
+            groundPlaneHypots(i,0)(1) = direction(1);
+            groundPlaneHypots(i,0)(2) = direction(2);
+            groundPlaneHypots(i,0)(3) = minZ + static_cast<float>(i) * delta;
+        }
+
+        std::vector<std::vector<FramePtr> > frames(1);
+        std::vector<std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > > poses(1);
+        std::vector<std::vector<uint64_t> > timestamps(1);
+        for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+        {
+            const FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+            for (size_t j = 0; j < segment.size(); ++j)
+            {
+                const FrameSetPtr& frameSet = segment.at(j);
+                const FramePtr& frame = frameSet->frames().at(cameraId);
+
+                if (frame && !frame->image().empty())
+                {
+                    frames.back().push_back(frame);
+
+                    Eigen::Matrix4d H_cam = H_sys_cam * frameSet->systemPose()->toMatrix().inverse();
+                    poses.back().push_back(H_cam);
+
+                    timestamps.back().push_back(frameSet->systemPose()->timeStamp());
+                }
+                else
+                {
+                    if (!frames.back().empty())
+                    {
+                        frames.resize(frames.size() + 1);
+                        poses.resize(poses.size() + 1);
+                        timestamps.resize(timestamps.size() + 1);
+                    }
+
+                    continue;
+                }
+            }
+        }
+        if (frames.back().empty())
+        {
+            if (frames.size() == 1)
+            {
+                continue;
+            }
+            else
+            {
+                frames.resize(frames.size() - 1);
+                poses.resize(frames.size() - 1);
+                timestamps.resize(frames.size() - 1);
+            }
+        }
+
+        for (size_t i = 0; i < frames.size(); ++i)
+        {
+            if (frames.at(i).size() < nImagesPerMatch)
+            {
+                continue;
+            }
+
+            D3D::CudaFishEyePlaneSweep cFEPS;
+
+            cFEPS.setMatchingCosts(D3D::FISH_EYE_PLANE_SWEEP_ZNCC);
+            cFEPS.setZRange(minDepth, maxDepth);
+            cFEPS.setMatchWindowSize(9,9);
+
+            if (nImagesPerMatch == 2)
+            {
+                cFEPS.setOcclusionMode(D3D::FISH_EYE_PLANE_SWEEP_OCCLUSION_NONE);
+            }
+            else
+            {
+                cFEPS.setOcclusionMode(D3D::FISH_EYE_PLANE_SWEEP_OCCLUSION_REF_SPLIT);
+            }
+
+            cFEPS.setPlaneGenerationMode(D3D::FISH_EYE_PLANE_SWEEP_PLANEMODE_UNIFORM_DISPARITY);
+            cFEPS.setSubPixelInterpolationMode(D3D::FISH_EYE_PLANE_SWEEP_SUB_PIXEL_INTERP_INVERSE);
+            cFEPS.enableSubPixel();
+            cFEPS.enableOutputBestCosts();
+
+            std::list<std::pair<int, uint64_t> > cFEPSImageIds;
+
+            for (size_t j = 0; j < frames.at(i).size(); ++j)
+            {
+                const cv::Mat& image = frames.at(i).at(j)->image();
+                const Eigen::Matrix4d& H_cam = poses.at(i).at(j);
+                uint64_t timestamp = timestamps.at(i).at(j);
+
+                D3D::FishEyeCameraMatrix<double> cameraMatUndist(cameraKOrig, Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero(), xi);
+
+                devImg.reallocatePitchedAndUpload(image);
+                cFEIP.setInputImg(devImg, cameraMatUndist);
+
+                std::pair<D3D_CUDA::DeviceImage, D3D::FishEyeCameraMatrix<double> > undistRes;
+                undistRes = cFEIP.undistort(iScale, 1.0, k1, k2, p1, p2);
+
+                D3D::FishEyeCameraMatrix<double> cameraMat(cameraK, H_cam.block<3,3>(0,0), H_cam.block<3,1>(0,3), xi);
+                cFEPSImageIds.push_back(std::make_pair(cFEPS.addDeviceImage(undistRes.first, cameraMat),
+                                                       timestamp));
+
+                cv::Mat imageUndist;
+                undistRes.first.download(imageUndist);
+
+                cv::imshow("Undistorted Image", imageUndist);
+                cv::waitKey(2);
+
+                if (cFEPSImageIds.size() == nImagesPerMatch)
+                {
+                    std::list<std::pair<int, uint64_t> >::iterator it = cFEPSImageIds.begin();
+                    for (int k = 0; k < nImagesPerMatch / 2; ++k)
+                    {
+                        ++it;
+                    }
+                    std::pair<int, uint64_t> refId = *it;
+
+                    cFEPS.process(refId.first, groundPlaneHypots);
+
+                    D3D::FishEyeDepthMap<float, double> dMGround;
+                    dMGround = cFEPS.getBestDepth();
+
+                    D3D::Grid<float> bestCostsGround;
+                    bestCostsGround = cFEPS.getBestCosts();
+
+                    for (unsigned int y = 0; y < dMGround.getHeight(); ++y)
+                    {
+                        for (unsigned int x = 0; x < dMGround.getWidth(); ++x)
+                        {
+                            if (bestCostsGround(x,y) > 0.15f)
+                            {
+                                dMGround(x,y) = -1.0;
+                            }
+                        }
+                    }
+
+                    // display the depth maps
+                    dMGround.displayInvDepthColored(minDepth, maxDepth, 2);
+
 //                    std::stringstream fileName;
 //                    fileName << "point_clouds/" << timestamp << "_" << camera->cameraName() << ".wrl";
 //                    std::ofstream wrlOutStr;
 //                    wrlOutStr.open(fileName.str().c_str());
-//                    dM.pointCloudColoredToVRML(wrlOutStr, image);
-//
-//                    cFEPS.deleteImage(cFEPSImageIds.begin()->first);
-//                    cFEPSImageIds.pop_front();
-//                }
-//            }
-//        }
-//    }
-//
-//    return true;
-    return false;
+//                    dMGround.pointCloudColoredToVRML(wrlOutStr, image, maxDepth);
+
+                    cFEPS.deleteImage(cFEPSImageIds.begin()->first);
+                    cFEPSImageIds.pop_front();
+
+                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > pointCloud;
+                    for (unsigned int y = 0; y < dMGround.getHeight(); ++y)
+                    {
+                        for (unsigned int x = 0; x < dMGround.getWidth(); ++x)
+                        {
+                            double depth = dMGround(x,y);
+
+                            if (depth < 0.0 || depth > maxDepth)
+                            {
+                                continue;
+                            }
+
+                            Eigen::Vector3d ray;
+                            cameraWNoDist->liftSphere(Eigen::Vector2d(x,y), ray);
+
+                            Eigen::Vector3d P = ray / ray(2) * depth;
+
+                            P = H_cam_sys.block<3,3>(0,0) * P + H_cam_sys.block<3,1>(0,3);
+
+                            pointCloud.push_back(P);
+                        }
+                    }
+
+                    // find ground plane height
+
+                    // TODO: Better way is to find the mode of a continuous 1D distribution.
+                    std::vector<size_t> inlierIdsBest;
+                    for (size_t k = 0; k < pointCloud.size(); k += 1000)
+                    {
+                        double z = pointCloud.at(k)(2);
+
+                        std::vector<size_t> inlierIds;
+                        for (size_t l = 0; l < pointCloud.size(); ++l)
+                        {
+                            if (fabs(z - pointCloud.at(l)(2)) < 0.01)
+                            {
+                                inlierIds.push_back(l);
+                            }
+                        }
+
+                        if (inlierIds.size() < 10000)
+                        {
+                            continue;
+                        }
+
+                        if (inlierIds.size() > inlierIdsBest.size())
+                        {
+                            inlierIdsBest = inlierIds;
+                        }
+                    }
+
+                    if (inlierIdsBest.empty())
+                    {
+                        continue;
+                    }
+
+                    double zSum = 0.0;
+                    for (size_t k = 0; k < inlierIdsBest.size(); ++k)
+                    {
+                        zSum += pointCloud.at(inlierIdsBest.at(k))(2);
+                    }
+
+                    zGrounds.push_back(std::make_pair(zSum, inlierIdsBest.size()));
+                }
+            }
+        }
+    }
+
+    cv::destroyAllWindows();
+
+    double zSum = 0.0;
+    size_t n = 0;
+    for (size_t i = 0; i < zGrounds.size(); ++i)
+    {
+        zSum += zGrounds.at(i).first;
+        n += zGrounds.at(i).second;
+    }
+
+    zGround = zSum / static_cast<double>(n);
+
+    return true;
 #else
     return false;
 #endif

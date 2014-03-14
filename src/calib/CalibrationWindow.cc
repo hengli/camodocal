@@ -1,5 +1,6 @@
 #include "CalibrationWindow.h"
 
+#include <boost/make_shared.hpp>
 #include <GL/freeglut.h>
 
 #include "../../../../library/gpl/CameraEnums.h"
@@ -7,87 +8,81 @@
 namespace camodocal
 {
 
-CalibrationWindow* CalibrationWindow::mInstance = 0;
-void (*CalibrationWindow::mKeyboardHandler)(unsigned char key, int x, int y) = 0;
+CalibrationWindow* CalibrationWindow::m_instance = 0;
+void (*CalibrationWindow::m_keyboardHandler)(unsigned char key, int x, int y) = 0;
 
 CalibrationWindow::CalibrationWindow()
- : mDisplayThread(0)
- , mQuit(false)
+ : m_quit(false)
 {
-    mWindow = 0;
+    m_window = 0;
 }
 
 CalibrationWindow*
 CalibrationWindow::instance(void)
 {
-    if (mInstance == 0)
+    if (m_instance == 0)
     {
-        mInstance = new CalibrationWindow;
+        m_instance = new CalibrationWindow;
     }
 
-    return mInstance;
+    return m_instance;
 }
 
 void
 CalibrationWindow::setKeyboardHandler(void (*keyboardHandler)(unsigned char key, int x, int y))
 {
-    mKeyboardHandler = keyboardHandler;
+    m_keyboardHandler = keyboardHandler;
 }
 
 void
 CalibrationWindow::open(const std::string& title,
                         int imageWidth, int imageHeight, int channels)
 {
-    if (!Glib::thread_supported())
-    {
-        Glib::thread_init();
-    }
-
-    mTitle = title;
-    mImageWidth = imageWidth;
-    mImageHeight = imageHeight;
-    mChannels = channels;
-    mQuit = false;
+    m_title = title;
+    m_imageWidth = imageWidth;
+    m_imageHeight = imageHeight;
+    m_channels = channels;
+    m_quit = false;
 
     for (int i = 0; i < 4; ++i)
     {
-        mView[i] = cv::Mat(imageHeight, imageWidth, CV_8UC(channels));
-        mView[i] = cv::Scalar(0);
+        m_view[i] = cv::Mat(imageHeight, imageWidth, CV_8UC(channels));
+        m_view[i] = cv::Scalar(0);
     }
 
-    mDisplayThread = Glib::Thread::create(sigc::bind(sigc::ptr_fun(&CalibrationWindow::displayHandler), this), true);
+    m_displayThread = boost::make_shared<boost::thread>(&CalibrationWindow::displayHandler, this);
 }
 
 void
 CalibrationWindow::close(void)
 {
-    mQuit = true;
+    m_quit = true;
 
-    mDisplayThread->join();
+    m_displayThread->join();
 }
 
 cv::Mat&
 CalibrationWindow::frontView(void)
 {
-    return mView[vcharge::CAMERA_FRONT];
+    return m_view[vcharge::CAMERA_FRONT];
 }
 
 cv::Mat&
 CalibrationWindow::leftView(void)
 {
-    return mView[vcharge::CAMERA_LEFT];
+    return m_view[vcharge::CAMERA_LEFT];
 }
 
 cv::Mat&
 CalibrationWindow::rearView(void)
 {
-    return mView[vcharge::CAMERA_REAR];
+    return m_view[vcharge::CAMERA_REAR];
 }
 
 cv::Mat&
 CalibrationWindow::rightView(void)
 {
-    return mView[vcharge::CAMERA_RIGHT];
+    return m_view[vcharge::CAMERA_RIGHT];
 }
 
 std::string&
@@ -117,7 +112,7 @@ CalibrationWindow::rightText(void)
 boost::mutex&
 CalibrationWindow::dataMutex(void)
 {
-    return mDataMutex;
+    return m_dataMutex;
 }
 
 void
@@ -136,13 +131,13 @@ CalibrationWindow::initGL(void)
 
     for (int i = 0; i < 4; ++i)
     {
-        glGenTextures(1, &mGLTex[i]);
-        glBindTexture(GL_TEXTURE_2D, mGLTex[i]);
+        glGenTextures(1, &m_glTex[i]);
+        glBindTexture(GL_TEXTURE_2D, m_glTex[i]);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
 
-    resizeGLScene(mImageWidth, mImageHeight);
+    resizeGLScene(m_imageWidth, m_imageHeight);
 }
 
 void
@@ -161,14 +156,14 @@ CalibrationWindow::displayHandler(CalibrationWindow* window)
                   GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
     glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInitWindowSize(window->mImageWidth, window->mImageHeight);
+    glutInitWindowSize(window->m_imageWidth, window->m_imageHeight);
     glutInitWindowPosition(0, 0);
 
-    window->mWindow = glutCreateWindow(window->mTitle.c_str());
+    window->m_window = glutCreateWindow(window->m_title.c_str());
     glutDisplayFunc(&drawGLScene);
-    if (mKeyboardHandler)
+    if (m_keyboardHandler)
     {
-        glutKeyboardFunc(mKeyboardHandler);
+        glutKeyboardFunc(m_keyboardHandler);
     }
     glutTimerFunc(0, drawGLTimer, 0);
     glutReshapeFunc(&resizeGLScene);
@@ -181,34 +176,34 @@ CalibrationWindow::displayHandler(CalibrationWindow* window)
 void
 CalibrationWindow::drawGLScene(void)
 {
-    if (mInstance == 0)
+    if (m_instance == 0)
     {
         return;
     }
 
-    mInstance->mDataMutex.lock();
+    m_instance->m_dataMutex.lock();
 
-    if (glutGetWindow() == mInstance->mWindow)
+    if (glutGetWindow() == m_instance->m_window)
     {
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         for (int i = 0; i < 4; ++i)
         {
-            glBindTexture(GL_TEXTURE_2D, mInstance->mGLTex[i]);
-            if (mInstance->mChannels == 1)
+            glBindTexture(GL_TEXTURE_2D, m_instance->m_glTex[i]);
+            if (m_instance->m_channels == 1)
             {
                 glTexImage2D(GL_TEXTURE_2D, 0, 1,
-                             mInstance->mImageWidth, mInstance->mImageHeight,
+                             m_instance->m_imageWidth, m_instance->m_imageHeight,
                              0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
-                             mInstance->mView[i].data);
+                             m_instance->m_view[i].data);
             }
             else
             {
                 glTexImage2D(GL_TEXTURE_2D, 0, 3,
-                             mInstance->mImageWidth, mInstance->mImageHeight,
+                             m_instance->m_imageWidth, m_instance->m_imageHeight,
                              0, GL_BGR_EXT, GL_UNSIGNED_BYTE,
-                             mInstance->mView[i].data);
+                             m_instance->m_view[i].data);
             }
 
             int offsetX = 0;
@@ -220,22 +215,22 @@ CalibrationWindow::drawGLScene(void)
                 offsetX = 0; offsetY = 0;
                 break;
             case vcharge::CAMERA_LEFT:
-                offsetX = mInstance->mImageWidth / 2; offsetY = 0;
+                offsetX = m_instance->m_imageWidth / 2; offsetY = 0;
                 break;
             case vcharge::CAMERA_REAR:
-                offsetX = 0; offsetY = mInstance->mImageHeight / 2;
+                offsetX = 0; offsetY = m_instance->m_imageHeight / 2;
                 break;
             case vcharge::CAMERA_RIGHT:
-                offsetX = mInstance->mImageWidth / 2; offsetY = mInstance->mImageHeight / 2;
+                offsetX = m_instance->m_imageWidth / 2; offsetY = m_instance->m_imageHeight / 2;
                 break;
             }
 
             glBegin(GL_TRIANGLE_FAN);
             glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
             glTexCoord2f(0, 0); glVertex3f(offsetX, offsetY, 0);
-            glTexCoord2f(1, 0); glVertex3f(offsetX + mInstance->mImageWidth / 2, offsetY, 0);
-            glTexCoord2f(1, 1); glVertex3f(offsetX + mInstance->mImageWidth / 2, offsetY + mInstance->mImageHeight / 2, 0);
-            glTexCoord2f(0, 1); glVertex3f(offsetX, offsetY + mInstance->mImageHeight / 2, 0);
+            glTexCoord2f(1, 0); glVertex3f(offsetX + m_instance->m_imageWidth / 2, offsetY, 0);
+            glTexCoord2f(1, 1); glVertex3f(offsetX + m_instance->m_imageWidth / 2, offsetY + m_instance->m_imageHeight / 2, 0);
+            glTexCoord2f(0, 1); glVertex3f(offsetX, offsetY + m_instance->m_imageHeight / 2, 0);
             glEnd();
 
             glBindTexture(GL_TEXTURE_2D, 0);
@@ -262,24 +257,24 @@ CalibrationWindow::drawGLScene(void)
                 break;
             }
 
-            textOffsetX = offsetX + mInstance->mImageWidth / 4;
-            textOffsetY = offsetY + mInstance->mImageHeight / 2 - 20;
+            textOffsetX = offsetX + m_instance->m_imageWidth / 4;
+            textOffsetY = offsetY + m_instance->m_imageHeight / 2 - 20;
 
-            if (!mInstance->mText[i].empty())
+            if (!m_instance->mText[i].empty())
             {
                 int textWidth = glutBitmapLength(GLUT_BITMAP_HELVETICA_18,
-                                                 reinterpret_cast<unsigned const char*>(mInstance->mText[i].c_str()));
+                                                 reinterpret_cast<unsigned const char*>(m_instance->mText[i].c_str()));
 
                 glRasterPos2i(textOffsetX - textWidth / 2, textOffsetY);
                 glColor4f(0.0f, 1.0f, 0.0f, 1.0f);
 
                 glutBitmapString(GLUT_BITMAP_HELVETICA_18,
-                                 reinterpret_cast<unsigned const char*>(mInstance->mText[i].c_str()));
+                                 reinterpret_cast<unsigned const char*>(m_instance->mText[i].c_str()));
             }
         }
     }
 
-    mInstance->mDataMutex.unlock();
+    m_instance->m_dataMutex.unlock();
 
     glFlush();
     glutSwapBuffers();
@@ -299,18 +294,18 @@ CalibrationWindow::resizeGLScene(int width, int height)
 void
 CalibrationWindow::drawGLTimer(int extra)
 {
-    if (mInstance == 0)
+    if (m_instance == 0)
     {
         return;
     }
 
-    if (mInstance->mQuit)
+    if (m_instance->m_quit)
     {
-        glutDestroyWindow(mInstance->mWindow);
+        glutDestroyWindow(m_instance->m_window);
         return;
     }
 
-    glutSetWindow(mInstance->mWindow);
+    glutSetWindow(m_instance->m_window);
     glutPostRedisplay();
     glutTimerFunc(100, drawGLTimer, 0);
 }

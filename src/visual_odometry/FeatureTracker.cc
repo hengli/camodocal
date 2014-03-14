@@ -389,8 +389,7 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
 }
 
 bool
-TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask,
-                                 Eigen::Matrix3d& R_rel, Eigen::Vector3d& t_rel)
+TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 {
     if (frame->image().channels() > 1)
     {
@@ -588,121 +587,40 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask,
 
     if (!mInit)
     {
-        Eigen::Matrix3d R_abs;
-        Eigen::Vector3d t_abs;
-        m_BA.addFrame(frame,
-                      Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero(),
-                      R_abs, t_abs);
+        m_BA.addFrame(frame);
 
-        mPoses.push_back(homogeneousTransform(R_abs, t_abs));
+        mPoses.push_back(frame->cameraPose()->toMatrix());
         mFrames.push_back(m_BA.currentFrame());
-
-        R_rel = R_abs;
-        t_rel = t_abs;
 
         mInit = true;
 
         return true;
     }
 
-    cv::Mat inliers;
-    bool voValid = computeVO(R_rel, t_rel, inliers);
-
+    bool voValid = m_BA.addFrame(frame);
     if (voValid)
     {
-        // mark inliers from VO
-        int mark = -1;
-        for (size_t i = 0; i < mPointFeatures.size(); ++i)
+        mPoses.push_back(frame->cameraPose()->toMatrix());
+        mFrames.push_back(m_BA.currentFrame());
+
+        // update all windowed poses
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > window = m_BA.poses();
+        for (size_t j = 0; j < window.size(); ++j)
         {
-            Point2DFeaturePtr& pt = mPointFeatures.at(i);
-
-            if (pt->prevMatches().empty() || pt->bestPrevMatchId() == -1)
-            {
-                continue;
-            }
-
-            ++mark;
-
-            if (inliers.at<unsigned char>(0, mark) == 0)
-            {
-                if (Point2DFeaturePtr prevMatch = pt->prevMatch().lock())
-                {
-                    if (!prevMatch->nextMatches().empty() &&
-                        prevMatch->bestNextMatchId() != -1)
-                    {
-                        prevMatch->bestNextMatchId() = -1;
-                    }
-                }
-                pt->bestPrevMatchId() = -1;
-            }
-        }
-
-        // TODO: Debug findInliers
-//        // find more inliers from feature matches
-//        int inlierCount = findInliers(R_rel, t_rel, reprojErrThresh);
-//
-//        if (mVerbose)
-//        {
-//            std::cout << "# INFO: Inlier count (" << inliers.total() << "): "
-//                      << cv::countNonZero(inliers) << " -> " << inlierCount << std::endl;
-//        }
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Inlier count: "
-                      << cv::countNonZero(inliers) << "/" << inliers.total() << std::endl;
-        }
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: VO before optimization: " << std::endl << R_rel << std::endl << t_rel.transpose() << std::endl;
-        }
-
-        Eigen::Matrix3d R_abs;
-        Eigen::Vector3d t_abs;
-
-        if (m_BA.addFrame(frame, R_rel, t_rel, R_abs, t_abs))
-        {
-            mPoses.push_back(homogeneousTransform(R_abs, t_abs));
-            mFrames.push_back(m_BA.currentFrame());
-
-            // update all windowed poses
-            std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > window = m_BA.poses();
-            for (size_t j = 0; j < window.size(); ++j)
-            {
-               mPoses.at(mPoses.size() + j - window.size()) = window.at(j);
-            }
-
-            Eigen::Matrix4d H_rel = mPoses.back() * mPoses.at(mPoses.size() - 2).inverse();
-
-            R_rel = H_rel.block<3,3>(0,0);
-            t_rel = H_rel.block<3,1>(0,3);
-
-            if (mVerbose)
-            {
-                std::cout << "# INFO: VO after optimization: " << std::endl << R_rel << std::endl << t_rel.transpose() << std::endl;
-            }
-        }
-        else
-        {
-            m_BA.clear();
-            m_BA.addFrame(frame, R_rel, t_rel, R_abs, t_abs);
-
-            voValid = false;
-
-            if (mVerbose)
-            {
-                std::cout << "# INFO: Sliding window BA failed." << std::endl;
-            }
+           mPoses.at(mPoses.size() + j - window.size()) = window.at(j);
         }
     }
     else
     {
-        Eigen::Matrix3d R_abs;
-        Eigen::Vector3d t_abs;
-
         m_BA.clear();
-        m_BA.addFrame(frame, R_rel, t_rel, R_abs, t_abs);
+        m_BA.addFrame(frame);
+
+        voValid = false;
+
+        if (mVerbose)
+        {
+            std::cout << "# INFO: Sliding window BA failed." << std::endl;
+        }
     }
 
     if (!voValid)
@@ -789,134 +707,6 @@ TemporalFeatureTracker::getScenePoints(void) const
     return m_BA.scenePoints();
 }
 
-bool
-TemporalFeatureTracker::computeVO(Eigen::Matrix3d& R_rel, Eigen::Vector3d& t_rel,
-                                  cv::Mat& inliers)
-{
-    std::vector<cv::Point2f> pointsPrev, points;
-    pointsPrev.reserve(mPointFeatures.size());
-    points.reserve(mPointFeatures.size());
-
-    for (size_t i = 0; i < mPointFeatures.size(); ++i)
-    {
-        const Point2DFeatureConstPtr& pt = mPointFeatures.at(i);
-        if (pt->prevMatches().empty() || pt->bestPrevMatchId() == -1)
-        {
-            continue;
-        }
-
-        const Point2DFeatureConstPtr ptPrev = pt->prevMatch().lock();
-        if (ptPrev.get() == 0)
-        {
-            continue;
-        }
-
-        cv::Point2f rectPt, rectPtPrev;
-        rectifyImagePoint(pt->keypoint().pt, rectPt);
-        rectifyImagePoint(ptPrev->keypoint().pt, rectPtPrev);
-
-        points.push_back(rectPt);
-        pointsPrev.push_back(rectPtPrev);
-    }
-
-    if (points.size() < kMinFeatureCorrespondences)
-    {
-        return false;
-    }
-
-    cv::Mat E, R_rel_cv, t_rel_cv;
-    E = findEssentialMat(pointsPrev, points, 1.0, cv::Point2d(0.0, 0.0), CV_FM_RANSAC, 0.99, kReprojErrorThresh / kNominalFocalLength, 1000, inliers);
-    recoverPose(E, pointsPrev, points, R_rel_cv, t_rel_cv, 1.0, cv::Point2d(0.0, 0.0), inliers);
-
-    if (cv::countNonZero(inliers) < kMinFeatureCorrespondences)
-    {
-        return false;
-    }
-
-    cv::cv2eigen(R_rel_cv, R_rel);
-    cv::cv2eigen(t_rel_cv, t_rel);
-
-    return true;
-}
-
-int
-TemporalFeatureTracker::findInliers(const Eigen::Matrix3d& R_rel,
-                                    const Eigen::Vector3d& t_rel,
-                                    double reprojErrorThresh)
-{
-    int inlierCount = 0;
-
-    double focal = mCameraMatrix.at<double>(0,0);
-    Eigen::Vector2d pp(mCameraMatrix.at<double>(0,2), mCameraMatrix.at<double>(1,2));
-
-    Eigen::Matrix3d cameraMatrix;
-    cv::cv2eigen(mCameraMatrix, cameraMatrix);
-
-    Eigen::Matrix3d cameraMatrixInv = cameraMatrix.inverse();
-
-    for (size_t i = 0; i < mPointFeatures.size(); ++i)
-    {
-        Point2DFeaturePtr& pt = mPointFeatures.at(i);
-
-        if (pt->prevMatches().empty())
-        {
-            continue;
-        }
-
-        pt->bestPrevMatchId() = -1;
-
-        cv::Point2f& p2_cv = pt->keypoint().pt;
-
-        Eigen::Vector3d p2;
-        p2 << p2_cv.x, p2_cv.y, 1.0;
-        p2 = cameraMatrixInv * p2;
-
-        double reprojErrorMin = std::numeric_limits<double>::max();
-        for (size_t j = 0; j < pt->prevMatches().size(); ++j)
-        {
-            Point2DFeaturePtr ptPrev = pt->prevMatches().at(j).lock();
-            if (ptPrev.get() == 0)
-            {
-                continue;
-            }
-
-            cv::Point2f& p1_cv = ptPrev->keypoint().pt;
-
-            Eigen::Vector3d p1;
-            p1 << p1_cv.x, p1_cv.y, 1.0;
-            p1 = cameraMatrixInv * p1;
-
-            double reprojError = sqrt(sampsonError(R_rel, t_rel, p1, p2)) * focal;
-            if (reprojError < reprojErrorThresh && reprojError < reprojErrorMin)
-            {
-                pt->bestPrevMatchId() = j;
-
-                reprojErrorMin = reprojError;
-            }
-        }
-
-        if (pt->bestPrevMatchId() != -1)
-        {
-            ++inlierCount;
-        }
-    }
-
-    return inlierCount;
-}
-
-void
-TemporalFeatureTracker::rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst) const
-{
-    Eigen::Vector3d P;
-
-    kCamera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
-
-    P /= P(2);
-
-    dst.x = P(0);
-    dst.y = P(1);
-}
-
 void
 TemporalFeatureTracker::visualizeTracks(void)
 {
@@ -935,7 +725,7 @@ TemporalFeatureTracker::visualizeTracks(void)
         {
             pt = pt->prevMatch().lock();
 
-            if (pt.get() == 0)
+            if (!pt || !pt->feature3D())
             {
                 break;
             }

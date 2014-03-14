@@ -512,9 +512,9 @@ PoseGraph::solveP3PRansac(const FrameConstPtr& frame1,
             const cv::KeyPoint& kpt2 = features2.at(match.trainIdx)->keypoint();
 
             Eigen::Vector3d ray;
-            camera2->liftProjective(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
+            camera2->liftSphere(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
 
-            rays.at(j) = ray.normalized();
+            rays.at(j) = ray;
         }
 
         std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > solutions;

@@ -1,10 +1,13 @@
 #include "SlidingWindowBA.h"
 
+#include <boost/make_shared.hpp>
 #include <boost/unordered_set.hpp>
+#include <cstdio>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <camodocal/sparse_graph/SparseGraphUtils.h>
 #include "ceres/ceres.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/EigenUtils.h"
@@ -17,18 +20,18 @@ namespace camodocal
 SlidingWindowBA::SlidingWindowBA(const CameraConstPtr& camera,
                                  int N, int n, int mode,
                                  Eigen::Matrix4d globalCameraPose)
- : kCamera(camera)
+ : k_camera(camera)
  , m_N(N)
  , m_n(n)
- , mMode(mode)
- , kMinDisparity(3.0)
- , kNominalFocalLength(300.0)
- , kReprojErrorThresh(2.0)
- , kTVTReprojErrorThresh(3.0)
- , mFrameCount(0)
- , mVerbose(false)
- , kMin2D2DFeatureCorrespondences(10)
- , kMin2D3DFeatureCorrespondences(10)
+ , m_mode(mode)
+ , k_epipolarThresh(0.00005)
+ , k_minDisparity(3.0)
+ , k_nominalFocalLength(300.0)
+ , k_reprojErrorThresh(2.0)
+ , m_frameCount(0)
+ , m_verbose(false)
+ , k_min2D2DFeatureCorrespondences(10)
+ , k_min2D3DFeatureCorrespondences(10)
 {
     const Eigen::Matrix4d& H_cam_odo = globalCameraPose;
 
@@ -43,66 +46,53 @@ SlidingWindowBA::globalCameraPose(void)
 }
 
 bool
-SlidingWindowBA::addFrame(FramePtr& frame,
-                          const Eigen::Matrix3d& R_rel, const Eigen::Vector3d& t_rel,
-                          Eigen::Matrix3d& R, Eigen::Vector3d& t)
+SlidingWindowBA::addFrame(FramePtr& frame)
 {
     FramePtr frameCurr = frame;
 
-    if (mMode == VO)
+    if (m_mode == VO)
     {
-        frameCurr->cameraPose() = PosePtr(new Pose);
+        frameCurr->cameraPose() = boost::make_shared<Pose>();
     }
 
-    mWindow.push_back(frameCurr);
-    while (mWindow.size() > m_N)
+    m_window.push_back(frameCurr);
+    while (m_window.size() > m_N)
     {
-        mWindow.pop_front();
+        m_window.pop_front();
     }
 
-    ++mFrameCount;
+    ++m_frameCount;
 
-    if (mVerbose)
+    if (m_verbose)
     {
-        std::cout << "# INFO: Added frame " << mFrameCount - 1 << "." << std::endl;
+        std::cout << "# INFO: Added frame " << m_frameCount - 1 << "." << std::endl;
     }
 
-    if (mFrameCount == 1)
+    if (m_frameCount == 1)
     {
-        if (mMode == VO)
+        if (m_mode == VO)
         {
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond::Identity();
             frameCurr->cameraPose()->translation().setZero();
-
-            R = frameCurr->cameraPose()->rotation().toRotationMatrix();
-            t = frameCurr->cameraPose()->translation();
         }
 
         return true;
     }
 
-    FramePtr framePrev = *(++mWindow.rbegin());
+    FramePtr framePrev = *(++m_window.rbegin());
 
-    if (mMode == VO)
+    // find feature correspondences between previous and current frames
+    std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
+    findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
+
+    if (m_verbose)
     {
-        frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R_rel) * framePrev->cameraPose()->rotation();
-        frameCurr->cameraPose()->translation() = R_rel * framePrev->cameraPose()->translation() + t_rel;
+        std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
     }
 
-    std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondencesToCheck;
-
-    if (mFrameCount == 2)
+    if (m_frameCount == 2)
     {
         // compute pose in frame 1 relative to frame 0
-        std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
-
-        // use features that are seen in frames 0 and 1
-        findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
-        }
 
         std::vector<cv::Point2f> imagePoints[2];
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
@@ -115,9 +105,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             }
         }
 
-        if (imagePoints[0].size() < kMin2D2DFeatureCorrespondences)
+        if (imagePoints[0].size() < k_min2D2DFeatureCorrespondences)
         {
-            if (mVerbose)
+            if (m_verbose)
             {
                 std::cout << "# INFO: Insufficient number of 2D-2D correspondences for BA initialization." << std::endl;
             }
@@ -128,25 +118,28 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         std::vector<cv::Point2f> rectImagePoints[2];
         for (size_t i = 0; i < 2; ++i)
         {
-            rectifyImagePoints(imagePoints[i], rectImagePoints[i]);
+            rectifyImagePoints(k_camera, imagePoints[i], rectImagePoints[i]);
         }
 
         cv::Mat inliers;
-        if (mMode == VO)
+        if (m_mode == VO)
         {
             cv::Mat E, R_cv, t_cv;
             E = findEssentialMat(rectImagePoints[0], rectImagePoints[1], 1.0, cv::Point2d(0.0, 0.0),
-                                 CV_FM_RANSAC, 0.99, kReprojErrorThresh / kNominalFocalLength, 100, inliers);
+                                 CV_FM_RANSAC, 0.99, k_reprojErrorThresh / k_nominalFocalLength, 100, inliers);
             recoverPose(E, rectImagePoints[0], rectImagePoints[1], R_cv, t_cv, 1.0, cv::Point2d(0.0, 0.0), inliers);
 
-            if (mVerbose)
+            if (m_verbose)
             {
                 std::cout << "# INFO: Computed pose in frame 0 wrt pose in frame 1 with " << cv::countNonZero(inliers) << " inliers:" << std::endl;
                 std::cout << R_cv << std::endl;
                 std::cout << t_cv << std::endl;
             }
 
+            Eigen::Matrix3d R;
             cv::cv2eigen(R_cv, R);
+
+            Eigen::Vector3d t;
             cv::cv2eigen(t_cv, t);
 
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R);
@@ -161,7 +154,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         std::vector<std::vector<Point2DFeaturePtr> > inlierFeatureCorrespondences;
         for (int i = 0; i < inliers.cols; ++i)
         {
-            if (inliers.at<unsigned char>(0,i) == 0)
+            if (!inliers.at<unsigned char>(0,i))
             {
                 continue;
             }
@@ -185,14 +178,14 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
         for (size_t i = 0; i < 2; ++i)
         {
-            rectifyImagePoints(imagePoints[i], rectImagePoints[i]);
+            rectifyImagePoints(k_camera, imagePoints[i], rectImagePoints[i]);
         }
 
         // triangulate scene points
         std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
         std::vector<size_t> indices;
 
-        if (mMode == VO)
+        if (m_mode == VO)
         {
             triangulatePoints(framePrev->cameraPose()->rotation(), framePrev->cameraPose()->translation(), imagePoints[0],
                               frameCurr->cameraPose()->rotation(), frameCurr->cameraPose()->translation(), imagePoints[1],
@@ -210,7 +203,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                               points3D, indices);
         }
 
-        if (mVerbose)
+        if (m_verbose)
         {
             std::cout << "# INFO: Triangulated " << points3D.size() << " points." << std::endl;
 
@@ -225,9 +218,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 const Eigen::Vector3d& feature3D = points3D.at(i);
 
                 double error;
-                if (mMode == VO)
+                if (m_mode == VO)
                 {
-                    error = kCamera->reprojectionError(feature3D,
+                    error = k_camera->reprojectionError(feature3D,
                                                        framePrev->cameraPose()->rotation(),
                                                        framePrev->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
@@ -254,8 +247,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             double errorAvg = errorTotal / count;
 
-            std::cout << "# INFO: Reprojection error in frame 0: avg = " << errorAvg
-                     << " px | max = " << errorMax << " px." << std::endl;
+            printf("# INFO: Reprojection error in frame 0: avg = %.2f px | max = %.2f px.\n",
+                   errorAvg, errorMax);
 
             count = 0;
             errorTotal = 0.0;
@@ -268,9 +261,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 const Eigen::Vector3d& feature3D = points3D.at(i);
 
                 double error;
-                if (mMode == VO)
+                if (m_mode == VO)
                 {
-                    error = kCamera->reprojectionError(feature3D,
+                    error = k_camera->reprojectionError(feature3D,
                                                        frameCurr->cameraPose()->rotation(),
                                                        frameCurr->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
@@ -297,13 +290,13 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             errorAvg = errorTotal / count;
 
-            std::cout << "# INFO: Reprojection error in frame 1: avg = " << errorAvg
-                     << " px | max = " << errorMax << " px." << std::endl;
+            printf("# INFO: Reprojection error in frame 1: avg = %.2f px | max = %.2f px.\n",
+                   errorAvg, errorMax);
         }
 
-        if (points3D.size() < kMin2D3DFeatureCorrespondences)
+        if (points3D.size() < k_min2D3DFeatureCorrespondences)
         {
-            if (mVerbose)
+            if (m_verbose)
             {
                 std::cout << "# INFO: Insufficient number of 2D-3D correspondences for BA initialization." << std::endl;
             }
@@ -320,7 +313,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            Point3DFeaturePtr point3D(new Point3DFeature);
+            Point3DFeaturePtr point3D = boost::make_shared<Point3DFeature>();
 
             point3D->point() = points3D.at(i);
 
@@ -341,7 +334,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            if (f1->feature3D().get() != 0)
+            if (f1->feature3D())
             {
                 continue;
             }
@@ -352,15 +345,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
     }
     else
     {
-        // use features that are seen in both previous and current frames,
-        // and have associated 3D scene points
-        std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
-        findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
-        }
+        // find feature correspondences with associated 3D scene points
 
         std::vector<std::vector<Point2DFeaturePtr> > triFeatureCorrespondences;
         std::vector<std::vector<Point2DFeaturePtr> > untriFeatureCorrespondences;
@@ -371,22 +356,22 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            if (f0->feature3D().get() == 0)
+            if (f0->feature3D())
+            {
+                triFeatureCorrespondences.push_back(fc);
+            }
+            else
             {
                 untriFeatureCorrespondences.push_back(fc);
-
-                continue;
             }
-
-            triFeatureCorrespondences.push_back(fc);
         }
 
         std::vector<size_t> inliers;
-        if (mMode == VO)
+        if (m_mode == VO)
         {
-            if (triFeatureCorrespondences.size() < kMin2D3DFeatureCorrespondences)
+            if (triFeatureCorrespondences.size() < k_min2D3DFeatureCorrespondences)
             {
-                if (mVerbose)
+                if (m_verbose)
                 {
                     std::cout << "# INFO: Insufficient number of 2D-3D correspondences (#" << triFeatureCorrespondences.size() << ") for P3P RANSAC." << std::endl;
                 }
@@ -394,7 +379,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 return false;
             }
 
-            if (mVerbose)
+            if (m_verbose)
             {
                 std::cout << "# INFO: Using " << triFeatureCorrespondences.size() << " scene points to compute pose via P3P RANSAC." << std::endl;
             }
@@ -402,9 +387,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Eigen::Matrix4d H;
             solveP3PRansac(triFeatureCorrespondences, H, inliers);
 
-            if (mVerbose)
+            if (m_verbose)
             {
-                std::cout << "# INFO: Computed pose in frame " << mFrameCount - 1 << ":" << std::endl;
+                std::cout << "# INFO: Computed pose in frame " << m_frameCount - 1 << ":" << std::endl;
 
                 std::cout << H << std::endl;
             }
@@ -427,7 +412,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             Point2DFeaturePtr& f0 = fc.at(0);
             Point2DFeaturePtr& f1 = fc.at(1);
 
-            if (mMode == VO && !inlierFlag.at(i))
+            if (m_mode == VO && !inlierFlag.at(i))
             {
                 f0->bestNextMatchId() = -1;
                 f1->bestPrevMatchId() = -1;
@@ -439,7 +424,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             }
         }
 
-        if (mVerbose)
+        if (m_verbose)
         {
             size_t count = 0;
             double totalError = 0.0;
@@ -451,9 +436,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 Eigen::Vector3d point3D = triFeatureCorrespondences.at(i).at(0)->feature3D()->point();
 
                 double error;
-                if (mMode == VO)
+                if (m_mode == VO)
                 {
-                    error = kCamera->reprojectionError(point3D,
+                    error = k_camera->reprojectionError(point3D,
                                                        frameCurr->cameraPose()->rotation(),
                                                        frameCurr->cameraPose()->translation(),
                                                        Eigen::Vector2d(feature2D.x, feature2D.y));
@@ -474,7 +459,36 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
             double avgError = totalError / count;
 
-            std::cout << "# INFO: Reprojection error with computed pose: " << avgError << " px." << std::endl;
+            printf("# INFO: P3P RANSAC yielded %lu inliers with a reprojection error of %.2f px.\n", inliers.size(), avgError);
+        }
+
+        // use epipolar constraint to remove outlier 2D-2D correspondences
+        Eigen::Matrix4d H_rel = frameCurr->cameraPose()->toMatrix() * framePrev->cameraPose()->toMatrix().inverse();
+        Eigen::Matrix3d R_rel = H_rel.block<3,3>(0,0);
+        Eigen::Vector3d t_rel = H_rel.block<3,1>(0,3);
+        Eigen::Matrix3d E = skew(t_rel) * R_rel;
+
+        std::vector<std::vector<Point2DFeaturePtr> >::iterator it = untriFeatureCorrespondences.begin();
+        while (it != untriFeatureCorrespondences.end())
+        {
+            cv::KeyPoint kpt1 = it->at(0)->keypoint();
+            cv::KeyPoint kpt2 = it->at(1)->keypoint();
+
+            Eigen::Vector3d spt1;
+            k_camera->liftSphere(Eigen::Vector2d(kpt1.pt.x, kpt1.pt.y), spt1);
+
+            Eigen::Vector3d spt2;
+            k_camera->liftSphere(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), spt2);
+
+            double err = sampsonError(E, spt1, spt2);
+            if (err < k_epipolarThresh)
+            {
+                ++it;
+            }
+            else
+            {
+                it = untriFeatureCorrespondences.erase(it);
+            }
         }
 
         // triangulate new feature correspondences seen in last 2 frames
@@ -491,7 +505,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             ipoints[1].push_back(f1->keypoint().pt);
         }
 
-        if (mVerbose)
+        if (m_verbose)
         {
             std::cout << "# INFO: Found " << untriFeatureCorrespondences.size() << " new feature correspondences." << std::endl;
         }
@@ -501,7 +515,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
             std::vector<size_t> indices;
 
-            if (mMode == VO)
+            if (m_mode == VO)
             {
                 triangulatePoints(framePrev->cameraPose()->rotation(), framePrev->cameraPose()->translation(), ipoints[0],
                                   frameCurr->cameraPose()->rotation(), frameCurr->cameraPose()->translation(), ipoints[1],
@@ -519,7 +533,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                                   points3D, indices);
             }
 
-            if (mVerbose)
+            if (m_verbose)
             {
                 std::cout << "# INFO: Triangulated " << points3D.size() << " new points." << std::endl;
 
@@ -536,9 +550,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         const Eigen::Vector3d& feature3D = points3D.at(i);
 
                         double error;
-                        if (mMode == VO)
+                        if (m_mode == VO)
                         {
-                            error = kCamera->reprojectionError(feature3D,
+                            error = k_camera->reprojectionError(feature3D,
                                                                framePrev->cameraPose()->rotation(),
                                                                framePrev->cameraPose()->translation(),
                                                                Eigen::Vector2d(feature2D.x, feature2D.y));
@@ -565,8 +579,8 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
                     double errorAvg = errorTotal / count;
 
-                    std::cout << "# INFO: Reprojection error in frame n-1: avg = " << errorAvg
-                              << " px | max = " << errorMax << " px." << std::endl;
+                    printf("# INFO: Reprojection error in frame n-1: avg = %.2f px | max = %.2f px.\n",
+                           errorAvg, errorMax);
 
                     count = 0;
                     errorTotal = 0.0;
@@ -579,9 +593,9 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                         const Eigen::Vector3d& feature3D = points3D.at(i);
 
                         double error;
-                        if (mMode == VO)
+                        if (m_mode == VO)
                         {
-                            error = kCamera->reprojectionError(feature3D,
+                            error = k_camera->reprojectionError(feature3D,
                                                                frameCurr->cameraPose()->rotation(),
                                                                frameCurr->cameraPose()->translation(),
                                                                Eigen::Vector2d(feature2D.x, feature2D.y));
@@ -608,14 +622,14 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 
                     errorAvg = errorTotal / count;
 
-                    std::cout << "# INFO: Reprojection error in frame n: avg = " << errorAvg
-                              << " px | max = " << errorMax << " px." << std::endl;
+                    printf("# INFO: Reprojection error in frame n: avg = %.2f px | max = %.2f px.\n",
+                           errorAvg, errorMax);
                 }
             }
 
             for (size_t i = 0; i < points3D.size(); ++i)
             {
-                Point3DFeaturePtr point3D(new Point3DFeature);
+                Point3DFeaturePtr point3D = boost::make_shared<Point3DFeature>();
 
                 point3D->point() = points3D.at(i);
 
@@ -628,8 +642,6 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                     point3D->features2D().push_back(pt);
                     pt->feature3D() = point3D;
                 }
-
-                featureCorrespondencesToCheck.push_back(fc);
             }
 
             // remove untriangulated feature correspondences
@@ -640,7 +652,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
                 Point2DFeaturePtr& f0 = fc.at(0);
                 Point2DFeaturePtr& f1 = fc.at(1);
 
-                if (f1->feature3D().get() != 0)
+                if (f1->feature3D())
                 {
                     continue;
                 }
@@ -651,17 +663,17 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         }
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         double minError, maxError, avgError;
 
         windowReprojectionError(minError, maxError, avgError);
 
-        std::cout << "# INFO: Window reprojection error before optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
+        printf("# INFO: Window reprojection error before optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
     }
 
     bool runOptimization = false;
-    for (std::list<FramePtr>::const_iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         const FrameConstPtr& frame = *it;
 
@@ -672,7 +684,7 @@ SlidingWindowBA::addFrame(FramePtr& frame,
             const Point2DFeatureConstPtr& feature2D = features2D.at(i);
             const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
-            if (feature2D->feature3D().get() != 0)
+            if (feature2D->feature3D())
             {
                 runOptimization = true;
                 break;
@@ -691,142 +703,74 @@ SlidingWindowBA::addFrame(FramePtr& frame,
         optimize();
     }
 
-//    // prune triangulated scene points with high reprojection error
-//    size_t nPrunedScenePoints = 0;
-//    for (size_t i = 0; i < featureCorrespondencesToCheck.size(); ++i)
-//    {
-//        std::vector<Point2DFeaturePtr>& fc = featureCorrespondencesToCheck.at(i);
-//
-//        bool prune = false;
-//        for (int j = 0; j < 3; ++j)
-//        {
-//            Point2DFeaturePtr& f = fc.at(j);
-//
-//            ReprojectionError reprojErr(kCameraParameters, f->keypoint().pt.x, f->keypoint().pt.y);
-//
-//            double residuals[2];
-//            reprojErr(frameCurr->cameraPose()->rotationData(),
-//                      frameCurr->cameraPose()->translationData(),
-//                      f->feature3D()->pointData(), residuals);
-//
-//            if (hypot(residuals[0], residuals[1]) > kTVTReprojErrorThresh)
-//            {
-//                prune = true;
-//                break;
-//            }
-//        }
-//
-//        if (prune)
-//        {
-//            Point2DFeaturePtr& f0 = fc.at(0);
-//            Point2DFeaturePtr& f1 = fc.at(1);
-//            Point2DFeaturePtr& f2 = fc.at(2);
-//
-//            std::vector<Point3DFeaturePtr>::iterator itF3D;
-//            itF3D = std::find(frameCurr->features3D().begin(),
-//                              frameCurr->features3D().end(),
-//                              f0->feature3D());
-//            frameCurr->features3D().erase(itF3D);
-//
-//            f0->feature3D() = Point3DFeaturePtr();
-//            f1->feature3D() = Point3DFeaturePtr();
-//            f2->feature3D() = Point3DFeaturePtr();
-//
-//            f0->bestNextMatchId() = -1;
-//            f1->bestNextMatchId() = -1;
-//            f1->bestPrevMatchId() = -1;
-//            f2->bestPrevMatchId() = -1;
-//
-//            ++nPrunedScenePoints;
-//        }
-//    }
-//
-//    if (mVerbose)
-//    {
-//        if (nPrunedScenePoints > 0)
-//        {
-//            std::cout << "# INFO: Pruned " << nPrunedScenePoints << " scene points that had too high reprojection errors." << std::endl;
-//        }
-//    }
-
-    // prune scene points that are behind cameras
+    // prune triangulated scene points with high reprojection error and behind a camera
     size_t nPrunedScenePoints = 0;
-    for (std::list<FramePtr>::iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_cam;
+    H_cam.push_back(framePrev->cameraPose()->toMatrix());
+    H_cam.push_back(frameCurr->cameraPose()->toMatrix());
+    for (size_t i = 0; i < featureCorrespondences.size(); ++i)
     {
-        FramePtr& frame = *it;
+        std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
 
-        std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
-
-        std::vector<Point2DFeaturePtr>::iterator itF2D = features2D.begin();
-        while (itF2D != features2D.end())
+        bool prune = false;
+        for (int j = 0; j < 2; ++j)
         {
-            Point3DFeaturePtr feature3D = (*itF2D)->feature3D();
+            Point2DFeaturePtr& feature = fc.at(j);
+            Point3DFeaturePtr& scenePoint = feature->feature3D();
 
-            if (feature3D.get() == 0)
+            if (!scenePoint)
             {
-                ++itF2D;
                 continue;
             }
 
-            Eigen::Vector3d P_cam;
-            if (mMode == VO)
-            {
-                P_cam = frame->cameraPose()->rotation().toRotationMatrix() * feature3D->point() + frame->cameraPose()->translation();
+            Eigen::Vector3d P = transformPoint(H_cam.at(j), scenePoint->point());
 
-            }
-            else
-            {
-                Eigen::Vector4d P;
-                P << feature3D->point(), 1.0;
-
-                P = (m_T_cam_odo.toMatrix().inverse() * frame->systemPose()->toMatrix().inverse()) * P;
-
-                P_cam = P.block<3,1>(0,0);
-            }
-
-            bool prune = false;
-            if (P_cam(2) < 0.0)
+            if (P(2) < 0.0)
             {
                 prune = true;
+                break;
             }
 
-            if (prune)
-            {
-                for (size_t i = 0; i < feature3D->features2D().size(); ++i)
-                {
-                    if (Point2DFeaturePtr feature2D = feature3D->features2D().at(i).lock())
-                    {
-                        feature2D->feature3D() = Point3DFeaturePtr();
-                    }
-                }
+            Eigen::Vector2d p;
+            k_camera->spaceToPlane(P, p);
 
-                ++nPrunedScenePoints;
-            }
-            else
+            double err = hypot(feature->keypoint().pt.x - p(0),
+                               feature->keypoint().pt.y - p(1));
+
+            if (err > k_reprojErrorThresh)
             {
-                ++itF2D;
+                prune = true;
+                break;
             }
+        }
+
+        if (prune)
+        {
+            Point2DFeaturePtr& f0 = fc.at(0);
+            Point2DFeaturePtr& f1 = fc.at(1);
+
+            f0->feature3D() = Point3DFeaturePtr();
+            f1->feature3D() = Point3DFeaturePtr();
+
+            f0->bestNextMatchId() = -1;
+            f1->bestPrevMatchId() = -1;
+
+            ++nPrunedScenePoints;
         }
     }
 
-    if (mVerbose)
+    if (m_verbose)
     {
         if (nPrunedScenePoints > 0)
         {
-            std::cout << "# INFO: Pruned " << nPrunedScenePoints << " scene points that were behind cameras." << std::endl;
+            printf("# INFO: Pruned %lu scene points that had too high reprojection errors.\n", nPrunedScenePoints);
         }
 
         double minError, maxError, avgError;
 
         windowReprojectionError(minError, maxError, avgError);
 
-        std::cout << "# INFO: Window reprojection error after optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
-    }
-
-    if (mMode == VO)
-    {
-        R = frameCurr->cameraPose()->rotation().toRotationMatrix();
-        t = frameCurr->cameraPose()->translation();
+        printf("# INFO: Window reprojection error after optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
     }
 
     return true;
@@ -835,26 +779,26 @@ SlidingWindowBA::addFrame(FramePtr& frame,
 void
 SlidingWindowBA::clear(void)
 {
-    mFrameCount = 0;
-    mWindow.clear();
+    m_frameCount = 0;
+    m_window.clear();
 }
 
 bool
 SlidingWindowBA::empty(void) const
 {
-    return mWindow.empty();
+    return m_window.empty();
 }
 
 size_t
 SlidingWindowBA::windowSize(void) const
 {
-    return mWindow.size();
+    return m_window.size();
 }
 
 void
 SlidingWindowBA::setVerbose(bool verbose)
 {
-    mVerbose = verbose;
+    m_verbose = verbose;
 }
 
 int
@@ -872,7 +816,7 @@ SlidingWindowBA::n(void)
 FramePtr&
 SlidingWindowBA::currentFrame(void)
 {
-    return mWindow.back();
+    return m_window.back();
 }
 
 std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >
@@ -880,7 +824,7 @@ SlidingWindowBA::poses(void) const
 {
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > poses;
 
-    for (std::list<FramePtr>::const_iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         const FrameConstPtr& frame = *it;
 
@@ -903,7 +847,7 @@ SlidingWindowBA::scenePoints(void) const
 
     boost::unordered_set<Point3DFeature*> set;
 
-    for (std::list<FramePtr>::const_iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         const FrameConstPtr& frame = *it;
 
@@ -911,7 +855,14 @@ SlidingWindowBA::scenePoints(void) const
 
         for (size_t i = 0; i < features2D.size(); ++i)
         {
-            set.insert(features2D.at(i)->feature3D().get());
+            const Point3DFeaturePtr& scenePoint = features2D.at(i)->feature3D();
+
+            if (!scenePoint)
+            {
+                continue;
+            }
+
+            set.insert(scenePoint.get());
         }
     }
 
@@ -932,7 +883,7 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
     size_t count = 0;
     double totalError = 0.0;
 
-    std::list<FramePtr>::const_iterator it = mWindow.begin();
+    std::list<FramePtr>::const_iterator it = m_window.begin();
     std::advance(it, windowIdx);
 
     const FrameConstPtr& frame = *it;
@@ -944,15 +895,15 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
         const Point2DFeatureConstPtr& feature2D = features2D.at(i);
         const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
-        if (feature3D.get() == 0)
+        if (!feature3D)
         {
             continue;
         }
 
         double error;
-        if (mMode == VO)
+        if (m_mode == VO)
         {
-            error = kCamera->reprojectionError(feature3D->point(),
+            error = k_camera->reprojectionError(feature3D->point(),
                                                frame->cameraPose()->rotation(),
                                                frame->cameraPose()->translation(),
                                                Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
@@ -1000,7 +951,7 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
     size_t count = 0;
     double totalError = 0.0;
 
-    for (std::list<FramePtr>::const_iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         const FrameConstPtr& frame = *it;
 
@@ -1011,15 +962,15 @@ SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, dou
             const Point2DFeatureConstPtr& feature2D = features2D.at(i);
             const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
-            if (feature3D.get() == 0)
+            if (!feature3D)
             {
                 continue;
             }
 
             double error;
-            if (mMode == VO)
+            if (m_mode == VO)
             {
-                error = kCamera->reprojectionError(feature3D->point(),
+                error = k_camera->reprojectionError(feature3D->point(),
                                                    frame->cameraPose()->rotation(),
                                                    frame->cameraPose()->translation(),
                                                    Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y));
@@ -1077,7 +1028,7 @@ SlidingWindowBA::reprojectionError(const Eigen::Vector3d& P,
     Eigen::Quaterniond cam_q = cam_odo_q.conjugate() * odo_q.conjugate();
     Eigen::Vector3d cam_t = -cam_odo_q.conjugate().toRotationMatrix() * (-odo_q.conjugate().toRotationMatrix() * odo_t);
 
-    return kCamera->reprojectionError(P, cam_q, cam_t, observed_p);
+    return k_camera->reprojectionError(P, cam_q, cam_t, observed_p);
 }
 
 void
@@ -1111,7 +1062,7 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
 
             pt[j - 1] = pt[j]->prevMatch().lock();
 
-            if (pt[j - 1].get() == 0)
+            if (!pt[j - 1])
             {
                 foundCorrespondences = false;
                 break;
@@ -1119,6 +1070,21 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
         }
 
         if (!foundCorrespondences)
+        {
+            continue;
+        }
+
+        bool rejectCorrespondence = false;
+        for (int j = 0; j < nViews - 1; ++j)
+        {
+            if (cv::norm(pt[j]->keypoint().pt - pt[j + 1]->keypoint().pt) < k_minDisparity)
+            {
+                rejectCorrespondence = true;
+                break;
+            }
+        }
+
+        if (rejectCorrespondence)
         {
             continue;
         }
@@ -1170,9 +1136,9 @@ SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr>
             const cv::KeyPoint& kpt2 = corr.at(1)->keypoint();
 
             Eigen::Vector3d ray;
-            kCamera->liftProjective(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
+            k_camera->liftSphere(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
 
-            rays.at(j) = ray.normalized();
+            rays.at(j) = ray;
         }
 
         std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > solutions;
@@ -1188,19 +1154,19 @@ SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr>
             std::vector<size_t> inliersIds;
             for (size_t k = 0; k < correspondences.size(); ++k)
             {
-                const std::vector<Point2DFeaturePtr>& corr = correspondences.at(indices.at(k));
+                const std::vector<Point2DFeaturePtr>& corr = correspondences.at(k);
 
                 Eigen::Vector3d P1 = corr.at(0)->feature3D()->point();
 
                 Eigen::Vector3d P2 = transformPoint(H_inv, P1);
                 Eigen::Vector2d p2_pred;
-                kCamera->spaceToPlane(P2, p2_pred);
+                k_camera->spaceToPlane(P2, p2_pred);
 
                 const Point2DFeatureConstPtr& f2 = corr.at(1);
 
                 double err = hypot(f2->keypoint().pt.x - p2_pred(0),
                                    f2->keypoint().pt.y - p2_pred(1));
-                if (err > kReprojErrorThresh)
+                if (err > k_reprojErrorThresh)
                 {
                     continue;
                 }
@@ -1234,54 +1200,10 @@ SlidingWindowBA::project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector
     }
 
     Eigen::Vector2d p;
-    kCamera->spaceToPlane(P, p);
+    k_camera->spaceToPlane(P, p);
     dst << p;
 
     return true;
-}
-
-void
-SlidingWindowBA::rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst) const
-{
-    Eigen::Vector3d P;
-
-    kCamera->liftProjective(Eigen::Vector2d(src.x, src.y), P);
-
-    P /= P(2);
-
-    dst.x = P(0);
-    dst.y = P(1);
-}
-
-void
-SlidingWindowBA::rectifyImagePoint(const Eigen::Vector2d& src, Eigen::Vector2d& dst) const
-{
-    Eigen::Vector3d P;
-
-    kCamera->liftProjective(src, P);
-
-    P /= P(2);
-
-    dst = P.block<2,1>(0,0);
-}
-
-void
-SlidingWindowBA::rectifyImagePoints(const std::vector<cv::Point2f>& src,
-                                    std::vector<cv::Point2f>& dst) const
-{
-    dst.resize(src.size());
-
-    for (size_t i = 0; i < src.size(); ++i)
-    {
-        const cv::Point2f& p = src.at(i);
-
-        Eigen::Vector3d P;
-        kCamera->liftProjective(Eigen::Vector2d(p.x, p.y), P);
-
-        P /= P(2);
-
-        dst.at(i) = cv::Point2f(P(0), P(1));
-    }
 }
 
 void
@@ -1294,154 +1216,55 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
                                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
                                    std::vector<size_t>& inliers) const
 {
-    // assume identity camera matrix with unit focal length and zero principal point
+    Eigen::Matrix4d H_cam1 = homogeneousTransform(q1.toRotationMatrix(), t1);
+    Eigen::Matrix4d H_cam1_inv = H_cam1.inverse();
+    Eigen::Matrix4d H_cam2 = homogeneousTransform(q2.toRotationMatrix(), t2);
+    Eigen::Matrix4d H = H_cam2 * H_cam1_inv;
 
-    Eigen::Matrix4d T1 = homogeneousTransform(q1.toRotationMatrix(), t1);
-    Eigen::Matrix<double,3,4> P1 = T1.block<3,4>(0,0);
-
-    Eigen::Matrix4d T2 = homogeneousTransform(q2.toRotationMatrix(), t2);
-    Eigen::Matrix<double,3,4> P2 = T2.block<3,4>(0,0);
-
-    // linear triangulation
     for (size_t i = 0; i < imagePoints1.size(); ++i)
     {
         const cv::Point2f& p1_cv = imagePoints1.at(i);
         const cv::Point2f& p2_cv = imagePoints2.at(i);
 
-        cv::Point2f rect_p1_cv, rect_p2_cv;
-        rectifyImagePoint(p1_cv, rect_p1_cv);
-        rectifyImagePoint(p2_cv, rect_p2_cv);
+        Eigen::Vector3d spt1;
+        k_camera->liftSphere(Eigen::Vector2d(p1_cv.x, p1_cv.y), spt1);
 
-        Eigen::Matrix4d J;
-        J.row(0) = P1.row(2) * rect_p1_cv.x - P1.row(0);
-        J.row(1) = P1.row(2) * rect_p1_cv.y - P1.row(1);
-        J.row(2) = P2.row(2) * rect_p2_cv.x - P2.row(0);
-        J.row(3) = P2.row(2) * rect_p2_cv.y - P2.row(1);
+        Eigen::Vector3d spt2;
+        k_camera->liftSphere(Eigen::Vector2d(p2_cv.x, p2_cv.y), spt2);
 
-        Eigen::JacobiSVD<Eigen::MatrixXd> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        Eigen::Vector4d P = svd.matrixV().block<4,1>(0,3);
+        Eigen::MatrixXd A(3,2);
+        A.col(0) = H.block<3,3>(0,0) * spt1;
+        A.col(1) = - spt2;
 
-        P /= P(3);
+        Eigen::Vector3d b = - H.block<3,1>(0,3);
 
-        // validate scene point
-        Eigen::Vector2d p1, p2;
-        if (!project3DPoint(q1, t1, P.block<3,1>(0,0), p1))
+        Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+
+        // check if scene point is behind camera
+        if (gamma(0) < 0.0 || gamma(1) < 0.0)
         {
             continue;
         }
+
+        Eigen::Vector3d P = gamma(0) * spt1;
+        P = transformPoint(H_cam1_inv, P);
+
+        // validate scene point
+        Eigen::Vector2d p2;
         if (!project3DPoint(q2, t2, P.block<3,1>(0,0), p2))
         {
             continue;
         }
 
-        if (mMode == VO)
+        if (m_mode == VO)
         {
-            if ((p1 - Eigen::Vector2d(p1_cv.x, p1_cv.y)).norm() > kTVTReprojErrorThresh)
-            {
-                continue;
-            }
-
-            if ((p2 - Eigen::Vector2d(p2_cv.x, p2_cv.y)).norm() > kTVTReprojErrorThresh)
-            {
-                continue;
-            }
-
-            if ((p1 - p2).norm() < kMinDisparity)
+            if ((p2 - Eigen::Vector2d(p2_cv.x, p2_cv.y)).norm() > k_reprojErrorThresh)
             {
                 continue;
             }
         }
 
-        points3D.push_back(P.block<3,1>(0,0));
-        inliers.push_back(i);
-    }
-}
-
-void
-SlidingWindowBA::tvt(const Eigen::Quaterniond& q1,
-                     const Eigen::Vector3d& t1,
-                     const std::vector<cv::Point2f>& imagePoints1,
-                     const Eigen::Quaterniond& q2,
-                     const Eigen::Vector3d& t2,
-                     const std::vector<cv::Point2f>& imagePoints2,
-                     const Eigen::Quaterniond& q3,
-                     const Eigen::Vector3d& t3,
-                     const std::vector<cv::Point2f>& imagePoints3,
-                     std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
-                     std::vector<size_t>& inliers) const
-{
-    // assume identity camera matrix with unit focal length and zero principal point
-
-    Eigen::Matrix4d H1 = homogeneousTransform(q1.toRotationMatrix(), t1);
-    Eigen::Matrix4d H2 = homogeneousTransform(q2.toRotationMatrix(), t2);
-    Eigen::Matrix4d H3 = homogeneousTransform(q3.toRotationMatrix(), t3);
-
-    Eigen::Matrix<double, 3, 4> P1 = H1.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P2 = H2.block<3,4>(0,0);
-    Eigen::Matrix<double, 3, 4> P3 = H3.block<3,4>(0,0);
-
-    // linear triangulation
-    for (size_t i = 0; i < imagePoints1.size(); ++i)
-    {
-        const cv::Point2f& p1_cv = imagePoints1.at(i);
-        const cv::Point2f& p2_cv = imagePoints2.at(i);
-        const cv::Point2f& p3_cv = imagePoints3.at(i);
-
-        cv::Point2f rect_p1_cv, rect_p2_cv, rect_p3_cv;
-        rectifyImagePoint(p1_cv, rect_p1_cv);
-        rectifyImagePoint(p2_cv, rect_p2_cv);
-        rectifyImagePoint(p3_cv, rect_p3_cv);
-
-        Eigen::Matrix4d J;
-        J.row(0) = P2.row(2) * rect_p2_cv.x - P2.row(0);
-        J.row(1) = P2.row(2) * rect_p2_cv.y - P2.row(1);
-        J.row(2) = P3.row(2) * rect_p3_cv.x - P3.row(0);
-        J.row(3) = P3.row(2) * rect_p3_cv.y - P3.row(1);
-
-        Eigen::JacobiSVD<Eigen::MatrixXd> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        Eigen::Vector4d scenePoint = svd.matrixV().block<4,1>(0,3);
-
-        scenePoint /= scenePoint(3);
-
-        // validate scene point
-        Eigen::Vector2d p1, p2, p3;
-        if (!project3DPoint(q1, t1, scenePoint.block<3,1>(0,0), p1))
-        {
-            continue;
-        }
-        if (!project3DPoint(q2, t2, scenePoint.block<3,1>(0,0), p2))
-        {
-            continue;
-        }
-        if (!project3DPoint(q3, t3, scenePoint.block<3,1>(0,0), p3))
-        {
-            continue;
-        }
-
-        if (mMode == VO)
-        {
-            if ((p1 - Eigen::Vector2d(p1_cv.x, p1_cv.y)).norm() > kTVTReprojErrorThresh)
-            {
-                continue;
-            }
-
-            if ((p2 - Eigen::Vector2d(p2_cv.x, p2_cv.y)).norm() > kTVTReprojErrorThresh)
-            {
-                continue;
-            }
-
-            if ((p3 - Eigen::Vector2d(p3_cv.x, p3_cv.y)).norm() > kTVTReprojErrorThresh)
-            {
-                continue;
-            }
-
-            if ((p2 - p3).norm() < kMinDisparity)
-            {
-                continue;
-            }
-        }
-
-        points3D.push_back(scenePoint.block<3,1>(0,0));
+        points3D.push_back(P);
         inliers.push_back(i);
     }
 }
@@ -1452,15 +1275,10 @@ SlidingWindowBA::optimize(void)
     ceres::Problem problem;
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-//    options.gradient_tolerance = 1e-16;
-//    options.function_tolerance = 1e-16;
+    options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.max_num_iterations = 20;
 
-//    ceres::ParameterBlockOrdering* ordering = new ceres::ParameterBlockOrdering;
-//    options.linear_solver_ordering = ordering;
-
-    for (std::list<FramePtr>::iterator it = mWindow.begin(); it != mWindow.end(); ++it)
+    for (std::list<FramePtr>::iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         FramePtr& frame = *it;
 
@@ -1471,17 +1289,17 @@ SlidingWindowBA::optimize(void)
         {
             Point2DFeaturePtr& feature2D = features2D.at(i);
 
-            if (feature2D->feature3D().get() == 0)
+            if (!feature2D->feature3D())
             {
                 continue;
             }
 
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
 
-            if (mMode == VO)
+            if (m_mode == VO)
             {
                 ceres::CostFunction* costFunction =
-                    CostFunctionFactory::instance()->generateCostFunction(kCamera,
+                    CostFunctionFactory::instance()->generateCostFunction(k_camera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
                                                                                           feature2D->keypoint().pt.y),
                                                                           CAMERA_POSE | POINT_3D);
@@ -1493,7 +1311,7 @@ SlidingWindowBA::optimize(void)
             else
             {
                 ceres::CostFunction* costFunction =
-                    CostFunctionFactory::instance()->generateCostFunction(kCamera,
+                    CostFunctionFactory::instance()->generateCostFunction(k_camera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
                                                                                           feature2D->keypoint().pt.y),
                                                                           CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D);
@@ -1506,14 +1324,12 @@ SlidingWindowBA::optimize(void)
                                          feature2D->feature3D()->pointData());
             }
 
-//            ordering->AddElementToGroup(feature2D->feature3D()->pointData(), 0);
-
             optimizeFrame = true;
         }
 
         if (optimizeFrame)
         {
-            if (mMode == VO)
+            if (m_mode == VO)
             {
                 ceres::LocalParameterization* quaternionParameterization =
                     new ceres::QuaternionParameterization;
@@ -1528,26 +1344,22 @@ SlidingWindowBA::optimize(void)
         }
     }
 
-    if (mMode == ODOMETRY)
+    if (m_mode == ODOMETRY)
     {
         ceres::LocalParameterization* quaternionParameterization =
             new ceres::QuaternionParameterization;
 
         problem.SetParameterization(m_T_cam_odo.rotationData(), quaternionParameterization);
-
-        // the points come before the extrinsics
-//        ordering->AddElementToGroup(m_T_cam_odo.rotationData(), 1);
-//        ordering->AddElementToGroup(m_T_cam_odo.translationData(), 1);
     }
 
-    if (mWindow.size() > m_N - m_n)
+    if (m_window.size() > m_N - m_n)
     {
-        std::list<FramePtr>::iterator it = mWindow.begin();
+        std::list<FramePtr>::iterator it = m_window.begin();
         for (int i = 0; i < m_N - m_n; ++i)
         {
             FramePtr& frame = *it;
 
-            if (mMode == VO)
+            if (m_mode == VO)
             {
                 problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
                 problem.SetParameterBlockConstant(frame->cameraPose()->translationData());
@@ -1555,20 +1367,15 @@ SlidingWindowBA::optimize(void)
 
             ++it;
         }
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Setting first " << m_N - m_n << " frames' parameters fixed and optimizing next " << mWindow.size() - m_N + m_n << " frames' parameters." << std::endl;
-        }
     }
     else
     {
-        std::list<FramePtr>::iterator it = mWindow.begin();
+        std::list<FramePtr>::iterator it = m_window.begin();
         for (int i = 0; i < 1; ++i)
         {
             FramePtr& frame = *it;
 
-            if (mMode == VO)
+            if (m_mode == VO)
             {
                 // set constant camera pose corresponding to first frame in the window
                 problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
@@ -1577,17 +1384,12 @@ SlidingWindowBA::optimize(void)
 
             ++it;
         }
-
-        if (mVerbose)
-        {
-            std::cout << "# INFO: Setting first frame's parameters fixed and optimizing all other parameters." << std::endl;
-        }
     }
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    if (mVerbose)
+    if (m_verbose)
     {
         std::cout << summary.BriefReport() << std::endl;
     }

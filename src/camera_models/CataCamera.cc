@@ -815,6 +815,38 @@ CataCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u,
          dydmx, dydmy;
 }
 
+void
+CataCamera::initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale) const
+{
+    cv::Size imageSize(mParameters.imageWidth(), mParameters.imageHeight());
+
+    cv::Mat mapX = cv::Mat::zeros(imageSize, CV_32F);
+    cv::Mat mapY = cv::Mat::zeros(imageSize, CV_32F);
+
+    for (int v = 0; v < imageSize.height; ++v)
+    {
+        for (int u = 0; u < imageSize.width; ++u)
+        {
+            double mx_u = m_inv_K11 / fScale * u + m_inv_K13 / fScale;
+            double my_u = m_inv_K22 / fScale * v + m_inv_K23 / fScale;
+
+            double xi = mParameters.xi();
+            double d2 = mx_u * mx_u + my_u * my_u;
+
+            Eigen::Vector3d P;
+            P << mx_u, my_u, 1.0 - xi * (d2 + 1.0) / (xi + sqrt(1.0 + (1.0 - xi * xi) * d2));
+
+            Eigen::Vector2d p;
+            spaceToPlane(P, p);
+
+            mapX.at<float>(v,u) = p(0);
+            mapY.at<float>(v,u) = p(1);
+        }
+    }
+
+    cv::convertMaps(mapX, mapY, map1, map2, CV_32FC1, false);
+}
+
 cv::Mat
 CataCamera::initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                     float fx, float fy,

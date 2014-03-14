@@ -1,6 +1,7 @@
 #include <camodocal/sparse_graph/SparseGraph.h>
 
 #include <boost/filesystem.hpp>
+#include <boost/make_shared.hpp>
 #include <boost/unordered_set.hpp>
 #include <fstream>
 #include <iomanip>
@@ -518,31 +519,31 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
     std::vector<FramePtr> frameMap(nFrames);
     for (size_t i = 0; i < nFrames; ++i)
     {
-        frameMap.at(i) = FramePtr(new Frame);
+        frameMap.at(i) = boost::make_shared<Frame>();
     }
 
     std::vector<PosePtr> poseMap(nPoses);
     for (size_t i = 0; i < nPoses; ++i)
     {
-        poseMap.at(i) = PosePtr(new Pose);
+        poseMap.at(i) = boost::make_shared<Pose>();
     }
 
     std::vector<OdometryPtr> odometryMap(nOdometry);
     for (size_t i = 0; i < nOdometry; ++i)
     {
-        odometryMap.at(i) = OdometryPtr(new Odometry);
+        odometryMap.at(i) = boost::make_shared<Odometry>();
     }
 
     std::vector<Point2DFeaturePtr> feature2DMap(nFeatures2D);
     for (size_t i = 0; i < nFeatures2D; ++i)
     {
-        feature2DMap.at(i) = Point2DFeaturePtr(new Point2DFeature);
+        feature2DMap.at(i) = boost::make_shared<Point2DFeature>();
     }
 
     std::vector<Point3DFeaturePtr> feature3DMap(nFeatures3D);
     for (size_t i = 0; i < nFeatures3D; ++i)
     {
-        feature3DMap.at(i) = Point3DFeaturePtr(new Point3DFeature);
+        feature3DMap.at(i) = boost::make_shared<Point3DFeature>();
     }
 
     for (size_t i = 0; i < nFrames; ++i)
@@ -564,6 +565,10 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
             imagePath /= imageFilename;
 
             frame->image() = cv::imread(imagePath.string().c_str(), -1);
+            if (frame->image().empty())
+            {
+                std::cout << "# WARNING: Unable to read " << imagePath.string() << std::endl;
+            }
 
             delete imageFilename;
         }
@@ -822,7 +827,7 @@ SparseGraph::readFromBinaryFile(const std::string& filename)
             size_t frameSetSize;
             readData(ifs, frameSetSize);
 
-            segment.at(frameSetId).reset(new FrameSet);
+            segment.at(frameSetId) = boost::make_shared<FrameSet>();
             FrameSetPtr& frameSet = segment.at(frameSetId);
             frameSet->frames().resize(frameSetSize);
 

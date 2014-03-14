@@ -81,6 +81,10 @@ public:
                             const std::vector< std::vector<cv::Point3f> >& objectPoints,
                             const std::vector< std::vector<cv::Point2f> >& imagePoints);
 
+    // Lift points from the image plane to the sphere
+    virtual void liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const;
+    //%output P
+
     // Lift points from the image plane to the projective space
     void liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const;
     //%output P
@@ -109,6 +113,7 @@ public:
     void distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u,
                     Eigen::Matrix2d& J) const;
 
+    void initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale = 1.0) const;
     cv::Mat initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                     float fx = -1.0f, float fy = -1.0f,
                                     cv::Size imageSize = cv::Size(0, 0),

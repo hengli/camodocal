@@ -65,6 +65,10 @@ public:
                                     const std::vector<cv::Point2f>& imagePoints,
                                     cv::Mat& rvec, cv::Mat& tvec) const;
 
+    // Lift points from the image plane to the sphere
+    virtual void liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
+    //%output P
+
     // Lift points from the image plane to the projective space
     virtual void liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
     //%output P
@@ -83,6 +87,7 @@ public:
     virtual void undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p) const = 0;
     //%output p
 
+    virtual void initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale = 1.0) const = 0;
     virtual cv::Mat initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                             float fx = -1.0f, float fy = -1.0f,
                                             cv::Size imageSize = cv::Size(0, 0),

@@ -113,8 +113,7 @@ public:
                            DescriptorType descriptorType = ORB_DESCRIPTOR,
                            MatchTestType matchTestType = RATIO,
                            bool preprocess = false);
-    bool addFrame(FramePtr& frame, const cv::Mat& mask,
-                  Eigen::Matrix3d& R_rel, Eigen::Vector3d& t_rel);
+    bool addFrame(FramePtr& frame, const cv::Mat& mask);
     void clear(void);
 
     void getMatches(std::vector<cv::Point2f>& matchedPoints,
@@ -126,13 +125,6 @@ public:
     std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > getScenePoints(void) const;
 
 protected:
-    bool computeVO(Eigen::Matrix3d& R_rel, Eigen::Vector3d& t_rel, cv::Mat& inliers);
-
-    int findInliers(const Eigen::Matrix3d& R_rel, const Eigen::Vector3d& t_rel,
-                    double reprojErrorThresh = 1.0);
-
-    void rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst) const;
-
     void visualizeTracks(void);
 
     const CameraConstPtr kCamera;

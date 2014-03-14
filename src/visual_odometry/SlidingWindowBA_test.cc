@@ -136,17 +136,9 @@ TEST(SlidingWindowBA, NoNoise1)
             frame->features2D().at(j)->frame() = frame;
         }
 
-        Eigen::Matrix3d R_est;
-        Eigen::Vector3d t_est;
-        sba.addFrame(frame,
-                     cameraPose->rotation().toRotationMatrix(),
-                     cameraPose->translation(),
-                     R_est, t_est);
+        sba.addFrame(frame);
 
-        Eigen::Matrix4d H_est;
-        H_est.setIdentity();
-        H_est.block<3,3>(0,0) = R_est;
-        H_est.block<3,1>(0,3) = t_est;
+        Eigen::Matrix4d H_est = frame->cameraPose()->toMatrix();
         posesEst.push_back(H_est);
 
         // update all windowed poses
@@ -315,17 +307,9 @@ TEST(SlidingWindowBA, Noise1)
             frame->features2D().at(j)->frame() = frame;
         }
 
-        Eigen::Matrix3d R_est;
-        Eigen::Vector3d t_est;
-        sba.addFrame(frame,
-                     cameraPose->rotation().toRotationMatrix(),
-                     cameraPose->translation(),
-                     R_est, t_est);
+        sba.addFrame(frame);
 
-        Eigen::Matrix4d H_est;
-        H_est.setIdentity();
-        H_est.block<3,3>(0,0) = R_est;
-        H_est.block<3,1>(0,3) = t_est;
+        Eigen::Matrix4d H_est = frame->cameraPose()->toMatrix();
         posesEst.push_back(H_est);
 
         // update all windowed poses
@@ -490,17 +474,9 @@ TEST(SlidingWindowBA, NoNoise2)
             frame->features2D().at(j)->frame() = frame;
         }
 
-        Eigen::Matrix3d R_est;
-        Eigen::Vector3d t_est;
-        sba.addFrame(frame,
-                     cameraPose->rotation().toRotationMatrix(),
-                     cameraPose->translation(),
-                     R_est, t_est);
+        sba.addFrame(frame);
 
-        Eigen::Matrix4d H_est;
-        H_est.setIdentity();
-        H_est.block<3,3>(0,0) = R_est;
-        H_est.block<3,1>(0,3) = t_est;
+        Eigen::Matrix4d H_est = frame->cameraPose()->toMatrix();
         posesEst.push_back(H_est);
 
         // update all windowed poses

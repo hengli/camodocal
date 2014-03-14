@@ -1,7 +1,7 @@
 #ifndef CAMODOTHREAD_H
 #define CAMODOTHREAD_H
 
-#include <glibmm.h>
+#include <boost/signals2.hpp>
 
 #include "camodocal/calib/AtomicData.h"
 #include "camodocal/calib/CamOdoCalibration.h"
@@ -44,7 +44,7 @@ public:
     void launch(void);
     void join(void);
     bool running(void) const;
-    sigc::signal<void>& signalFinished(void);
+    boost::signals2::signal<void ()>& signalFinished(void);
 
 private:
     void threadFunction(void);
@@ -55,11 +55,11 @@ private:
 
     PoseSource m_poseSource;
 
-    Glib::Threads::Thread* m_thread;
+    boost::shared_ptr<boost::thread> m_thread;
     int m_cameraId;
     bool m_preprocess;
     bool m_running;
-    sigc::signal<void> m_signalFinished;
+    boost::signals2::signal<void ()> m_signalFinished;
 
     CamOdoCalibration m_camOdoCalib;
     std::vector<std::vector<FramePtr> > m_frameSegments;

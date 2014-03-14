@@ -31,7 +31,6 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
                            bool& stop,
                            bool verbose)
  : m_poseSource(poseSource)
- , m_thread(0)
  , m_cameraId(cameraId)
  , m_running(false)
  , m_preprocess(preprocess)
@@ -45,7 +44,7 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
  , m_gpsInsBufferMutex(gpsInsBufferMutex)
  , m_status(status)
  , m_sketch(sketch)
- , k_keyFrameDistance(0.25)
+ , k_keyFrameDistance(0.2)
  , k_minTrackLength(15)
  , k_odometryTimeout(4.0)
  , m_completed(completed)
@@ -57,7 +56,7 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
 
 CamOdoThread::~CamOdoThread()
 {
-    g_return_if_fail(m_thread == 0);
+
 }
 
 int
@@ -141,7 +140,9 @@ CamOdoThread::reprojectionError(double& minError, double& maxError, double& avgE
 void
 CamOdoThread::launch(void)
 {
-    m_thread = Glib::Threads::Thread::create(sigc::mem_fun(*this, &CamOdoThread::threadFunction));
+    m_running = true;
+
+    m_thread = boost::make_shared<boost::thread>(&CamOdoThread::threadFunction, this);
 }
 
 void
@@ -151,7 +152,6 @@ CamOdoThread::join(void)
     {
         m_thread->join();
     }
-    m_thread = 0;
 }
 
 bool
@@ -160,7 +160,7 @@ CamOdoThread::running(void) const
     return m_running;
 }
 
-sigc::signal<void>&
+boost::signals2::signal<void ()>&
 CamOdoThread::signalFinished(void)
 {
     return m_signalFinished;
@@ -169,8 +169,6 @@ CamOdoThread::signalFinished(void)
 void
 CamOdoThread::threadFunction(void)
 {
-    m_running = true;
-
     TemporalFeatureTracker tracker(m_camera,
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
                                    RATIO_GPU, m_preprocess);
@@ -329,9 +327,7 @@ CamOdoThread::threadFunction(void)
                 frame->cameraId() = m_cameraId;
                 image.copyTo(frame->image());
 
-                Eigen::Matrix3d R;
-                Eigen::Vector3d t;
-                bool camValid = tracker.addFrame(frame, m_camera->mask(), R, t);
+                bool camValid = tracker.addFrame(frame, m_camera->mask());
 
                 // tag frame with odometry and GPS/INS data
                 frame->odometryMeasurement() = boost::make_shared<Odometry>();

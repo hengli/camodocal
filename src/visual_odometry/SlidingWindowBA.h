@@ -25,9 +25,7 @@ public:
 
     Eigen::Matrix4d globalCameraPose(void);
 
-    bool addFrame(FramePtr& frame,
-                  const Eigen::Matrix3d& R_rel, const Eigen::Vector3d& t_rel,
-                  Eigen::Matrix3d& R, Eigen::Vector3d& t);
+    bool addFrame(FramePtr& frame);
 
     void clear(void);
     bool empty(void) const;
@@ -64,12 +62,6 @@ private:
     bool project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector3d& t,
                         const Eigen::Vector3d& src, Eigen::Vector2d& dst) const;
 
-    void rectifyImagePoint(const cv::Point2f& src, cv::Point2f& dst) const;
-    void rectifyImagePoint(const Eigen::Vector2d& src, Eigen::Vector2d& dst) const;
-
-    void rectifyImagePoints(const std::vector<cv::Point2f>& src,
-                            std::vector<cv::Point2f>& dst) const;
-
     void triangulatePoints(const Eigen::Quaterniond& q1,
                            const Eigen::Vector3d& t1,
                            const std::vector<cv::Point2f>& imagePoints1,
@@ -79,40 +71,28 @@ private:
                            std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
                            std::vector<size_t>& inliers) const;
 
-    void tvt(const Eigen::Quaterniond& q1,
-             const Eigen::Vector3d& t1,
-             const std::vector<cv::Point2f>& imagePoints1,
-             const Eigen::Quaterniond& q2,
-             const Eigen::Vector3d& t2,
-             const std::vector<cv::Point2f>& imagePoints2,
-             const Eigen::Quaterniond& q3,
-             const Eigen::Vector3d& t3,
-             const std::vector<cv::Point2f>& imagePoints3,
-             std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
-             std::vector<size_t>& inliers) const;
-
     void optimize(void);
 
     int m_N;
     int m_n;
-    int mMode;
+    int m_mode;
 
     Pose m_T_cam_odo;
 
-    std::list<FramePtr> mWindow;
+    std::list<FramePtr> m_window;
 
-    const CameraConstPtr kCamera;
+    const CameraConstPtr k_camera;
 
-    const double kMinDisparity;
-    const double kNominalFocalLength;
-    const double kReprojErrorThresh;
-    const double kTVTReprojErrorThresh;
+    const double k_epipolarThresh;
+    const double k_minDisparity;
+    const double k_nominalFocalLength;
+    const double k_reprojErrorThresh;
 
-    size_t mFrameCount;
-    bool mVerbose;
+    size_t m_frameCount;
+    bool m_verbose;
 
-    const int kMin2D2DFeatureCorrespondences;
-    const int kMin2D3DFeatureCorrespondences;
+    const int k_min2D2DFeatureCorrespondences;
+    const int k_min2D3DFeatureCorrespondences;
 };
 
 }
