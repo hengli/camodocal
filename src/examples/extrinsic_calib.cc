@@ -86,13 +86,6 @@ main(int argc, char** argv)
 
     //========================= Handling Input =======================
 
-    //===================== Initialize threading =====================
-    // Only initialize g thread if not already done
-    if (!Glib::thread_supported())
-    {
-        Glib::thread_init();
-    }
-
     //===========================Initialize calibration==========================
 
     // read camera params
