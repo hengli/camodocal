@@ -205,8 +205,9 @@ CamRigOdoCalibration::start(void)
             double tsStart = timeInSeconds();
 
             boost::filesystem::path extrinsicPath(m_options.dataDir);
-            extrinsicPath /= "tmp_extrinsic_0.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_0";
+
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(m_options.dataDir);
             graphPath /= "frames_0.sg";
@@ -220,7 +221,7 @@ CamRigOdoCalibration::start(void)
         std::cout << "# INFO: Reading intermediate data... " << std::flush;
 
         std::ostringstream oss;
-        oss << "tmp_extrinsic_" << m_options.beginStage - 1 << ".txt";
+        oss << "extrinsic_" << m_options.beginStage - 1;
 
         boost::filesystem::path extrinsicPath(m_options.dataDir);
         extrinsicPath /= oss.str();
@@ -233,9 +234,9 @@ CamRigOdoCalibration::start(void)
 
         double tsStart = timeInSeconds();
 
-        if (!m_cameraSystem.readPosesFromTextFile(extrinsicPath.string()))
+        if (!m_cameraSystem.readFromDirectory(extrinsicPath.string()))
         {
-            std::cout << "# ERROR: Working data in file " << extrinsicPath.string() << " is missing." << std::endl;
+            std::cout << "# ERROR: Working data in directory " << extrinsicPath.string() << " is missing." << std::endl;
             exit(1);
         }
 
@@ -246,11 +247,6 @@ CamRigOdoCalibration::start(void)
         }
 
         std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
-    }
-
-    for (size_t i = 0; i < m_cameras.size(); ++i)
-    {
-        m_cameraSystem.setCamera(i, m_cameras.at(i));
     }
 
     std::cout << "# INFO: Running camera rig calibration." << std::endl;
@@ -315,6 +311,7 @@ CamRigOdoCalibration::buildGraph(void)
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
+        m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 

@@ -334,6 +334,29 @@ Point3DFeature::features2D(void) const
     return m_features2D;
 }
 
+bool
+Point3DFeature::removeFeatureObservation(const Point2DFeaturePtr& featureObs)
+{
+    for (std::vector<Point2DFeatureWPtr>::iterator it = m_features2D.begin();
+         it != m_features2D.end(); ++it)
+    {
+        Point2DFeaturePtr f = it->lock();
+        if (!f)
+        {
+            continue;
+        }
+
+        if (f == featureObs)
+        {
+            m_features2D.erase(it);
+
+            return false;
+        }
+    }
+
+    return false;
+}
+
 FrameSet::FrameSet()
 {
 
@@ -878,11 +901,11 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
     if (filePath.has_parent_path())
     {
         imageDir = filePath.parent_path();
-        imageDir /= "images";
+        imageDir /= filePath.stem();
     }
     else
     {
-        imageDir = boost::filesystem::path("images");
+        imageDir = filePath.stem();
     }
 
     // create image directory if it does not exist
@@ -1030,7 +1053,7 @@ SparseGraph::writeToBinaryFile(const std::string& filename) const
             cv::imwrite(imageFilename, frame->image());
 
             memset(imageFilename, 0, 1024);
-            sprintf(imageFilename, "images/%s.png", frameName);
+            sprintf(imageFilename, "%s/%s.png", filePath.stem().c_str(), frameName);
 
             size_t imageFilenameLen = strlen(imageFilename) + 1;
             writeData(ofs, imageFilenameLen);

@@ -25,7 +25,7 @@ CameraSystem::CameraSystem(int cameraCount)
  , m_referenceCameraIdx(-1)
 {
     m_cameras.resize(cameraCount);
-    m_globalPoses.resize(cameraCount);
+    m_globalPoses.resize(cameraCount, Eigen::Matrix4d::Identity());
 }
 
 int
@@ -47,6 +47,15 @@ CameraSystem::reset(void)
 bool
 CameraSystem::readPosesFromTextFile(const std::string& filename)
 {
+    std::vector<std::string> cameraNames;
+
+    return readPosesFromTextFile(filename, cameraNames);
+}
+
+bool
+CameraSystem::readPosesFromTextFile(const std::string& filename,
+                                    std::vector<std::string>& cameraNames)
+{
     std::ifstream ifs(filename.c_str());
 
     if (!ifs.is_open())
@@ -54,28 +63,62 @@ CameraSystem::readPosesFromTextFile(const std::string& filename)
         return false;
     }
 
-    for (int i = 0; i < m_cameraCount; ++i)
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > cameraPoses;
+    std::string line;
+    std::string cameraName;
+    double H_data[12];
+    size_t lineCount = 0;
+
+    while (std::getline(ifs, line))
     {
-        double H_data[12];
-        for (int j = 0; j < 12; ++j)
-        {
-            ifs >> H_data[j];
-        }
+        std::istringstream iss(line);
+        int step = lineCount % 5;
 
-        Eigen::Matrix4d H = Eigen::Matrix4d::Identity();
-        for (int j = 0; j < 3; ++j)
+        switch (step)
         {
-            for (int k = 0; k < 4; ++k)
+        case 0:
+            iss >> cameraName;
+            break;
+        case 1:
+        case 2:
+        case 3:
+        {
+            int row = step - 1;
+            for (int i = 0; i < 4; ++i)
             {
-                H(j,k) = H_data[j * 4 + k];
+                iss >> H_data[row * 4 + i];
             }
+
+            if (step == 3)
+            {
+                Eigen::Matrix4d H = Eigen::Matrix4d::Identity();
+                for (int i = 0; i < 3; ++i)
+                {
+                    for (int j = 0; j < 4; ++j)
+                    {
+                        H(i,j) = H_data[i * 4 + j];
+                    }
+                }
+
+                cameraNames.push_back(cameraName);
+                cameraPoses.push_back(H);
+            }
+
+            break;
+        }
+        default:
+            {}
         }
 
-        // compute pose with respect to EDN frame
-        setGlobalCameraPose(i, H);
+        ++lineCount;
     }
 
     ifs.close();
+
+    m_cameraCount = cameraPoses.size();
+    m_cameras = std::vector<CameraPtr>(m_cameraCount);
+    m_globalPoses = cameraPoses;
+    m_cameraMap.clear();
 
     return true;
 }
@@ -95,6 +138,15 @@ CameraSystem::writePosesToTextFile(const std::string& filename) const
     for (int i = 0; i < m_cameraCount; ++i)
     {
         const Eigen::Matrix4d& globalPose = m_globalPoses.at(i);
+
+        if (m_cameras.at(i)->cameraName().empty())
+        {
+            ofs << "camera_" << i;
+        }
+        else
+        {
+            ofs << m_cameras.at(i)->cameraName();
+        }
 
         for (int j = 0; j < 3; ++j)
         {
@@ -125,52 +177,33 @@ CameraSystem::readFromDirectory(const std::string& directory)
         return false;
     }
 
-    // read intrinsic data
-    std::vector<std::string> intrinsicFilenames;
-
-    boost::filesystem::directory_iterator it(directory);
-    boost::filesystem::directory_iterator end_it;
-    while (it != end_it)
-    {
-        if (boost::filesystem::is_regular_file(*it) && it->path().extension() == ".yaml")
-        {
-            intrinsicFilenames.push_back(it->path().string());
-        }
-
-        ++it;
-    }
-
-    if (intrinsicFilenames.empty())
-    {
-        return false;
-    }
-
-    std::sort(intrinsicFilenames.begin(), intrinsicFilenames.end());
-
-    CameraSystem cameraSystem;
-
-    for (size_t i = 0; i < intrinsicFilenames.size(); ++i)
-    {
-        CameraPtr camera = CameraFactory::instance()->generateCameraFromYamlFile(intrinsicFilenames.at(i));
-
-        if (camera.get() == 0)
-        {
-            return false;
-        }
-
-        cameraSystem.m_cameras.push_back(camera);
-    }
-
-    cameraSystem.m_cameraCount = cameraSystem.m_cameras.size();
-    cameraSystem.m_globalPoses.resize(cameraSystem.m_cameraCount);
-
     // read extrinsic data
     boost::filesystem::path extrinsicPath(directory);
     extrinsicPath /= "extrinsic.txt";
 
-    cameraSystem.readPosesFromTextFile(extrinsicPath.string());
+    std::vector<std::string> cameraNames;
+    if (!readPosesFromTextFile(extrinsicPath.string(), cameraNames))
+    {
+        return false;
+    }
 
-    *this = cameraSystem;
+    // read intrinsic data
+    for (size_t i = 0; i < cameraNames.size(); ++i)
+    {
+        boost::filesystem::path calibPath(directory);
+        calibPath /= cameraNames.at(i) + "_calib.yaml";
+
+        CameraPtr camera = CameraFactory::instance()->generateCameraFromYamlFile(calibPath.string());
+
+        if (!camera)
+        {
+            return false;
+        }
+
+        m_cameras.at(i) = camera;
+
+        m_cameraMap.insert(std::make_pair(camera, i));
+    }
 
     return true;
 }
@@ -193,7 +226,14 @@ CameraSystem::writeToDirectory(const std::string& directory) const
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
         std::ostringstream oss;
-        oss << "camera_intrinsic_" << i << ".yaml";
+        if (m_cameras.at(i)->cameraName().empty())
+        {
+            oss << "camera_" << i << "_calib.yaml";
+        }
+        else
+        {
+            oss << m_cameras.at(i)->cameraName() << "_calib.yaml";
+        }
 
         boost::filesystem::path intrinsicPath(directory);
         intrinsicPath /= oss.str();
@@ -441,16 +481,54 @@ CameraSystem::writeToXmlFile(const std::string& filename) const
     return true;
 }
 
+int
+CameraSystem::getCameraIdx(const CameraConstPtr& camera) const
+{
+    CameraPtr cameraP = boost::const_pointer_cast<Camera>(camera);
+
+    boost::unordered_map<CameraPtr,int>::const_iterator it = m_cameraMap.find(cameraP);
+    if (it == m_cameraMap.end())
+    {
+        return -1;
+    }
+    else
+    {
+        return it->second;
+    }
+}
+
 CameraPtr
 CameraSystem::getCamera(int idx) const
 {
     return m_cameras.at(idx);
 }
 
-void
+bool
 CameraSystem::setCamera(int idx, CameraPtr& camera)
 {
+    if (idx < 0 || idx >= m_cameraCount)
+    {
+        return false;
+    }
+
     m_cameras.at(idx) = camera;
+
+    boost::unordered_map<CameraPtr,int>::iterator it = m_cameraMap.begin();
+    while (it != m_cameraMap.end())
+    {
+        if (it->second == idx)
+        {
+            m_cameraMap.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    m_cameraMap.insert(std::make_pair(camera, idx));
+
+    return true;
 }
 
 bool
@@ -473,21 +551,90 @@ CameraSystem::getGlobalCameraPose(int idx) const
 }
 
 Eigen::Matrix4d
+CameraSystem::getGlobalCameraPose(const CameraConstPtr& camera) const
+{
+    int idx = getCameraIdx(camera);
+    if (idx == -1)
+    {
+        return Eigen::Matrix4d::Zero();
+    }
+
+    return m_globalPoses.at(idx);
+}
+
+Eigen::Matrix4d
 CameraSystem::getLocalCameraPose(int idx) const
 {
     return m_globalPoses.at(m_referenceCameraIdx).inverse() * m_globalPoses.at(idx);
 }
 
-void
-CameraSystem::setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose)
+Eigen::Matrix4d
+CameraSystem::getLocalCameraPose(const CameraConstPtr& camera) const
 {
-    m_globalPoses.at(idx) = pose;
+    int idx = getCameraIdx(camera);
+    if (idx == -1)
+    {
+        return Eigen::Matrix4d::Zero();
+    }
+
+    return m_globalPoses.at(m_referenceCameraIdx).inverse() * m_globalPoses.at(idx);
 }
 
-void
+bool
+CameraSystem::setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose)
+{
+    if (idx < 0 || idx >= m_cameraCount)
+    {
+        return false;
+    }
+
+    m_globalPoses.at(idx) = pose;
+
+    return true;
+}
+
+bool
+CameraSystem::setGlobalCameraPose(const CameraConstPtr& camera,
+                                  const Eigen::Matrix4d& pose)
+{
+    int idx = getCameraIdx(camera);
+    if (idx == -1)
+    {
+        return false;
+    }
+
+    m_globalPoses.at(idx) = pose;
+
+    return true;
+}
+
+bool
 CameraSystem::setLocalCameraPose(int idx, const Eigen::Matrix4d& pose)
 {
+    if (idx < 0 || idx >= m_cameraCount)
+    {
+        return false;
+    }
+
     m_globalPoses.at(idx) = m_globalPoses.at(m_referenceCameraIdx) * pose;
+
+    return true;
+}
+
+
+bool
+CameraSystem::setLocalCameraPose(const CameraConstPtr& camera,
+                                 const Eigen::Matrix4d& pose)
+{
+    int idx = getCameraIdx(camera);
+    if (idx == -1)
+    {
+        return false;
+    }
+
+    m_globalPoses.at(idx) = m_globalPoses.at(m_referenceCameraIdx) * pose;
+
+    return true;
 }
 
 int

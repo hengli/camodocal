@@ -65,7 +65,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 2 - run robust pose graph SLAM and find inlier 2D-3D correspondences from loop closures
     // stage 3 - find local inter-camera 3D-3D correspondences
     // stage 4 - run BA
-    // stage 5 - run fish-eye plane sweep to find ground plane
+    // stage 5 - run fish-eye plane sweep to find ground plane height
 
     if (m_verbose)
     {
@@ -83,24 +83,23 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     case 0:
         break;
     case 1:
-        visualize("unopt-", ODOMETRY);
-        visualizeExtrinsics("unopt-extrinsics");
-        break;
     case 2:
-        visualize("opt1-BA-", ODOMETRY);
-        visualizeExtrinsics("opt1-extrinsics");
-        break;
     case 3:
-        visualize("opt2-BA-", ODOMETRY);
-        visualizeExtrinsics("opt2-extrinsics");
-        break;
     case 4:
-        visualize("opt3-BA-", ODOMETRY);
-        visualizeExtrinsics("opt3-extrinsics");
+    case 5:
+    {
+        std::ostringstream oss;
+        oss << "stage" << beginStage - 1 << "-";
+
+        visualize(oss.str(), ODOMETRY);
+
+        oss << "extrinsics";
+        visualizeExtrinsics(oss.str());
         break;
+    }
     default:
-        visualize("map-", ODOMETRY);
-        visualizeExtrinsics("camodocal-extrinsics");
+        visualize("final-", ODOMETRY);
+        visualizeExtrinsics("final-extrinsics");
     }
 
 //    m_cameraSystem.readFromFile("../config/calib/calib_camera_kermit/2012_09_03/extrinsic.txt");
@@ -159,7 +158,9 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("unopt-", ODOMETRY);
+        visualize("stage0-", ODOMETRY);
+
+        visualizeExtrinsics("stage0-extrinsics");
 #endif
 
         if (m_verbose)
@@ -167,9 +168,17 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             std::cout << "# INFO: Running BA on odometry data... " << std::endl;
         }
 
+        for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
+        {
+            Eigen::Matrix4d H = m_cameraSystem.getGlobalCameraPose(i);
+
+            H(2,3) = 0.0;
+
+            m_cameraSystem.setGlobalCameraPose(i, H);
+        }
+
         // optimize camera extrinsics and 3D scene points
         optimize(CAMERA_ODOMETRY_TRANSFORM | POINT_3D, false);
-//        optimize(POINT_3D, false);
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY); // | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
@@ -187,16 +196,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt1-BA-", ODOMETRY);
+        visualize("stage1-", ODOMETRY);
 
-        visualizeExtrinsics("opt1-extrinsics");
+        visualizeExtrinsics("stage1-extrinsics");
 #endif
 
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_1.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_1";
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_1.sg";
@@ -250,7 +259,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                             continue;
                         }
 
-                        Eigen::Vector3d P = H.block<3,3>(0,0) * scenePoint->point() + H.block<3,1>(0,3);
+                        Eigen::Vector3d P = transformPoint(H, scenePoint->point());
 
                         scenePointMap.insert(std::make_pair(scenePoint.get(), P));
                     }
@@ -326,7 +335,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             Point3DFeaturePtr f3D1 = correspondences2D3D.at(i).first->feature3D();
             Point3DFeaturePtr f3D2 = correspondences2D3D.at(i).second;
 
-            if (f3D1.get() == 0)
+            if (!f3D1)
             {
                 continue;
             }
@@ -335,7 +344,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             for (size_t j = 0; j < f3D2->features2D().size(); ++j)
             {
                 Point2DFeaturePtr f2D2 = f3D2->features2D().at(j).lock();
-                if (f2D2.get() == 0)
+                if (!f2D2)
                 {
                     continue;
                 }
@@ -344,7 +353,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                 for (size_t k = 0; k < f3D1->features2D().size(); ++k)
                 {
                     Point2DFeaturePtr f2D1 = f3D1->features2D().at(k).lock();
-                    if (f2D1.get() == 0)
+                    if (!f2D1)
                     {
                         continue;
                     }
@@ -405,14 +414,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt2-", ODOMETRY);
+        visualize("stage2-", ODOMETRY);
+
+        visualizeExtrinsics("stage2-extrinsics");
 #endif
 
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_2.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_2";
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_2.sg";
@@ -478,7 +489,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             FramePtr f1 = localInterMap2D2D.at(i).first->frame().lock();
             FramePtr f2 = localInterMap2D2D.at(i).second->frame().lock();
 
-            if (f1.get() == 0 || f2.get() == 0)
+            if (!f1 || !f2)
             {
                 std::cout << "# WARNING: Parent frame is missing." << std::endl;
                 continue;
@@ -495,7 +506,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             for (size_t j = 0; j < f3D1->features2D().size(); ++j)
             {
                 Point2DFeaturePtr f2D1 = f3D1->features2D().at(j).lock();
-                if (f2D1.get() == 0)
+                if (!f2D1)
                 {
                     continue;
                 }
@@ -504,7 +515,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                 for (size_t k = 0; k < f3D2->features2D().size(); ++k)
                 {
                     Point2DFeaturePtr f2D2 = f3D2->features2D().at(k).lock();
-                    if (f2D2.get() == 0)
+                    if (!f2D2)
                     {
                         continue;
                     }
@@ -555,16 +566,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt3-BA-", ODOMETRY);
+        visualize("stage3-BA-", ODOMETRY);
 
-        visualizeExtrinsics("opt3-extrinsics");
+        visualizeExtrinsics("stage3-extrinsics");
 #endif
 
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_3.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_3";
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_3.sg";
@@ -631,16 +642,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("opt4-BA-", ODOMETRY);
+        visualize("stage4-", ODOMETRY);
 
-        visualizeExtrinsics("opt4-extrinsics");
+        visualizeExtrinsics("stage4-extrinsics");
 #endif
 
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_4.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_4";
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_4.sg";
@@ -650,6 +661,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
     if (beginStage <= 5)
     {
+        // estimate ground height using plane sweep stereo
         double zGround = 0.0;
         if (estimateAbsoluteGroundHeight(zGround))
         {
@@ -658,13 +670,11 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                 std::cout << "# INFO: Found ground plane: z = " << zGround << std::endl;
             }
 
-            for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
-            {
-                Eigen::Matrix4d cameraPose = m_cameraSystem.getGlobalCameraPose(i);
-                cameraPose(2,3) -= zGround;
+            // apply odometry-ground transform to extrinsics and system poses
+            Eigen::Matrix4d H_odo_ground = Eigen::Matrix4d::Identity();
+            H_odo_ground(2,3) = -zGround;
 
-                m_cameraSystem.setGlobalCameraPose(i, cameraPose);
-            }
+            applyTransform(H_odo_ground, true, true, false);
         }
         else
         {
@@ -675,16 +685,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
 #ifdef VCHARGE_VIZ
-        visualize("map-", ODOMETRY);
+        visualize("final-", ODOMETRY);
 
-        visualizeExtrinsics("camodocal-extrinsics");
+        visualizeExtrinsics("final-extrinsics");
 #endif
 
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
-            extrinsicPath /= "tmp_extrinsic_5.txt";
-            m_cameraSystem.writePosesToTextFile(extrinsicPath.string());
+            extrinsicPath /= "extrinsic_5";
+            m_cameraSystem.writeToDirectory(extrinsicPath.string());
 
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_5.sg";
@@ -805,7 +815,7 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
             {
                 const FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -1183,7 +1193,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
         {
             FramePtr& frame1 = frameSet->frames().at(cameraId1);
 
-            if (frame1.get() == 0)
+            if (!frame1)
             {
                 continue;
             }
@@ -1310,7 +1320,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 {
     std::vector<size_t> inliers2D2D;
 
-    if (frame2.get() == 0)
+    if (!frame2)
     {
         return;
     }
@@ -1574,12 +1584,12 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         Point2DFeaturePtr& p1 = candidateCorr2D2D.at(i).first;
         Point2DFeaturePtr& p2 = candidateCorr2D2D.at(i).second;
 
-        if (p1.get() == 0 || p2.get() == 0)
+        if (!p1 || !p2)
         {
             continue;
         }
 
-        if (p1->feature3D().get() == 0 || p2->feature3D().get() == 0)
+        if (!p1->feature3D() || !p2->feature3D())
         {
             continue;
         }
@@ -1596,7 +1606,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
             Point2DFeaturePtr& p1 = corr2D2D->at(i).first;
             Point2DFeaturePtr& p2 = corr2D2D->at(i).second;
 
-            if (p1.get() == 0 || p2.get() == 0)
+            if (!p1 || !p2)
             {
                 continue;
             }
@@ -1661,7 +1671,7 @@ CameraRigBA::prune(int flags, int poseType)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -1671,50 +1681,41 @@ CameraRigBA::prune(int flags, int poseType)
                 std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
                 Eigen::Matrix4d H_cam = Eigen::Matrix4d::Identity();
-                if (frame->cameraPose().get() != 0)
+                if (poseType == CAMERA)
                 {
                     H_cam = frame->cameraPose()->toMatrix();
                 }
-
-                Eigen::Matrix4d H_odo_inv = frame->systemPose()->toMatrix().inverse();
+                else
+                {
+                    H_cam = H_odo_cam.at(cameraId) * frame->systemPose()->toMatrix().inverse();
+                }
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
                     Point2DFeaturePtr& pf = features2D.at(l);
 
-                    if (pf->feature3D().get() == 0)
+                    if (!pf->feature3D())
                     {
                         continue;
                     }
 
-                    Eigen::Vector4d P;
-                    P << pf->feature3D()->point(), 1.0;
-
-                    Eigen::Vector4d P_cam;
-                    if (poseType == CAMERA)
-                    {
-                        P_cam = H_cam * P;
-                    }
-                    else
-                    {
-                        P_cam = (H_odo_cam.at(cameraId) * H_odo_inv) * P;
-                    }
+                    Eigen::Vector3d P_cam = transformPoint(H_cam, pf->feature3D()->point());
 
                     bool prune = false;
 
-                    if ((flags & PRUNE_BEHIND_CAMERA) == PRUNE_BEHIND_CAMERA &&
+                    if ((flags & PRUNE_BEHIND_CAMERA) &&
                         P_cam(2) < 0.0)
                     {
                         prune = true;
                     }
 
-                    if ((flags & PRUNE_FARAWAY) == PRUNE_FARAWAY &&
+                    if ((flags & PRUNE_FARAWAY) &&
                         P_cam.block<3,1>(0,0).norm() > k_maxPoint3DDistance)
                     {
                         prune = true;
                     }
 
-                    if ((flags & PRUNE_HIGH_REPROJ_ERR) == PRUNE_HIGH_REPROJ_ERR)
+                    if (flags & PRUNE_HIGH_REPROJ_ERR)
                     {
                         double error = 0.0;
 
@@ -1785,7 +1786,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -1810,9 +1811,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
-    double wResidualOdometry = 0.0;
-    Eigen::Matrix3d odometryPrecisionMat;
-    odometryPrecisionMat.setIdentity();
+    Eigen::Matrix3d sqrtOdometryPrecisionMat;
+    sqrtOdometryPrecisionMat.setIdentity();
     if (flags & ODOMETRY_6D_POSE)
     {
         // compute precision matrix for odometry data
@@ -1854,6 +1854,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 frameSetPrev = frameSet;
             }
         }
+        errMean /= static_cast<double>(errVec.size());
 
         Eigen::Matrix3d odometryCovariance;
         odometryCovariance.setZero();
@@ -1865,20 +1866,17 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
         odometryCovariance /= static_cast<double>(errVec.size());
 
-        odometryPrecisionMat = odometryCovariance.inverse();
-
-        wResidualOdometry = 3.0 * static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsOdometry);
+        Eigen::Matrix3d odometryPrecisionMat = odometryCovariance.inverse();
+        sqrtOdometryPrecisionMat = sqrtm(odometryPrecisionMat);
 
         if (m_verbose)
         {
             std::cout << "# INFO: Added " << nResidualsOdometry << " residuals from odometry data." << std::endl;
-            std::cout << "# INFO: Assigned weight of " << wResidualOdometry << " to each residual." << std::endl;
         }
     }
 
     bool includeChessboardData = (flags & CAMERA_INTRINSICS) && !m_cameraCalibrations.empty();
     size_t nResidualsChessboard = 0;
-    double wResidualChessboard = 0.0;
     if (includeChessboardData)
     {
         for (size_t i = 0; i < m_cameraCalibrations.size(); ++i)
@@ -1917,12 +1915,9 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             }
         }
 
-        wResidualChessboard = static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nResidualsChessboard);
-
         if (m_verbose)
         {
             std::cout << "# INFO: Added " << nResidualsChessboard << " residuals from chessboard data." << std::endl;
-            std::cout << "# INFO: Assigned weight of " << wResidualChessboard << " to each residual." << std::endl;
         }
     }
 
@@ -1963,7 +1958,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -2126,17 +2121,11 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
 
-//                ceres::CostFunction* costFunction =
-//                    new ceres::AutoDiffCostFunction<OdometryError, 1, 3, 3, 3, 3>(
-//                        new OdometryError(H_odo_meas, odometryPrecisionMat));
-
                 ceres::CostFunction* costFunction =
-                    new ceres::AutoDiffCostFunction<OdometryError, 1, 3, 3, 3, 3>(
-                        new OdometryError(H_odo_meas));
+                    new ceres::AutoDiffCostFunction<OdometryError, 3, 3, 3, 3, 3>(
+                        new OdometryError(H_odo_meas, sqrtOdometryPrecisionMat));
 
-                ceres::LossFunction* lossFunction = new ceres::ScaledLoss(0, wResidualOdometry, ceres::TAKE_OWNERSHIP);
-
-                problem.AddResidualBlock(costFunction, lossFunction,
+                problem.AddResidualBlock(costFunction, 0,
                                          frameSetPrev->systemPose()->positionData(),
                                          frameSetPrev->systemPose()->attitudeData(),
                                          frameSet->systemPose()->positionData(),
@@ -2160,6 +2149,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             std::vector<std::vector<cv::Point3f> >& scenePoints = m_cameraCalibrations.at(i)->scenePoints();
             Eigen::Matrix2d measurementCov = m_cameraCalibrations.at(i)->measurementCovariance();
             Eigen::Matrix2d precisionMat = measurementCov.inverse();
+            Eigen::Matrix2d sqrtPrecisionMat = sqrtm(precisionMat);
 
             // create residuals for each observation
             for (size_t j = 0; j < imagePoints.size(); ++j)
@@ -2185,11 +2175,10 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(i),
                                                                               Eigen::Vector3d(spt.x, spt.y, spt.z),
                                                                               Eigen::Vector2d(ipt.x, ipt.y),
-                                                                              precisionMat,
+                                                                              sqrtPrecisionMat,
                                                                               CAMERA_INTRINSICS | CAMERA_POSE);
 
                     ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
-//                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(1.0), wResidualChessboard, ceres::TAKE_OWNERSHIP);
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              intrinsicParams[i].data(),
                                              chessboardCameraPoses[i].at(j).data(),
@@ -2227,6 +2216,51 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         {
             m_cameraSystem.getCamera(i)->readParameters(intrinsicParams[i]);
         }
+    }
+
+    if ((flags & ODOMETRY_6D_POSE) && m_verbose)
+    {
+        double errAvg = 0.0;
+        double errMax = 0.0;
+        size_t count = 0;
+        for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+        {
+            FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+            if (segment.size() <= 1)
+            {
+                continue;
+            }
+
+            FrameSetPtr frameSetPrev = segment.front();
+            for (size_t j = 1; j < segment.size(); ++j)
+            {
+                FrameSetPtr frameSet = segment.at(j);
+
+                double scale_meas = (frameSet->odometryMeasurement()->position() -
+                                     frameSetPrev->odometryMeasurement()->position()).norm();
+
+                double scale_est = (frameSet->systemPose()->position() -
+                                    frameSetPrev->systemPose()->position()).norm();
+
+                double err = fabs(scale_est - scale_meas) / scale_meas;
+
+                errAvg += err;
+                ++count;
+
+                if (err > errMax)
+                {
+                    errMax = err;
+                }
+
+                frameSetPrev = frameSet;
+            }
+        }
+
+        errAvg /= static_cast<double>(count);
+
+        printf("# INFO: Scale error: avg = %.3f%% | max = %.3f%%\n",
+               errAvg * 100.0, errMax * 100.0);
     }
 
     if (includeChessboardData && m_verbose)
@@ -2282,7 +2316,7 @@ CameraRigBA::reweightScenePoints(void)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -2321,7 +2355,7 @@ CameraRigBA::reweightScenePoints(void)
             {
                 FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -2332,7 +2366,7 @@ CameraRigBA::reweightScenePoints(void)
                 {
                     Point3DFeaturePtr& feature3D = features2D.at(l)->feature3D();
 
-                    if (feature3D.get() == 0)
+                    if (!feature3D)
                     {
                         continue;
                     }
@@ -2359,59 +2393,44 @@ CameraRigBA::reweightScenePoints(void)
 }
 
 bool
-CameraRigBA::estimateCameraOdometryTransforms(void)
+CameraRigBA::estimateRigOdometryTransform(Eigen::Matrix4d& H_rig_odo) const
 {
     PlanarHandEyeCalibration calib;
     calib.setVerbose(m_verbose);
 
     for (int segmentId = 0; segmentId < m_graph.frameSetSegments().size(); ++segmentId)
     {
-        FrameSetSegment& segment = m_graph.frameSetSegment(segmentId);
+        const FrameSetSegment& segment = m_graph.frameSetSegment(segmentId);
 
         bool init = false;
-        Eigen::Matrix4d odoMeasPrev, odoEstPrev;
-        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odoMeas, H_odoEst;
+        Eigen::Matrix4d odoPrev, rigPrev;
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odo, H_rig;
 
         for (size_t frameSetId = 0; frameSetId < segment.size(); ++frameSetId)
         {
-            FrameSetPtr& frameSet = segment.at(frameSetId);
+            const FrameSetPtr& frameSet = segment.at(frameSetId);
 
-            Eigen::Matrix4d odoMeas = frameSet->odometryMeasurement()->toMatrix();
-            Eigen::Matrix4d odoEst = frameSet->systemPose()->toMatrix();
+            Eigen::Matrix4d odo = frameSet->odometryMeasurement()->toMatrix();
+            Eigen::Matrix4d rig = frameSet->systemPose()->toMatrix();
 
             if (init)
             {
-                H_odoMeas.push_back(odoMeas.inverse() * odoMeasPrev);
-                H_odoEst.push_back(odoEst.inverse() * odoEstPrev);
+                H_odo.push_back(odo.inverse() * odoPrev);
+                H_rig.push_back(rig.inverse() * rigPrev);
             }
             else
             {
                 init = true;
             }
 
-            odoMeasPrev = odoMeas;
-            odoEstPrev = odoEst;
+            odoPrev = odo;
+            rigPrev = rig;
         }
 
-        calib.addMotions(H_odoEst, H_odoMeas);
+        calib.addMotions(H_rig, H_odo);
     }
 
-    Eigen::Matrix4d H_odoEst_odoMeas;
-    if (!calib.calibrate(H_odoEst_odoMeas))
-    {
-        return false;
-    }
-
-    for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
-    {
-        Eigen::Matrix4d H_cam_odoEst = m_cameraSystem.getGlobalCameraPose(i);
-
-        Eigen::Matrix4d H_cam_odoMeas = H_odoEst_odoMeas * H_cam_odoEst;
-
-        m_cameraSystem.setGlobalCameraPose(i, H_cam_odoMeas);
-    }
-
-    return true;
+    return calib.calibrate(H_rig_odo);
 }
 
 bool
@@ -2718,6 +2737,93 @@ CameraRigBA::estimateAbsoluteGroundHeight(double& zGround) const
 #endif
 }
 
+void
+CameraRigBA::applyTransform(const Eigen::Matrix4d& H_sys_nsys,
+                            bool applyToExtrinsics,
+                            bool applyToSystemPoses,
+                            bool applyToScenePoints)
+{
+    if (applyToExtrinsics)
+    {
+        for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
+        {
+            Eigen::Matrix4d H_cam_sys = m_cameraSystem.getGlobalCameraPose(i);
+
+            Eigen::Matrix4d H_cam_nsys = H_sys_nsys * H_cam_sys;
+
+            m_cameraSystem.setGlobalCameraPose(i, H_cam_nsys);
+        }
+    }
+
+    boost::unordered_set<Point3DFeature*> scenePointSet;
+
+    for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+    {
+        FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+        for (size_t j = 0; j < segment.size(); ++j)
+        {
+            FrameSetPtr& frameSet = segment.at(j);
+
+            if (applyToSystemPoses)
+            {
+                Eigen::Matrix4d H_sys_world = frameSet->systemPose()->toMatrix();
+
+                Eigen::Matrix4d H_nsys_world = H_sys_world * H_sys_nsys.inverse();
+                Eigen::Matrix3d R_nsys_world = H_nsys_world.block<3,3>(0,0);
+
+                double r, p, y;
+                mat2RPY(R_nsys_world, r, p, y);
+
+                frameSet->systemPose()->attitude() << y, p, r;
+                frameSet->systemPose()->position() = H_nsys_world.block<3,1>(0,3);
+            }
+
+            if (!applyToScenePoints)
+            {
+                continue;
+            }
+
+            for (size_t k = 0; k < frameSet->frames().size(); ++k)
+            {
+                FramePtr& frame = frameSet->frames().at(k);
+
+                if (!frame)
+                {
+                    continue;
+                }
+
+                std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
+
+                for (size_t l = 0; l < features2D.size(); ++l)
+                {
+                    Point3DFeaturePtr& scenePoint = features2D.at(l)->feature3D();
+
+                    if (!scenePoint)
+                    {
+                        continue;
+                    }
+
+                    scenePointSet.insert(scenePoint.get());
+                }
+            }
+        }
+    }
+
+    if (!applyToScenePoints)
+    {
+        return;
+    }
+
+    for (boost::unordered_set<Point3DFeature*>::iterator it = scenePointSet.begin();
+         it != scenePointSet.end(); ++it)
+    {
+        Point3DFeature* scenePoint = *it;
+
+        scenePoint->point() = transformPoint(H_sys_nsys, scenePoint->point());
+    }
+}
+
 #ifdef VCHARGE_VIZ
 void
 CameraRigBA::visualize(const std::string& overlayPrefix, int type)
@@ -2741,7 +2847,7 @@ CameraRigBA::visualize(const std::string& overlayPrefix, int type)
 
                 FramePtr& frame = frameSet->frames().at(i);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
@@ -2759,7 +2865,7 @@ CameraRigBA::visualize(const std::string& overlayPrefix, int type)
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
-                    if (features2D.at(l)->feature3D().get() == 0)
+                    if (!features2D.at(l)->feature3D())
                     {
                         continue;
                     }
@@ -3377,7 +3483,7 @@ CameraRigBA::visualize3D3DCorrespondences(const std::string& overlayName,
         const Point2DFeaturePtr& p1 = correspondences2D2D.at(i).first;
         const Point2DFeaturePtr& p2 = correspondences2D2D.at(i).second;
 
-        if (p1->feature3D().get() == 0 || p2->feature3D().get() == 0)
+        if (!p1->feature3D() || !p2->feature3D())
         {
             continue;
         }
@@ -3444,12 +3550,12 @@ CameraRigBA::validateGraph(void) const
             {
                 const FramePtr& frame = frameSet->frames().at(k);
 
-                if (frame.get() == 0)
+                if (!frame)
                 {
                     continue;
                 }
 
-                if (systemPose.get() == 0)
+                if (!systemPose)
                 {
                     systemPose = frame->systemPose();
                 }
@@ -3498,7 +3604,7 @@ CameraRigBA::validateGraph(void) const
 
                     FrameConstPtr parentFrame = feature2D->frame().lock();
 
-                    if (parentFrame.get() == 0)
+                    if (!parentFrame)
                     {
                         std::cout << "# WARNING: Parent frame is missing." << std::endl;
                         valid = false;
@@ -3510,7 +3616,7 @@ CameraRigBA::validateGraph(void) const
                         valid = false;
                     }
 
-                    if (feature3D.get() == 0)
+                    if (!feature3D)
                     {
                         continue;
                     }

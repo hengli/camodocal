@@ -89,9 +89,14 @@ private:
 
     void reweightScenePoints(void);
 
-    bool estimateCameraOdometryTransforms(void);
+    bool estimateRigOdometryTransform(Eigen::Matrix4d& H_rig_odo) const;
 
     bool estimateAbsoluteGroundHeight(double& zGround) const;
+
+    void applyTransform(const Eigen::Matrix4d& H,
+                        bool applyToExtrinsics,
+                        bool applyToSystemPoses,
+                        bool applyToScenePoints);
 
 #ifdef VCHARGE_VIZ
     void visualize(const std::string& overlayPrefix, int type);

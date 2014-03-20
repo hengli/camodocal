@@ -18,6 +18,14 @@ Eigen::Matrix<T, 3, 3> skew(const Eigen::Matrix<T, 3, 1>& vec)
                                         -vec(1), vec(0), T(0)).finished();
 }
 
+template<typename Derived>
+typename Eigen::MatrixBase<Derived>::PlainObject sqrtm(const Eigen::MatrixBase<Derived>& A)
+{
+    Eigen::SelfAdjointEigenSolver<typename Derived::PlainObject> es(A);
+
+    return es.operatorSqrt();
+}
+
 template<typename T>
 Eigen::Matrix<T, 3, 3> AngleAxisToRotationMatrix(const Eigen::Matrix<T, 3, 1>& rvec)
 {

@@ -162,6 +162,8 @@ public:
     std::vector<Point2DFeatureWPtr>& features2D(void);
     const std::vector<Point2DFeatureWPtr>& features2D(void) const;
 
+    bool removeFeatureObservation(const Point2DFeaturePtr& featureObs);
+
 private:
     Eigen::Vector3d m_point;
     Eigen::Matrix3d m_pointCovariance;

@@ -553,29 +553,21 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         if (prune)
         {
-            Point2DFeaturePtr feature2D = fc.at(1);
+            Point2DFeaturePtr f0 = fc.at(0);
+            Point2DFeaturePtr f1 = fc.at(1);
+            Point3DFeaturePtr scenePoint = f0->feature3D();
 
-            while (feature2D)
+            if (f0->prevMatches().empty() || f0->bestPrevMatchId() == -1)
             {
-                if (feature2D->prevMatches().empty() || feature2D->bestPrevMatchId() == -1)
-                {
-                    break;
-                }
-
-                Point2DFeaturePtr feature2DPrev = feature2D->prevMatch().lock();
-                if (!feature2DPrev)
-                {
-                    break;
-                }
-
-                feature2DPrev->feature3D() = Point3DFeaturePtr();
-                feature2D->feature3D() = Point3DFeaturePtr();
-
-                feature2DPrev->bestNextMatchId() = -1;
-                feature2D->bestPrevMatchId() = -1;
-
-                feature2D = feature2DPrev;
+                f0->feature3D() = Point3DFeaturePtr();
+                scenePoint->removeFeatureObservation(f0);
             }
+
+            f1->feature3D() = Point3DFeaturePtr();
+            scenePoint->removeFeatureObservation(f1);
+
+            f0->bestNextMatchId() = -1;
+            f1->bestPrevMatchId() = -1;
 
             ++nPrunedScenePoints;
         }

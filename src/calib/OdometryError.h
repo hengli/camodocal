@@ -13,15 +13,15 @@ class OdometryError
 public:
     OdometryError(const Eigen::Matrix4d& meas_H_01)
      : m_meas_H_01(meas_H_01)
-     , m_precisionMat(Eigen::Matrix3d::Identity())
+     , m_sqrtPrecisionMat(Eigen::Matrix3d::Identity())
     {
 
     }
 
     OdometryError(const Eigen::Matrix4d& meas_H_01,
-                  const Eigen::Matrix3d& precisionMat)
+                  const Eigen::Matrix3d& sqrtPrecisionMat)
      : m_meas_H_01(meas_H_01)
-     , m_precisionMat(precisionMat)
+     , m_sqrtPrecisionMat(sqrtPrecisionMat)
     {
 
     }
@@ -54,14 +54,18 @@ public:
         Eigen::Matrix<T,3,1> err;
         err << err_H(0,3), err_H(1,3), yaw;
 
-        residuals[0] = err.transpose() * m_precisionMat.cast<T>() * err;
+        Eigen::Matrix<T,3,1> err_weighted = m_sqrtPrecisionMat.cast<T>() * err;
+
+        residuals[0] = err_weighted(0);
+        residuals[1] = err_weighted(1);
+        residuals[2] = err_weighted(2);
 
         return true;
     }
 
 private:
     Eigen::Matrix4d m_meas_H_01;
-    Eigen::Matrix3d m_precisionMat;
+    Eigen::Matrix3d m_sqrtPrecisionMat;
 };
 
 }
