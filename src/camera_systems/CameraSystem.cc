@@ -147,6 +147,7 @@ CameraSystem::writePosesToTextFile(const std::string& filename) const
         {
             ofs << m_cameras.at(i)->cameraName();
         }
+        ofs << std::endl;
 
         for (int j = 0; j < 3; ++j)
         {
