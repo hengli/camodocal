@@ -1,8 +1,6 @@
 #ifndef ODOMETRYERROR_H
 #define ODOMETRYERROR_H
 
-#include <camodocal/sparse_graph/Transform.h>
-
 #include "../gpl/EigenUtils.h"
 
 namespace camodocal

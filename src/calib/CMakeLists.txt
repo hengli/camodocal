@@ -29,7 +29,6 @@ set(SRCS
   CamOdoThread.cc
   CamOdoWatchdogThread.cc
   CamRigOdoCalibration.cc
-  CamRigThread.cc
   HandEyeCalibration.cc
   PlanarHandEyeCalibration.cc
   StereoCameraCalibration.cc

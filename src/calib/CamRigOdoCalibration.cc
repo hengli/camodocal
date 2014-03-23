@@ -10,7 +10,7 @@
 #include "../gpl/EigenUtils.h"
 #include "CamOdoThread.h"
 #include "CamOdoWatchdogThread.h"
-#include "CamRigThread.h"
+#include "CameraRigBA.h"
 #ifdef VCHARGE_VIZ
 #include <boost/date_time/posix_time/posix_time.hpp>
 
@@ -54,8 +54,6 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
     }
 
     m_camOdoWatchdogThread = new CamOdoWatchdogThread(m_camOdoCompleted, m_stop);
-
-    m_camRigThread = new CamRigThread(m_cameraSystem, m_graph, options.beginStage, options.optimizeIntrinsics, options.saveWorkingData, options.dataDir, options.verbose);
 
     for (size_t i = 0; i < m_sketches.size(); ++i)
     {
@@ -254,8 +252,9 @@ CamRigOdoCalibration::start(void)
     double tsStart = timeInSeconds();
 
     // run calibration steps
-    m_camRigThread->launch();
-    m_camRigThread->join();
+    CameraRigBA ba(m_cameraSystem, m_graph);
+    ba.setVerbose(m_options.verbose);
+    ba.run(m_options.beginStage, m_options.optimizeIntrinsics, m_options.saveWorkingData, m_options.dataDir);
 
     std::cout << "# INFO: Camera rig calibration took " << timeInSeconds() - tsStart << "s." << std::endl;
 

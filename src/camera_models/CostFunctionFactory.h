@@ -48,6 +48,11 @@ public:
                                               int flags, bool optimize_cam_odo_z = true) const;
 
     ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
+                                              const Eigen::Vector2d& observed_p,
+                                              const Eigen::Matrix2d& sqrtPrecisionMat,
+                                              int flags, bool optimize_cam_odo_z = true) const;
+
+    ceres::CostFunction* generateCostFunction(const CameraConstPtr& camera,
                                               const Eigen::Vector3d& odo_pos,
                                               const Eigen::Vector3d& odo_att,
                                               const Eigen::Vector2d& observed_p,

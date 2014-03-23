@@ -172,13 +172,30 @@ class ReprojectionError3
 public:
     ReprojectionError3(const Eigen::Vector2d& observed_p)
      : m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true) {}
+     , m_optimize_cam_odo_z(true)
+     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity()) {}
+
+    ReprojectionError3(const Eigen::Vector2d& observed_p,
+                       const Eigen::Matrix2d& sqrtPrecisionMat)
+     : m_observed_p(observed_p)
+     , m_optimize_cam_odo_z(true)
+     , m_sqrtPrecisionMat(sqrtPrecisionMat) {}
 
     ReprojectionError3(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector2d& observed_p)
      : m_intrinsic_params(intrinsic_params)
      , m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true) {}
+     , m_optimize_cam_odo_z(true)
+     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity()) {}
+
+    ReprojectionError3(const std::vector<double>& intrinsic_params,
+                       const Eigen::Vector2d& observed_p,
+                       const Eigen::Matrix2d& sqrtPrecisionMat)
+     : m_intrinsic_params(intrinsic_params)
+     , m_observed_p(observed_p)
+     , m_optimize_cam_odo_z(true)
+     , m_sqrtPrecisionMat(sqrtPrecisionMat) {}
+
 
     ReprojectionError3(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector3d& odo_pos,
@@ -219,8 +236,11 @@ public:
         Eigen::Matrix<T,2,1> predicted_p;
         CameraT::spaceToPlane(intrinsic_params, q, t, P, predicted_p);
 
-        residuals[0] = predicted_p(0) - T(m_observed_p(0));
-        residuals[1] = predicted_p(1) - T(m_observed_p(1));
+        Eigen::Matrix<T,2,1> err = predicted_p - m_observed_p.cast<T>();
+        Eigen::Matrix<T,2,1> err_weighted = m_sqrtPrecisionMat.cast<T>() * err;
+
+        residuals[0] = err_weighted(0);
+        residuals[1] = err_weighted(1);
 
         return true;
     }
@@ -265,8 +285,11 @@ public:
         Eigen::Matrix<T,2,1> predicted_p;
         CameraT::spaceToPlane(intrinsic_params.data(), q, t, P, predicted_p);
 
-        residuals[0] = predicted_p(0) - T(m_observed_p(0));
-        residuals[1] = predicted_p(1) - T(m_observed_p(1));
+        Eigen::Matrix<T,2,1> err = predicted_p - m_observed_p.cast<T>();
+        Eigen::Matrix<T,2,1> err_weighted = m_sqrtPrecisionMat.cast<T>() * err;
+
+        residuals[0] = err_weighted(0);
+        residuals[1] = err_weighted(1);
 
         return true;
     }
@@ -310,6 +333,8 @@ private:
 
     // observed 2D point
     Eigen::Vector2d m_observed_p;
+
+    Eigen::Matrix2d m_sqrtPrecisionMat;
 
     bool m_optimize_cam_odo_z;
 };
@@ -709,6 +734,118 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 9, 4, 2, 3, 3, 3>(
                         new ReprojectionError3<CataCamera>(observed_p));
+            }
+            break;
+        }
+        break;
+    }
+
+    return costFunction;
+}
+
+ceres::CostFunction*
+CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
+                                          const Eigen::Vector2d& observed_p,
+                                          const Eigen::Matrix2d& sqrtPrecisionMat,
+                                          int flags, bool optimize_cam_odo_z) const
+{
+    ceres::CostFunction* costFunction = 0;
+
+    std::vector<double> intrinsic_params;
+    camera->writeParameters(intrinsic_params);
+
+    switch (flags)
+    {
+    case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
+        switch (camera->modelType())
+        {
+        case Camera::KANNALA_BRANDT:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<EquidistantCamera>, 2, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<EquidistantCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            break;
+        case Camera::PINHOLE:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            break;
+        case Camera::MEI:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<CataCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<CataCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            break;
+        }
+        break;
+    case CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
+        switch (camera->modelType())
+        {
+        case Camera::KANNALA_BRANDT:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<EquidistantCamera>, 2, 8, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<EquidistantCamera>(observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 8, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(observed_p, sqrtPrecisionMat));
+            }
+            break;
+        case Camera::PINHOLE:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 8, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 8, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<PinholeCamera>(observed_p, sqrtPrecisionMat));
+            }
+            break;
+        case Camera::MEI:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 9, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<CataCamera>(observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 9, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<CataCamera>(observed_p, sqrtPrecisionMat));
             }
             break;
         }

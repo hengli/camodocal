@@ -19,7 +19,6 @@ namespace camodocal
 // forward declarations
 class CamOdoThread;
 class CamOdoWatchdogThread;
-class CamRigThread;
 
 class CamRigOdoCalibration
 {
@@ -88,7 +87,6 @@ private:
 
     std::vector<CamOdoThread*> m_camOdoThreads;
     CamOdoWatchdogThread* m_camOdoWatchdogThread;
-    CamRigThread* m_camRigThread;
 
     CameraSystem m_cameraSystem;
     SparseGraph m_graph;

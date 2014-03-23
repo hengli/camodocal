@@ -1765,52 +1765,7 @@ CameraRigBA::prune(int flags, int poseType)
 void
 CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
-    size_t nPoints = 0;
-    size_t nPointsMultipleCams = 0;
-    size_t nResidualsOdometry = 0;
-    boost::unordered_set<Point3DFeature*> scenePointSet;
-    for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
-    {
-        FrameSetSegment& segment = m_graph.frameSetSegment(i);
-
-        for (size_t j = 0; j < segment.size(); ++j)
-        {
-            FrameSetPtr& frameSet = segment.at(j);
-
-            if (j > 0)
-            {
-                ++nResidualsOdometry;
-            }
-
-            for (size_t k = 0; k < frameSet->frames().size(); ++k)
-            {
-                FramePtr& frame = frameSet->frames().at(k);
-
-                if (!frame)
-                {
-                    continue;
-                }
-
-                const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
-
-                for (size_t l = 0; l < features2D.size(); ++l)
-                {
-                    if (features2D.at(l)->feature3D().get() != 0)
-                    {
-                        if (features2D.at(l)->feature3D()->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
-                        {
-                            ++nPointsMultipleCams;
-                        }
-
-                        ++nPoints;
-
-                        scenePointSet.insert(features2D.at(l)->feature3D().get());
-                    }
-                }
-            }
-        }
-    }
-
+    size_t nOdometryResiduals = 0;
     Eigen::Matrix3d sqrtOdometryPrecisionMat;
     sqrtOdometryPrecisionMat.setIdentity();
     if (flags & ODOMETRY_6D_POSE)
@@ -1869,20 +1824,35 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         Eigen::Matrix3d odometryPrecisionMat = odometryCovariance.inverse();
         sqrtOdometryPrecisionMat = sqrtm(odometryPrecisionMat);
 
+        nOdometryResiduals = errVec.size();
+
         if (m_verbose)
         {
-            std::cout << "# INFO: Added " << nResidualsOdometry << " residuals from odometry data." << std::endl;
+            std::cerr << "# INFO: Added " << nOdometryResiduals << " residuals from odometry data." << std::endl;
         }
     }
 
+    double fudgeFactor = 1.0;
+    Eigen::Matrix2d sqrtKptPrecisionMat = Eigen::Matrix2d::Identity() / sqrt(0.04);
+
     bool includeChessboardData = (flags & CAMERA_INTRINSICS) && !m_cameraCalibrations.empty();
-    size_t nResidualsChessboard = 0;
+    size_t nCBCornerResiduals = 0;
+
     if (includeChessboardData)
     {
+        fudgeFactor = 10.0;
+
+        Eigen::Matrix2d kptCovariance = Eigen::Matrix2d::Zero();
+
         for (size_t i = 0; i < m_cameraCalibrations.size(); ++i)
         {
-            nResidualsChessboard += m_cameraCalibrations.at(i)->imagePoints().size() *
-                                    m_cameraCalibrations.at(i)->imagePoints().front().size();
+            size_t nObs = m_cameraCalibrations.at(i)->imagePoints().size() *
+                          m_cameraCalibrations.at(i)->imagePoints().front().size();
+
+            nCBCornerResiduals += nObs;
+
+            Eigen::Matrix2d measurementCov = m_cameraCalibrations.at(i)->measurementCovariance();
+            kptCovariance += measurementCov * static_cast<double>(nObs);
 
             if (m_verbose)
             {
@@ -1908,17 +1878,33 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 double err = m_cameraSystem.getCamera(i)->reprojectionError(m_cameraCalibrations.at(i)->scenePoints(),
                                                                             m_cameraCalibrations.at(i)->imagePoints(),
                                                                             rvecs, tvecs);
-                std::cout << "# INFO: "
+                std::cerr << "# INFO: "
                           << "[" << m_cameraSystem.getCamera(i)->cameraName()
                           << "] Initial reprojection error (chessboard): "
                           << err << " pixels" << std::endl;
             }
         }
 
+        kptCovariance /= static_cast<double>(nCBCornerResiduals) * fudgeFactor;
+
+        Eigen::Matrix2d kptPrecisionMat = kptCovariance.inverse();
+        sqrtKptPrecisionMat = sqrtm(kptPrecisionMat);
+
         if (m_verbose)
         {
-            std::cout << "# INFO: Added " << nResidualsChessboard << " residuals from chessboard data." << std::endl;
+            std::cerr << "# INFO: Added " << nCBCornerResiduals << " residuals from chessboard data." << std::endl;
         }
+    }
+
+    Eigen::Vector2d e;
+    e << 1.0 / sqrt(2.0), 1.0 / sqrt(2.0);
+    double lossParam = e.transpose() * sqrtKptPrecisionMat * sqrtKptPrecisionMat.transpose() * e;
+
+    if (m_verbose)
+    {
+        std::cerr << "# INFO: Loss parameter = " << lossParam << std::endl;
+        std::cerr << "# INFO: sqrt precision matrix (keypoint position):" << std::endl;
+        std::cerr << sqrtKptPrecisionMat << std::endl;
     }
 
     ceres::Problem problem;
@@ -1985,7 +1971,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                     optimizeExtrinsics[cameraId] = 1;
 
-                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::HuberLoss(1.0), feature3D->weight(), ceres::TAKE_OWNERSHIP);
+                    ceres::LossFunction* lossFunction = new ceres::ScaledLoss(new ceres::CauchyLoss(lossParam), feature3D->weight(), ceres::TAKE_OWNERSHIP);
 
                     ceres::CostFunction* costFunction;
                     switch (flags)
@@ -2029,6 +2015,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(cameraId),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
+                                                                                    sqrtKptPrecisionMat,
                                                                                     flags,
                                                                                     optimizeZ);
 
@@ -2047,6 +2034,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         costFunction
                             = CostFunctionFactory::instance()->generateCostFunction(m_cameraSystem.getCamera(cameraId),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
+                                                                                    sqrtKptPrecisionMat,
                                                                                     flags,
                                                                                     optimizeZ);
 
@@ -2151,6 +2139,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             Eigen::Matrix2d precisionMat = measurementCov.inverse();
             Eigen::Matrix2d sqrtPrecisionMat = sqrtm(precisionMat);
 
+            double lossParamCB = e.transpose() * precisionMat * e;
+
             // create residuals for each observation
             for (size_t j = 0; j < imagePoints.size(); ++j)
             {
@@ -2178,7 +2168,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                               sqrtPrecisionMat,
                                                                               CAMERA_INTRINSICS | CAMERA_POSE);
 
-                    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
+                    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(lossParamCB);
                     problem.AddResidualBlock(costFunction, lossFunction,
                                              intrinsicParams[i].data(),
                                              chessboardCameraPoses[i].at(j).data(),
@@ -2199,7 +2189,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
     if (m_verbose)
     {
-        std::cout << summary.BriefReport() << std::endl;
+        std::cerr << summary.BriefReport() << std::endl;
     }
 
     if (flags & CAMERA_ODOMETRY_TRANSFORM)
@@ -2286,7 +2276,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             double err = m_cameraSystem.getCamera(i)->reprojectionError(m_cameraCalibrations.at(i)->scenePoints(),
                                                                         m_cameraCalibrations.at(i)->imagePoints(),
                                                                         rvecs, tvecs);
-            std::cout << "# INFO: "
+            std::cerr << "# INFO: "
                       << "[" << m_cameraSystem.getCamera(i)->cameraName()
                       << "] Final reprojection error (chessboard): "
                       << err << " pixels" << std::endl;
@@ -2297,12 +2287,13 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 void
 CameraRigBA::reweightScenePoints(void)
 {
-    // Assign high weights to scene points observed by multiple cameras.
+    // Assign high weights to feature observations associated with scene points
+    // observed by multiple cameras.
     // Note that the observation condition only applies to scene points
     // *locally* observed by multiple cameras.
 
-    size_t nPoints = 0;
-    size_t nPointsMultipleCams = 0;
+    size_t nObs = 0;
+    size_t nObsMultipleCams = 0;
     boost::unordered_set<Point3DFeature*> scenePointSet;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -2329,10 +2320,10 @@ CameraRigBA::reweightScenePoints(void)
                     {
                         if (features2D.at(l)->feature3D()->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                         {
-                            ++nPointsMultipleCams;
+                            ++nObsMultipleCams;
                         }
 
-                        ++nPoints;
+                        ++nObs;
 
                         scenePointSet.insert(features2D.at(l)->feature3D().get());
                     }
@@ -2341,7 +2332,7 @@ CameraRigBA::reweightScenePoints(void)
         }
     }
 
-    double weightM = static_cast<double>(nPoints - nPointsMultipleCams) / static_cast<double>(nPointsMultipleCams);
+    double weightS = static_cast<double>(nObsMultipleCams) / static_cast<double>(nObs - nObsMultipleCams);
 
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
@@ -2373,11 +2364,11 @@ CameraRigBA::reweightScenePoints(void)
 
                     if (feature3D->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                     {
-                        feature3D->weight() = weightM;
+                        feature3D->weight() = 1.0;
                     }
                     else
                     {
-                        feature3D->weight() = 1.0;
+                        feature3D->weight() = weightS;
                     }
                 }
             }
@@ -2386,8 +2377,8 @@ CameraRigBA::reweightScenePoints(void)
 
     if (m_verbose)
     {
-        std::cout << "# INFO: Assigned weight of " << weightM
-                  << " to scene points observed by multiple cameras."
+        std::cout << "# INFO: Assigned weight of " << weightS
+                  << " to scene points observed by a single camera."
                   << std::endl;
     }
 }
