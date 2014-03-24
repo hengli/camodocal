@@ -98,6 +98,8 @@ private:
                         bool applyToSystemPoses,
                         bool applyToScenePoints);
 
+    void writePosesToTextFile(const std::string& filename) const;
+
 #ifdef VCHARGE_VIZ
     void visualize(const std::string& overlayPrefix, int type);
 

@@ -701,6 +701,16 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             m_graph.writeToBinaryFile(graphPath.string());
         }
     }
+
+    if (beginStage <= 6)
+    {
+        if (saveWorkingData)
+        {
+            boost::filesystem::path posePath(dataDir);
+            posePath /= "poses.txt";
+            writePosesToTextFile(posePath.string());
+        }
+    }
 }
 
 void
@@ -2813,6 +2823,54 @@ CameraRigBA::applyTransform(const Eigen::Matrix4d& H_sys_nsys,
 
         scenePoint->point() = transformPoint(H_sys_nsys, scenePoint->point());
     }
+}
+
+void
+CameraRigBA::writePosesToTextFile(const std::string& filename) const
+{
+    std::ofstream ofs(filename.c_str());
+    if (!ofs.is_open())
+    {
+        return;
+    }
+
+    ofs << std::fixed << std::setprecision(10);
+
+    for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+    {
+        const FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+        for (size_t j = 0; j < segment.size(); ++j)
+        {
+            const FrameSetPtr& frameSet = segment.at(j);
+
+            ofs << frameSet->systemPose()->timeStamp() << " "
+                << frameSet->systemPose()->attitude()(2) << " "
+                << frameSet->systemPose()->attitude()(1) << " "
+                << frameSet->systemPose()->attitude()(0) << " "
+                << frameSet->systemPose()->position()(0) << " "
+                << frameSet->systemPose()->position()(1) << " "
+                << frameSet->systemPose()->position()(2);
+
+            if (frameSet->gpsInsMeasurement())
+            {
+                Eigen::Matrix3d R = frameSet->gpsInsMeasurement()->rotation().toRotationMatrix();
+
+                double roll, pitch, yaw;
+                mat2RPY(R, roll, pitch, yaw);
+
+                ofs << " "
+                    << roll << " " << pitch << " " << yaw << " "
+                    << frameSet->gpsInsMeasurement()->translation()(0) << " "
+                    << frameSet->gpsInsMeasurement()->translation()(1) << " "
+                    << frameSet->gpsInsMeasurement()->translation()(2);
+            }
+
+            ofs << std::endl;
+        }
+    }
+
+    ofs.close();
 }
 
 #ifdef VCHARGE_VIZ
