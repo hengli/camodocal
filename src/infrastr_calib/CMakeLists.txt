@@ -1,5 +1,3 @@
-if(CERES_FOUND)
-
 include_directories(
   ../ceres-solver/include
   ../dbow2/DBoW2
@@ -35,5 +33,3 @@ camodocal_link_libraries(camodocal_infrastr_calib
   overlay
 )
 endif(VCHARGE_VIZ)
-
-endif(CERES_FOUND)

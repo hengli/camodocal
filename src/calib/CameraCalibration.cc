@@ -11,10 +11,11 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
+#include "camodocal/camera_models/CameraFactory.h"
+#include "camodocal/sparse_graph/Transform.h"
 #include "ceres/ceres.h"
 #include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
-#include "camodocal/camera_models/CameraFactory.h"
 #include "../camera_models/CostFunctionFactory.h"
 
 namespace camodocal
@@ -467,19 +468,16 @@ CameraCalibration::optimize(CameraPtr& camera,
     // Use ceres to do optimization
     ceres::Problem problem;
 
-    double* extrinsicCameraParams[rvecs.size()];
+    std::vector<Transform, Eigen::aligned_allocator<Transform> > transformVec(rvecs.size());
     for (size_t i = 0; i < rvecs.size(); ++i)
     {
-        extrinsicCameraParams[i] = new double[7];
-
         Eigen::Vector3d rvec;
         cv::cv2eigen(rvecs.at(i), rvec);
 
-        AngleAxisToQuaternion(rvec, extrinsicCameraParams[i]);
-
-        extrinsicCameraParams[i][4] = tvecs[i].at<double>(0);
-        extrinsicCameraParams[i][5] = tvecs[i].at<double>(1);
-        extrinsicCameraParams[i][6] = tvecs[i].at<double>(2);
+        transformVec.at(i).rotation() = Eigen::AngleAxisd(rvec.norm(), rvec.normalized());
+        transformVec.at(i).translation() << tvecs[i].at<double>(0),
+                                            tvecs[i].at<double>(1),
+                                            tvecs[i].at<double>(2);
     }
 
     std::vector<double> intrinsicCameraParams;
@@ -502,14 +500,14 @@ CameraCalibration::optimize(CameraPtr& camera,
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
             problem.AddResidualBlock(costFunction, lossFunction,
                                      intrinsicCameraParams.data(),
-                                     extrinsicCameraParams[i],
-                                     extrinsicCameraParams[i] + 4);
+                                     transformVec.at(i).rotationData(),
+                                     transformVec.at(i).translationData());
         }
 
         ceres::LocalParameterization* quaternionParameterization =
             new EigenQuaternionParameterization;
 
-        problem.SetParameterization(extrinsicCameraParams[i],
+        problem.SetParameterization(transformVec.at(i).rotationData(),
                                     quaternionParameterization);
     }
 
@@ -527,23 +525,22 @@ CameraCalibration::optimize(CameraPtr& camera,
 
     if (m_verbose)
     {
-        std::cout << summary.FullReport() << "\n";
+        std::cout << summary.FullReport() << std::endl;
     }
 
     camera->readParameters(intrinsicCameraParams);
 
     for (size_t i = 0; i < rvecs.size(); ++i)
     {
-        Eigen::Vector3d rvec;
-        QuaternionToAngleAxis(extrinsicCameraParams[i], rvec);
+        Eigen::AngleAxisd aa(transformVec.at(i).rotation());
+
+        Eigen::Vector3d rvec = aa.angle() * aa.axis();
         cv::eigen2cv(rvec, rvecs.at(i));
 
         cv::Mat& tvec = tvecs.at(i);
-        tvec.at<double>(0) = extrinsicCameraParams[i][4];
-        tvec.at<double>(1) = extrinsicCameraParams[i][5];
-        tvec.at<double>(2) = extrinsicCameraParams[i][6];
-
-        delete [] extrinsicCameraParams[i];
+        tvec.at<double>(0) = transformVec.at(i).translation()(0);
+        tvec.at<double>(1) = transformVec.at(i).translation()(1);
+        tvec.at<double>(2) = transformVec.at(i).translation()(2);
     }
 }
 

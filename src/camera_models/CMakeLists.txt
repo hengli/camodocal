@@ -1,5 +1,3 @@
-if(CERES_FOUND)
-
 include_directories(
   ../ceres-solver/include
 )
@@ -29,5 +27,3 @@ camodocal_link_libraries(EquidistantCamera_test camodocal_camera_models)
 
 camodocal_test(PinholeCamera)
 camodocal_link_libraries(PinholeCamera_test camodocal_camera_models)
-
-endif(CERES_FOUND)

@@ -78,7 +78,7 @@ Build Instructions for Ubuntu
 * CUDA >= 4.2
 * Eigen3 (Ubuntu package: libeigen3-dev)
 * glog
-* OpenCV >= 2.4.0
+* OpenCV >= 2.4.6
 * SuiteSparse (Ubuntu package: libsuitesparse-dev)
 
 *Optional dependencies*

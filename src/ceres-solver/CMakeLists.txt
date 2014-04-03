@@ -1,7 +1,3 @@
-if(BLAS_FOUND)
-if(LAPACK_FOUND)
-if(SUITESPARSE_FOUND)
-
 # Google Logging
 find_library(GLOG_LIB NAMES glog PATHS "/usr/local/lib")
 
@@ -57,7 +53,3 @@ include_directories(
 add_subdirectory(internal/ceres)
 
 endif(EXISTS ${GLOG_INCLUDE} AND EXISTS ${GLOG_LIB})
-
-endif(SUITESPARSE_FOUND)
-endif(LAPACK_FOUND)
-endif(BLAS_FOUND)

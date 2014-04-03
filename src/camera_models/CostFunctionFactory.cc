@@ -439,17 +439,17 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
         {
         case Camera::KANNALA_BRANDT:
             costFunction =
-                new ceres::AutoDiffCostFunction<ReprojectionError1<EquidistantCamera>, 1, 8, 4, 3>(
+                new ceres::AutoDiffCostFunction<ReprojectionError1<EquidistantCamera>, 2, 8, 4, 3>(
                     new ReprojectionError1<EquidistantCamera>(observed_P, observed_p));
             break;
         case Camera::PINHOLE:
             costFunction =
-                new ceres::AutoDiffCostFunction<ReprojectionError1<PinholeCamera>, 1, 8, 4, 3>(
+                new ceres::AutoDiffCostFunction<ReprojectionError1<PinholeCamera>, 2, 8, 4, 3>(
                     new ReprojectionError1<PinholeCamera>(observed_P, observed_p));
             break;
         case Camera::MEI:
             costFunction =
-                new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 1, 9, 4, 3>(
+                new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 2, 9, 4, 3>(
                     new ReprojectionError1<CataCamera>(observed_P, observed_p));
             break;
         }

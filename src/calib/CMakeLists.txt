@@ -1,5 +1,3 @@
-if(CERES_FOUND)
-
 if(VCHARGE_D3D)
 include_directories(../D3D)
 endif(VCHARGE_D3D)
@@ -86,5 +84,3 @@ camodocal_link_libraries(HandEyeCalibration_test camodocal_calib)
 
 camodocal_test(PlanarHandEyeCalibration)
 camodocal_link_libraries(PlanarHandEyeCalibration_test camodocal_calib)
-
-endif(CERES_FOUND)
