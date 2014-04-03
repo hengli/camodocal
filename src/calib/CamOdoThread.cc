@@ -329,10 +329,13 @@ CamOdoThread::threadFunction(void)
                 bool camValid = tracker.addFrame(frame, m_camera->mask());
 
                 // tag frame with odometry and GPS/INS data
-                frame->odometryMeasurement() = boost::make_shared<Odometry>();
-                *(frame->odometryMeasurement()) = *interpOdo;
-                frame->systemPose() = boost::make_shared<Odometry>();
-                *(frame->systemPose()) = *interpOdo;
+                if (m_poseSource == ODOMETRY)
+                {
+                   frame->odometryMeasurement() = boost::make_shared<Odometry>();
+                   *(frame->odometryMeasurement()) = *interpOdo;
+                   frame->systemPose() = boost::make_shared<Odometry>();
+                   *(frame->systemPose()) = *interpOdo;
+                }
 
                 if (interpGpsIns.get() != 0)
                 {
