@@ -1,6 +1,7 @@
 #ifndef SURFGPU_H
 #define SURFGPU_H
 
+#include <boost/thread/lock_guard.hpp>
 #include <boost/thread/mutex.hpp>
 #include <opencv2/nonfree/gpu.hpp>
 

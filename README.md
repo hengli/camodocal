@@ -79,7 +79,7 @@ Build Instructions for Ubuntu
 * Eigen3 (Ubuntu package: libeigen3-dev)
 * glog
 * OpenCV >= 2.4.6
-* SuiteSparse (Ubuntu package: libsuitesparse-dev)
+* SuiteSparse >= 4.2.1
 
 *Optional dependencies*
 * GTest
@@ -87,6 +87,9 @@ Build Instructions for Ubuntu
 
 1. Before you compile the repository code, you need to install the required
    dependencies, and install the optional dependencies if required.
+   Download the SuiteSparse libraries from this [link] [1] and
+   do not use the Ubuntu package since the SuiteSparseQR library is
+   missing in the Ubuntu package and is required for covariance evaluation.
 
 2. Build the code.
 
@@ -103,19 +106,19 @@ Examples
 
 Go to the build folder where the executables corresponding to the examples are located in. To see all allowed options for each executable, use the --help option which shows a description of all available options.
 
-1. Intrinsic calibration ([src/examples/intrinsic_calib.cc] [1])
+1. Intrinsic calibration ([src/examples/intrinsic_calib.cc] [2])
 
         bin/intrinsic_calib -i ../data/images/ -p img --camera-model mei
 
    The camera-model parameter takes one of the following three values: pinhole, mei, and kannala-brandt.
 
-2. Stereo calibration  ([src/examples/stereo_calib.cc] [2])
+2. Stereo calibration  ([src/examples/stereo_calib.cc] [3])
 
         bin/stereo_calib -i ../data/images/ --prefix-l left --prefix-r right --camera-model mei
 
    The camera-model parameter takes one of the following three values: pinhole, mei, and kannala-brandt.
 
-3. Extrinsic calibration ([src/examples/extrinsic_calib.cc] [3])
+3. Extrinsic calibration ([src/examples/extrinsic_calib.cc] [4])
 
    Note 1: Extrinsic calibration requires the use of a vocabulary tree. The vocabulary data
            corresponding to 64-bit SURF descriptors can be found in data/vocabulary/surf64.yml.gz.
@@ -131,6 +134,7 @@ Go to the build folder where the executables corresponding to the examples are l
 
    Details to be released soon!
    
-  [1]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
-  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"
-  [3]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
+  [1]: https://www.cise.ufl.edu/research/sparse/SuiteSparse/SuiteSparse-4.2.1.tar.gz "link"
+  [2]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
+  [3]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"
+  [4]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
