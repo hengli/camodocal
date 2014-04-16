@@ -118,6 +118,8 @@ main(int argc, char** argv)
 //    options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
+    options.minKeyframeDistance = 0.2;
+    options.minVOSegmentSize = 15;
     options.preprocessImages = preprocessImages;
     options.optimizeIntrinsics = optimizeIntrinsics;
     options.saveWorkingData = true;

@@ -1217,16 +1217,10 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             std::vector<Correspondence2D2D> subCorr2D2D[m_cameraSystem.cameraCount()];
             for (int cameraId2 = 0; cameraId2 < m_cameraSystem.cameraCount(); ++cameraId2)
             {
-                int cameraIdDiff = std::abs(cameraId1 - cameraId2);
-                if (cameraIdDiff != 1 && cameraIdDiff != 3)
+                if (cameraId1 == cameraId2)
                 {
                     continue;
                 }
-
-//                if (cameraId1 == cameraId2)
-//                {
-//                    continue;
-//                }
 
                 std::vector<FramePtr> window;
                 window.insert(window.end(), windows[cameraId2].begin(), windows[cameraId2].end());

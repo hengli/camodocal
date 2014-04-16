@@ -1,6 +1,7 @@
 #ifndef CAMRIGODOCALIBRATION_H
 #define CAMRIGODOCALIBRATION_H
 
+#include <boost/asio.hpp>
 #include <boost/multi_array.hpp>
 
 #include "camodocal/calib/AtomicData.h"
@@ -8,10 +9,6 @@
 #include "camodocal/calib/SensorDataBuffer.h"
 #include "camodocal/camera_systems/CameraSystem.h"
 #include "camodocal/sparse_graph/SparseGraph.h"
-
-#ifdef VCHARGE_VIZ
-#include <boost/asio.hpp>
-#endif
 
 namespace camodocal
 {
@@ -36,6 +33,8 @@ public:
          : mode(OFFLINE)
          , poseSource(ODOMETRY)
          , nMotions(200)
+         , minKeyframeDistance(0.2)
+         , minVOSegmentSize(15)
          , preprocessImages(false)
          , saveWorkingData(true)
          , beginStage(0)
@@ -44,7 +43,15 @@ public:
 
         Mode mode;
         PoseSource poseSource;
-        int nMotions;
+        int nMotions;            // Once we reach a number of keyframes for each camera
+                                 // such that there are <nMotion> relative motions between
+                                 // consecutive keyframes, the calibration runs automatically.
+
+        // monocular VO
+        double minKeyframeDistance; // Minimum distance between consecutive keyframes.
+                                    // (Recommended: 0.2 m)
+        size_t minVOSegmentSize;    // The VO segment will be used in calibration only if the number of
+                                    // keyframes in the VO segment exceeds <minVOSegmentSize>.
 
         bool preprocessImages;
         bool saveWorkingData;
@@ -79,11 +86,8 @@ private:
 
     void buildGraph(void);
 
-#ifdef VCHARGE_VIZ
     void pollWindow(boost::asio::io_service* io, bool* stop);
     void displayHandler(boost::asio::deadline_timer* timer, bool* stop);
-    static void keyboardHandler(unsigned char key, int x, int y);
-#endif
 
     std::vector<CamOdoThread*> m_camOdoThreads;
     CamOdoWatchdogThread* m_camOdoWatchdogThread;
@@ -102,7 +106,6 @@ private:
 
     boost::multi_array<bool, 1> m_camOdoCompleted;
 
-    std::vector<std::string> m_statuses;
     std::vector<cv::Mat> m_sketches;
 
     Options m_options;

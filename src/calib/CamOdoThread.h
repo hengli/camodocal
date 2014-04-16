@@ -24,21 +24,22 @@ class CamOdoThread
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    explicit CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
-                          bool preprocess,
-                          AtomicData<cv::Mat>* image,
-                          const CameraConstPtr& camera,
-                          SensorDataBuffer<OdometryPtr>& odometryBuffer,
-                          SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
-                          boost::mutex& odometryBufferMutex,
-                          SensorDataBuffer<PosePtr>& gpsInsBuffer,
-                          SensorDataBuffer<PosePtr>& interpGpsInsBuffer,
-                          boost::mutex& gpsInsBufferMutex,
-                          std::string& status,
-                          cv::Mat& sketch,
-                          bool& completed,
-                          bool& stop,
-                          bool verbose = false);
+    CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
+                 bool preprocess,
+                 AtomicData<cv::Mat>* image,
+                 const CameraConstPtr& camera,
+                 SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                 SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
+                 boost::mutex& odometryBufferMutex,
+                 SensorDataBuffer<PosePtr>& gpsInsBuffer,
+                 SensorDataBuffer<PosePtr>& interpGpsInsBuffer,
+                 boost::mutex& gpsInsBufferMutex,
+                 cv::Mat& sketch,
+                 bool& completed,
+                 bool& stop,
+                 double minKeyframeDistance,
+                 size_t minVOSegmentSize,
+                 bool verbose = false);
     virtual ~CamOdoThread();
 
     int cameraId(void) const;
@@ -84,15 +85,14 @@ private:
     SensorDataBuffer<PosePtr>& m_interpGpsInsBuffer;
     boost::mutex& m_gpsInsBufferMutex;
     Eigen::Matrix4d m_camOdoTransform;
-    std::string& m_status;
     cv::Mat& m_sketch;
-
-    const double k_keyFrameDistance;
-    const int k_minTrackLength;
-    const double k_odometryTimeout;
 
     bool& m_completed;
     bool& m_stop;
+
+    const double k_minKeyframeDistance;
+    const size_t k_minVOSegmentSize;
+    const double k_odometryTimeout;
 };
 
 }

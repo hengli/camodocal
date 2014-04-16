@@ -33,12 +33,6 @@ set(SRCS
   utils.cc
 )
 
-if(VCHARGE_VIZ)
-if(GLUT_FOUND)
-set(SRCS ${SRCS} CalibrationWindow.cc)
-endif(GLUT_FOUND)
-endif(VCHARGE_VIZ)
-
 camodocal_library(camodocal_calib SHARED ${SRCS})
 
 camodocal_link_libraries(camodocal_calib

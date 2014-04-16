@@ -6,6 +6,7 @@
 #include <boost/thread.hpp>
 #include <iomanip>
 #include <iostream>
+#include <opencv2/highgui/highgui.hpp>
 
 #include "../gpl/EigenUtils.h"
 #include "CamOdoThread.h"
@@ -14,9 +15,7 @@
 #ifdef VCHARGE_VIZ
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "../../../../library/gpl/CameraEnums.h"
 #include "../../../../visualization/overlay/GLOverlayExtended.h"
-#include "CalibrationWindow.h"
 #endif
 
 namespace camodocal
@@ -32,7 +31,6 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
  , m_odometryBuffer(1000)
  , m_gpsInsBuffer(1000)
  , m_cameraSystem(cameras.size())
- , m_statuses(cameras.size())
  , m_sketches(cameras.size())
  , m_camOdoCompleted(boost::extents[cameras.size()])
  , m_options(options)
@@ -47,7 +45,8 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
                                                 m_images.at(i), m_cameras.at(i),
                                                 m_odometryBuffer, m_interpOdometryBuffer, m_odometryBufferMutex,
                                                 m_gpsInsBuffer, m_interpGpsInsBuffer, m_gpsInsBufferMutex,
-                                                m_statuses.at(i), m_sketches.at(i), m_camOdoCompleted[i], m_stop,
+                                                m_sketches.at(i), m_camOdoCompleted[i], m_stop,
+                                                options.minKeyframeDistance, options.minVOSegmentSize,
                                                 options.verbose);
         m_camOdoThreads.at(i) = thread;
         thread->signalFinished().connect(boost::bind(&CamRigOdoCalibration::onCamOdoThreadFinished, this, thread));
@@ -149,17 +148,18 @@ CamRigOdoCalibration::start(void)
 {
     if (m_options.beginStage == 0)
     {
-#ifdef VCHARGE_VIZ
-        CalibrationWindow::instance()->setKeyboardHandler(&CamRigOdoCalibration::keyboardHandler);
-
         boost::asio::io_service io;
         boost::asio::deadline_timer timer(io, boost::posix_time::milliseconds(100));
         bool closeWindow = false;
 
+        for (size_t i = 0; i < m_cameras.size(); ++i)
+        {
+            cv::namedWindow(m_cameras.at(i)->cameraName());
+        }
+
         timer.async_wait(boost::bind(&CamRigOdoCalibration::displayHandler, this, &timer, &closeWindow));
 
         boost::thread windowThread(boost::bind(&CamRigOdoCalibration::pollWindow, this, &io, &closeWindow));
-#endif
 
         std::cout << "# INFO: Running camera-odometry calibration for each of the " << m_cameras.size() << " cameras." << std::endl;
 
@@ -177,12 +177,13 @@ CamRigOdoCalibration::start(void)
             m_camOdoThreads.at(i)->join();
         }
 
-#ifdef VCHARGE_VIZ
         closeWindow = true;
         windowThread.join();
 
-        CalibrationWindow::instance()->close();
-#endif
+        for (size_t i = 0; i < m_cameras.size(); ++i)
+        {
+            cv::destroyWindow(m_cameras.at(i)->cameraName());
+        }
 
         buildGraph();
 
@@ -425,7 +426,6 @@ CamRigOdoCalibration::buildGraph(void)
     }
 }
 
-#ifdef VCHARGE_VIZ
 void
 CamRigOdoCalibration::pollWindow(boost::asio::io_service* io, bool* stop)
 {
@@ -440,19 +440,11 @@ CamRigOdoCalibration::pollWindow(boost::asio::io_service* io, bool* stop)
 void
 CamRigOdoCalibration::displayHandler(boost::asio::deadline_timer* timer, bool* stop)
 {
-    CalibrationWindow::instance()->dataMutex().lock();
-
-    CalibrationWindow::instance()->frontText().assign(m_statuses.at(0));
-    CalibrationWindow::instance()->leftText().assign(m_statuses.at(1));
-    CalibrationWindow::instance()->rearText().assign(m_statuses.at(2));
-    CalibrationWindow::instance()->rightText().assign(m_statuses.at(3));
-
-    m_sketches.at(0).copyTo(CalibrationWindow::instance()->frontView());
-    m_sketches.at(1).copyTo(CalibrationWindow::instance()->leftView());
-    m_sketches.at(2).copyTo(CalibrationWindow::instance()->rearView());
-    m_sketches.at(3).copyTo(CalibrationWindow::instance()->rightView());
-
-    CalibrationWindow::instance()->dataMutex().unlock();
+    for (size_t i = 0; i < m_cameras.size(); ++i)
+    {
+        cv::imshow(m_cameras.at(i)->cameraName(), m_sketches.at(i));
+    }
+    cv::waitKey(2);
 
     if (!(*stop))
     {
@@ -460,21 +452,5 @@ CamRigOdoCalibration::displayHandler(boost::asio::deadline_timer* timer, bool* s
         timer->async_wait(boost::bind(&CamRigOdoCalibration::displayHandler, this, timer, stop));
     }
 }
-
-void
-CamRigOdoCalibration::keyboardHandler(unsigned char key, int x, int y)
-{
-    switch(key)
-    {
-    case 's':
-        m_stop = true;
-        break;
-
-    default:
-        break;
-    }
-}
-
-#endif
 
 }

@@ -6,9 +6,9 @@
 #include "../gpl/EigenUtils.h"
 #include "../visual_odometry/FeatureTracker.h"
 #include "utils.h"
+
 #ifdef VCHARGE_VIZ
 #include "../../../../library/gpl/CameraEnums.h"
-#include "CalibrationWindow.h"
 #endif
 
 namespace camodocal
@@ -24,15 +24,16 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
                            SensorDataBuffer<PosePtr>& gpsInsBuffer,
                            SensorDataBuffer<PosePtr>& interpGpsInsBuffer,
                            boost::mutex& gpsInsBufferMutex,
-                           std::string& status,
                            cv::Mat& sketch,
                            bool& completed,
                            bool& stop,
+                           double minKeyframeDistance,
+                           size_t minVOSegmentSize,
                            bool verbose)
  : m_poseSource(poseSource)
  , m_cameraId(cameraId)
- , m_running(false)
  , m_preprocess(preprocess)
+ , m_running(false)
  , m_image(image)
  , m_camera(camera)
  , m_odometryBuffer(odometryBuffer)
@@ -41,13 +42,12 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
  , m_gpsInsBuffer(gpsInsBuffer)
  , m_interpGpsInsBuffer(interpGpsInsBuffer)
  , m_gpsInsBufferMutex(gpsInsBufferMutex)
- , m_status(status)
  , m_sketch(sketch)
- , k_keyFrameDistance(0.2)
- , k_minTrackLength(15)
- , k_odometryTimeout(4.0)
  , m_completed(completed)
  , m_stop(stop)
+ , k_minKeyframeDistance(0.2)
+ , k_minVOSegmentSize(15)
+ , k_odometryTimeout(4.0)
 {
     m_camOdoCalib.setVerbose(verbose);
     m_camOdoCalib.setMotionCount(nMotions);
@@ -202,7 +202,7 @@ CamOdoThread::threadFunction(void)
         {
             std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
-            if (odometryPoses.size() >= k_minTrackLength)
+            if (odometryPoses.size() >= k_minVOSegmentSize)
             {
                 addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
             }
@@ -316,7 +316,7 @@ CamOdoThread::threadFunction(void)
                 }
 
                 if (framePrev.get() != 0 &&
-                    (pos - framePrev->systemPose()->position()).norm() < k_keyFrameDistance)
+                    (pos - framePrev->systemPose()->position()).norm() < k_minKeyframeDistance)
                 {
                     m_image->notifyProcessingDone();
                     continue;
@@ -329,13 +329,10 @@ CamOdoThread::threadFunction(void)
                 bool camValid = tracker.addFrame(frame, m_camera->mask());
 
                 // tag frame with odometry and GPS/INS data
-                if (m_poseSource == ODOMETRY)
-                {
-                   frame->odometryMeasurement() = boost::make_shared<Odometry>();
-                   *(frame->odometryMeasurement()) = *interpOdo;
-                   frame->systemPose() = boost::make_shared<Odometry>();
-                   *(frame->systemPose()) = *interpOdo;
-                }
+                frame->odometryMeasurement() = boost::make_shared<Odometry>();
+                *(frame->odometryMeasurement()) = *interpOdo;
+                frame->systemPose() = boost::make_shared<Odometry>();
+                *(frame->systemPose()) = *interpOdo;
 
                 if (interpGpsIns.get() != 0)
                 {
@@ -373,7 +370,7 @@ CamOdoThread::threadFunction(void)
                 {
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
-                    if (odometryPoses.size() >= k_minTrackLength)
+                    if (odometryPoses.size() >= k_minVOSegmentSize)
                     {
                         addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
                     }
@@ -393,19 +390,17 @@ CamOdoThread::threadFunction(void)
 #endif
 
         int currentMotionCount = 0;
-        if (odometryPoses.size() >= k_minTrackLength)
+        if (odometryPoses.size() >= k_minVOSegmentSize)
         {
             currentMotionCount = odometryPoses.size() - 1;
         }
 
+        // visualize feature tracks
         std::ostringstream oss;
         oss << "# motions: " << m_camOdoCalib.getCurrentMotionCount() + currentMotionCount << " | "
             << "# track breaks: " << trackBreaks;
 
-#ifdef VCHARGE_VIZ
-        CalibrationWindow::instance()->dataMutex().lock();
-
-        m_status.assign(oss.str());
+        std::string status = oss.str();
 
         if (!tracker.getSketch().empty())
         {
@@ -416,8 +411,20 @@ CamOdoThread::threadFunction(void)
             colorImage.copyTo(m_sketch);
         }
 
-        CalibrationWindow::instance()->dataMutex().unlock();
-#endif
+        int fontFace = cv::FONT_HERSHEY_COMPLEX;
+        double fontScale = 0.5;
+        int thickness = 1;
+
+        int baseline = 0;
+        cv::Size textSize = cv::getTextSize(status, fontFace,
+                                            fontScale, thickness, &baseline);
+        baseline += thickness;
+
+        // center the text horizontally and at bottom of image
+        cv::Point textOrg((m_sketch.cols - textSize.width) / 2,
+                           m_sketch.rows - textSize.height - 10);
+        cv::putText(m_sketch, status, textOrg, fontFace, fontScale,
+                    cv::Scalar::all(255), thickness, CV_AA);
 
         m_image->notifyProcessingDone();
 
@@ -458,9 +465,9 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
         return;
     }
 
-    if (odoPoses.size() < k_minTrackLength)
+    if (odoPoses.size() < k_minVOSegmentSize)
     {
-        std::cout << "# WARNING: At least " << k_minTrackLength << " poses are needed. Aborting..." << std::endl;
+        std::cout << "# WARNING: At least " << k_minVOSegmentSize << " poses are needed. Aborting..." << std::endl;
 
         return;
     }
