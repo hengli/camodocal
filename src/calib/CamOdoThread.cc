@@ -330,7 +330,7 @@ CamOdoThread::threadFunction(void)
 
                 // tag frame with odometry and GPS/INS data
 
-                if (m_poseSource == GPS_INS)
+                if (interpOdo)
                 {
                     frame->odometryMeasurement() = boost::make_shared<Odometry>();
                     *(frame->odometryMeasurement()) = *interpOdo;
