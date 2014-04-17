@@ -253,7 +253,7 @@ CamRigOdoCalibration::start(void)
     double tsStart = timeInSeconds();
 
     // run calibration steps
-    CameraRigBA ba(m_cameraSystem, m_graph);
+    CameraRigBA ba(m_cameraSystem, m_graph, m_options.windowDistance);
     ba.setVerbose(m_options.verbose);
     ba.run(m_options.beginStage, m_options.optimizeIntrinsics, m_options.saveWorkingData, m_options.dataDir);
 

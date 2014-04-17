@@ -32,7 +32,8 @@ public:
     };
 
     CameraRigBA(CameraSystem& cameraSystem,
-                SparseGraph& graph);
+                SparseGraph& graph,
+                double windowDistance = 3.0);
 
     void run(int beginStage = 1,
              bool optimizeIntrinsics = true,
@@ -135,12 +136,12 @@ private:
     std::vector<boost::shared_ptr<CameraCalibration> > m_cameraCalibrations;
     SparseGraph m_graph;
 
-    const size_t k_localMapWindowDistance;
+    const size_t k_windowDistance;
     const float k_maxDistanceRatio;
     const double k_maxPoint3DDistance;
     const double k_maxReprojErr;
     const size_t k_minLoopCorrespondences2D3D;
-    const size_t k_minInterCorrespondences2D2D;
+    const size_t k_minWindowCorrespondences2D2D;
     const int k_nearestImageMatches;
     const double k_nominalFocalLength;
 

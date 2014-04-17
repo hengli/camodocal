@@ -35,6 +35,7 @@ public:
          , nMotions(200)
          , minKeyframeDistance(0.2)
          , minVOSegmentSize(15)
+         , windowDistance(3.0)
          , preprocessImages(false)
          , saveWorkingData(true)
          , beginStage(0)
@@ -52,6 +53,13 @@ public:
                                     // (Recommended: 0.2 m)
         size_t minVOSegmentSize;    // The VO segment will be used in calibration only if the number of
                                     // keyframes in the VO segment exceeds <minVOSegmentSize>.
+
+        // local matching between cameras
+        double windowDistance;   // The size of the window of frames in which local matching is
+                                 // performed between different cameras depends on the
+                                 // <windowDistance> distance that the vehicle travels
+                                 // from the beginning of the window to the end of the window.
+                                 // The larger the distance, the longer the local matching takes.
 
         bool preprocessImages;
         bool saveWorkingData;

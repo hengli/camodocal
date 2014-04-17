@@ -41,15 +41,16 @@ namespace camodocal
 {
 
 CameraRigBA::CameraRigBA(CameraSystem& cameraSystem,
-                         SparseGraph& graph)
+                         SparseGraph& graph,
+                         double windowDistance)
  : m_cameraSystem(cameraSystem)
  , m_graph(graph)
- , k_localMapWindowDistance(3.0)
+ , k_windowDistance(windowDistance)
  , k_maxDistanceRatio(0.7f)
  , k_maxPoint3DDistance(20.0)
  , k_maxReprojErr(2.0)
  , k_minLoopCorrespondences2D3D(50)
- , k_minInterCorrespondences2D2D(8)
+ , k_minWindowCorrespondences2D2D(8)
  , k_nearestImageMatches(15)
  , k_nominalFocalLength(300.0)
  , m_verbose(false)
@@ -1009,7 +1010,6 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
     if (!untriFeatureCorrespondences.empty())
     {
         Eigen::Matrix4d H_cam_odo = T_cam_odo.toMatrix();
-        Eigen::Matrix4d H_odo_cam = H_cam_odo.inverse();
 
         Eigen::Matrix4d H_cam1 = frame1->systemPose()->toMatrix() * H_cam_odo;
         Eigen::Matrix4d H_cam2 = frame2->systemPose()->toMatrix() * H_cam_odo;
@@ -1157,7 +1157,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
             Eigen::Vector3d lastOdoPos;
 
             double dist = 0.0;
-            while (itWindow != windows[cameraId].end() && dist < k_localMapWindowDistance)
+            while (itWindow != windows[cameraId].end() && dist < k_windowDistance)
             {
                 if (!init)
                 {
@@ -1174,7 +1174,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
                 lastOdoPos = (*itWindow)->systemPose()->position();
 
-                if (dist < k_localMapWindowDistance)
+                if (dist < k_windowDistance)
                 {
                     ++itWindow;
                 }
@@ -1423,7 +1423,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
     surf->match(rimg1, rkeypoints1, rdtors1, rmask1,
                 rimg2, rkeypoints2, rdtors2, rmask2, rmatches);
 
-    if (rmatches.size() < k_minInterCorrespondences2D2D)
+    if (rmatches.size() < k_minWindowCorrespondences2D2D)
     {
         return;
     }
@@ -1458,7 +1458,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
                          cv::Point2d(rimg1.cols / 2, rimg1.rows / 2),
                          CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
 
-    if (cv::countNonZero(inlierMat) < k_minInterCorrespondences2D2D)
+    if (cv::countNonZero(inlierMat) < k_minWindowCorrespondences2D2D)
     {
         return;
     }
@@ -1824,6 +1824,17 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             odometryCovariance += e * e.transpose();
         }
         odometryCovariance /= static_cast<double>(errVec.size());
+
+        if (odometryCovariance.trace() < 1e-10)
+        {
+            // No loop closures are found. Hence, the measurement covariance
+            // for odometry data is a zero matrix. In this case,
+            // use a reasonable measurement covariance.
+
+            odometryCovariance << 0.09, 0.0, 0.0,
+                                  0.0, 0.09, 0.0,
+                                  0.0, 0.0, 0.04;
+        }
 
         Eigen::Matrix3d odometryPrecisionMat = odometryCovariance.inverse();
         sqrtOdometryPrecisionMat = sqrtm(odometryPrecisionMat);
