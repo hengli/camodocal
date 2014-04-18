@@ -1831,9 +1831,9 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             // for odometry data is a zero matrix. In this case,
             // use a reasonable measurement covariance.
 
-            odometryCovariance << 0.09, 0.0, 0.0,
-                                  0.0, 0.09, 0.0,
-                                  0.0, 0.0, 0.04;
+            odometryCovariance << 2.5e-5, 0.0, 0.0,
+                                  0.0, 6.25e-6, 0.0,
+                                  0.0, 0.0, 9e-6;
         }
 
         Eigen::Matrix3d odometryPrecisionMat = odometryCovariance.inverse();
