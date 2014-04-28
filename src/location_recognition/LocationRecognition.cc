@@ -16,7 +16,7 @@ LocationRecognition::setup(const SparseGraph& graph)
     m_frameMap.clear();
 
     Surf64Vocabulary voc;
-    voc.load("surf64.yml.gz");
+    voc.load("/mnt/data/car_calibration/camodocal/data/vocabulary/surf64.yml.gz");
 
     m_db.setVocabulary(voc);
 
