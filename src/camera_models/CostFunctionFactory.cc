@@ -52,6 +52,8 @@ template<class CameraT>
 class ReprojectionError1
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     ReprojectionError1(const Eigen::Vector3d& observed_P,
                        const Eigen::Vector2d& observed_p)
      : m_observed_P(observed_P), m_observed_p(observed_p)
@@ -133,6 +135,8 @@ template<class CameraT>
 class ReprojectionError2
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     ReprojectionError2(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector2d& observed_p)
      : m_intrinsic_params(intrinsic_params), m_observed_p(observed_p) {}
@@ -170,6 +174,8 @@ template<class CameraT>
 class ReprojectionError3
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     ReprojectionError3(const Eigen::Vector2d& observed_p)
      : m_observed_p(observed_p)
      , m_optimize_cam_odo_z(true)
@@ -344,6 +350,8 @@ template<class CameraT>
 class StereoReprojectionError
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     StereoReprojectionError(const Eigen::Vector3d& observed_P,
                             const Eigen::Vector2d& observed_p_l,
                             const Eigen::Vector2d& observed_p_r)
