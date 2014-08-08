@@ -11,7 +11,6 @@
 #include "../gpl/EigenUtils.h"
 #include "../gpl/OpenCVUtils.h"
 #include "../location_recognition/LocationRecognition.h"
-#include "../npoint/five-point/five-point.hpp"
 #include "../pose_estimation/P3P.h"
 #include "camodocal/sparse_graph/SparseGraphUtils.h"
 #include "ceres/ceres.h"
@@ -642,12 +641,6 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     m_locrec->knnMatch(frame, k_nearestImageMatches, candidates);
 
     // find match with highest number of inlier 2D-2D correspondences
-    std::vector<cv::Point2f> rkeypoints(keypoints.size());
-    for (size_t i = 0; i < keypoints.size(); ++i)
-    {
-        rectifyImagePoint(m_cameras.at(frame->cameraId()), keypoints.at(i).pt, rkeypoints.at(i));
-    }
-
     int bestInlierCount = 0;
     std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > bestCorr2D3D;
     Eigen::Matrix4d bestH;
@@ -1080,7 +1073,7 @@ InfrastructureCalibration::solveP3PRansac(const FrameConstPtr& frame1,
 
                 Eigen::Vector3d P2 = features2.at(match.trainIdx)->feature3D()->point();
 
-                Eigen::Vector3d P1 = transformPoint(H_inv, P1);
+                Eigen::Vector3d P1 = transformPoint(H_inv, P2);
                 Eigen::Vector2d p1_pred;
                 camera1->spaceToPlane(P1, p1_pred);
 

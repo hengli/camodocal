@@ -298,7 +298,7 @@ CameraSystem::writeToXmlFile(const std::string& filename) const
         }
 
         pugi::xml_node eSupplier = eCamera.append_child("supplier");
-        eSupplier.append_child(pugi::node_pcdata).set_value("CamOdoCal v2.0");
+        eSupplier.append_child(pugi::node_pcdata).set_value("CamOdoCal v2.1");
 
         pugi::xml_node eModel = eCamera.append_child("model");
         eModel.append_child(pugi::node_pcdata).set_value("TBD");
