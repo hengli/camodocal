@@ -12,7 +12,7 @@ function(_camodocal_library_intern _build _name)
   endif()
 
   if(_build)
-    add_library(${_name} ${ARGN})
+    add_library(${_name} STATIC ${ARGN})
 
 	if(CAMODOCAL_PLATFORM_WINDOWS AND BUILD_SHARED_LIBS)
 	  # generate corresponding .lib for .dll

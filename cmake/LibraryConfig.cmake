@@ -21,9 +21,11 @@ camodocal_required_dependency(SuiteSparse)
 camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
 
+find_library(GFORTRAN_LIBRARY NAMES gfortran REQUIRED)
+
 ##### Boost #####
 # Expand the next statement if newer boost versions than 1.40.0 are released
-set(Boost_ADDITIONAL_VERSIONS "1.40" "1.40.0" "1.49" "1.49.0")
+set(Boost_ADDITIONAL_VERSIONS "1.40" "1.40.0" "1.49" "1.49.0" "1.54")
 
 find_package(Boost 1.40 REQUIRED COMPONENTS filesystem program_options serialization system thread)
 

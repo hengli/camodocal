@@ -5,6 +5,8 @@
 #include <Eigen/Eigen>
 #include <opencv2/gpu/gpu.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <fstream>
+#include <thread>
 
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
@@ -13,6 +15,7 @@ int
 main(int argc, char** argv)
 {
     using namespace camodocal;
+    namespace fs = ::boost::filesystem;
 
     std::string calibDir;
     int cameraCount;
@@ -24,6 +27,7 @@ main(int argc, char** argv)
     bool optimizeIntrinsics;
     std::string dataDir;
     bool verbose;
+    std::string inputDir;
 
     //================= Handling Program options ==================
     boost::program_options::options_description desc("Allowed options");
@@ -38,6 +42,7 @@ main(int argc, char** argv)
         ("preprocess", boost::program_options::bool_switch(&preprocessImages)->default_value(false), "Preprocess images.")
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
+        ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
     boost::program_options::variables_map vm;
@@ -57,7 +62,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    std::cout << "# INFO: Initializing... " << std::flush;
+    std::cout << "# INFO: Initializing... " << std::endl << std::flush;
 
     if (beginStage > 0)
     {
@@ -109,6 +114,65 @@ main(int argc, char** argv)
         cameras.at(i) = camera;
     }
 
+    //========================= Get all file  =========================
+    std::vector< std::map<int64_t, std::string> > inputImages(cameraCount);
+    //std::map<int, std::vector<Eigen::Isometry3f> > inputPoses;
+    std::map<int64_t, Eigen::Isometry3f> inputOdometry;
+    {
+        fs::path inputFilePath(inputDir);
+
+        fs::recursive_directory_iterator it(inputFilePath);
+        fs::recursive_directory_iterator endit;
+
+        while (it != endit)
+        {
+            if (fs::is_regular_file(*it) && it->path().extension() == ".png")
+            {
+                int camera = -1;
+                uint64_t timestamp = 0;
+
+                if (sscanf(it->path().filename().c_str(), "camera_%d_%lu.png", &camera, &timestamp) != 2)
+                {
+                    printf("cannot find input image camera_[d]_[llu].png\n");
+                    return 1;
+                }
+                inputImages[camera][timestamp] = it->path().string();
+            }
+
+            if (fs::is_regular_file(*it) && it->path().extension() == ".txt" && it->path().filename().string().find_first_of("pose_") == 0)
+            {
+                uint64_t timestamp = 0;
+                if (sscanf(it->path().filename().c_str(), "pose_%lu.txt", &timestamp) != 1)
+                {
+                    printf("pose filename %s has a wrong name, must be pose_[llu].txt\n", it->path().filename().c_str());
+                    return 1;
+                }
+
+                // read pose
+                Eigen::Vector3f t;
+                Eigen::Matrix3f R;
+                std::ifstream file(it->path().c_str());
+                if (!file.is_open())
+                {
+                    printf("cannot find file %s containg a valid pose\n", it->path().c_str());
+                    return 1;
+                }
+
+                file >> R(0,0) >> R(0, 1) >> R(0, 2);
+                file >> R(1,0) >> R(1, 1) >> R(1, 2);
+                file >> R(2,0) >> R(2, 1) >> R(2, 2);
+                file >> t[0] >> t[1] >> t[2];
+
+                Eigen::Isometry3f T;
+                T.matrix().block<3,3>(0,0) = R;
+                T.matrix().block<3,1>(0,3) = t;
+                inputOdometry[timestamp] = T;
+            }
+
+            it++;
+        }
+    }
+
     //========================= Start Threads =========================
 
 
@@ -130,6 +194,44 @@ main(int argc, char** argv)
     CamRigOdoCalibration camRigOdoCalib(cameras, options);
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
+
+    std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount]()
+    {
+        //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
+        for (const auto& pair : inputOdometry)
+        {
+            // timestamp
+            uint64_t timestamp = pair.first;
+
+            // pose
+            const Eigen::Isometry3f& T = pair.second;
+            float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
+            camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], yaw, timestamp);
+       //}
+
+        //for (const auto& pair : inputOdometry)
+        //{
+            // timestamp
+            //uint64_t timestamp = pair.first;
+
+            // frames
+            //std::vector<cv::Mat> frames(cameraCount);
+            for (int c=0; c < cameraCount; c++)
+            {
+                if (inputImages[c].find(timestamp) != inputImages[c].end())
+                {
+                    std::cout << "read " << inputImages[c][timestamp] << std::endl << std::flush;
+                    //frames[c] = cv::imread(inputImages[c][timestamp]);
+                    camRigOdoCalib.addFrame(c, cv::imread(inputImages[c][timestamp]), timestamp);
+                }
+            }
+            //camRigOdoCalib.addFrameSet(frames, timestamp);
+        }
+    });
+
+    //inputThread.join();
+    //if (!camRigOdoCalib.isRunning())
+    //    camRigOdoCalib.run();
 
     //****************
     //
@@ -168,7 +270,7 @@ main(int argc, char** argv)
     // Check camRigOdoCalib.running() to see if the calibration is running.
     // If so, you can stop adding data. To run the calibration without
     // waiting for the minimum motion requirement to be met,
-    // call camRigOdoCalib.run().
+    //camRigOdoCalib.run();
     camRigOdoCalib.start();
 
     CameraSystem cameraSystem = camRigOdoCalib.cameraSystem();

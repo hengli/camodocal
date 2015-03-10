@@ -9,6 +9,8 @@ camodocal_link_libraries(camodocal_features2d
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_NONFREE_LIBRARY}
   ${OPENCV_GPU_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY_RELEASE}
+  ${CUDA_CUDART_LIBRARY}
 )
 
 endif(EXISTS ${OPENCV_GPU_LIBRARY})

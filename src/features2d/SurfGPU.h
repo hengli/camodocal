@@ -3,6 +3,7 @@
 
 #include <boost/thread.hpp>
 #include <opencv2/nonfree/gpu.hpp>
+#include <opencv2/gpu/gpu.hpp>
 
 namespace camodocal
 {
