@@ -7,7 +7,7 @@ include_directories(
   ../dbow2/DVision
 )
 
-camodocal_library(camodocal_infrastr_calib
+camodocal_library(camodocal_infrastr_calib SHARED
   InfrastructureCalibration.cc
 )
 
