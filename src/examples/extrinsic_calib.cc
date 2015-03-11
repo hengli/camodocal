@@ -7,6 +7,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <fstream>
 #include <thread>
+#include <limits>
 
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
@@ -197,6 +198,8 @@ main(int argc, char** argv)
 
     std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount]()
     {
+        uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
+
         //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
         for (const auto& pair : inputOdometry)
         {
@@ -207,25 +210,19 @@ main(int argc, char** argv)
             const Eigen::Isometry3f& T = pair.second;
             float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
             camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], yaw, timestamp);
-       //}
 
-        //for (const auto& pair : inputOdometry)
-        //{
-            // timestamp
-            //uint64_t timestamp = pair.first;
-
-            // frames
-            //std::vector<cv::Mat> frames(cameraCount);
-            for (int c=0; c < cameraCount; c++)
+            // frames (make sure that sensor data is always fresher than the image data)
+            for (int c=0; c < cameraCount && timestamp > lastTimestamp; c++)
             {
-                if (inputImages[c].find(timestamp) != inputImages[c].end())
+                if (inputImages[c].find(lastTimestamp) != inputImages[c].end())
                 {
-                    std::cout << "read " << inputImages[c][timestamp] << std::endl << std::flush;
-                    //frames[c] = cv::imread(inputImages[c][timestamp]);
-                    camRigOdoCalib.addFrame(c, cv::imread(inputImages[c][timestamp]), timestamp);
+                    std::cout << "read " << inputImages[c][lastTimestamp] << std::endl << std::flush;
+                    //frames[c] = cv::imread(inputImages[c][lastTimestamp]);
+                    camRigOdoCalib.addFrame(c, cv::imread(inputImages[c][lastTimestamp]), lastTimestamp);
                 }
             }
-            //camRigOdoCalib.addFrameSet(frames, timestamp);
+
+            lastTimestamp = timestamp;
         }
     });
 

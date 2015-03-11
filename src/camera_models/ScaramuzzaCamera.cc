@@ -9,6 +9,7 @@
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "../gpl/gpl.h"
 
@@ -44,7 +45,7 @@ OCAMCamera::Parameters::readFromYamlFile(const std::string& filename)
         std::string sModelType;
         fs["model_type"] >> sModelType;
 
-        if (sModelType.compare("SCARAMUZZA") != 0)
+        if (!boost::iequals(sModelType, "scaramuzza"))
         {
             return false;
         }
@@ -79,7 +80,7 @@ OCAMCamera::Parameters::writeToYamlFile(const std::string& filename) const
 {
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
 
-    fs << "model_type" << "SCARAMUZZA";
+    fs << "model_type" << "scaramuzza";
     fs << "camera_name" << m_cameraName;
     fs << "image_width" << m_imageWidth;
     fs << "image_height" << m_imageHeight;
@@ -132,7 +133,7 @@ std::ostream&
 operator<< (std::ostream& out, const OCAMCamera::Parameters& params)
 {
     out << "Camera Parameters:" << std::endl;
-    out << "    model_type " << "SCARAMUZZA" << std::endl;
+    out << "    model_type " << "scaramuzza" << std::endl;
     out << "   camera_name " << params.m_cameraName << std::endl;
     out << "   image_width " << params.m_imageWidth << std::endl;
     out << "  image_height " << params.m_imageHeight << std::endl;
