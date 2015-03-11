@@ -11,9 +11,9 @@ namespace camodocal
 {
 
 #define SCARAMUZZA_POLY_SIZE 5
-#define SCARAMUZZA_INV_POLY_SIZE 12
+#define SCARAMUZZA_INV_POLY_SIZE 10
 
-#define SCARAMUZZA_CAMERA_NUM_PARAMS (SCARAMUZZA_POLY_SIZE + SCARAMUZZA_INV_POLY_SIZE + 2 /*center*/ + 3 /*C, D, E*/)
+#define SCARAMUZZA_CAMERA_NUM_PARAMS (SCARAMUZZA_POLY_SIZE + SCARAMUZZA_INV_POLY_SIZE + 2 /*center*/ + 3 /*affine*/)
 
 /**
  * Scaramuzza Camera (Omnidirectional)

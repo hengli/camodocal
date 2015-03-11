@@ -57,18 +57,17 @@ OCAMCamera::Parameters::readFromYamlFile(const std::string& filename)
 
     cv::FileNode n = fs["poly_parameters"];
     for(int i=0; i < SCARAMUZZA_POLY_SIZE; i++)
-        m_poly[i] = static_cast<double>(n[std::string("a") + boost::lexical_cast<std::string>(i)]);
+        m_poly[i] = static_cast<double>(n[std::string("p") + boost::lexical_cast<std::string>(i)]);
 
     n = fs["inv_poly_parameters"];
     for(int i=0; i < SCARAMUZZA_INV_POLY_SIZE; i++)
-        m_inv_poly[i] = static_cast<double>(n[std::string("a") + boost::lexical_cast<std::string>(i)]);
+        m_inv_poly[i] = static_cast<double>(n[std::string("p") + boost::lexical_cast<std::string>(i)]);
 
-    n = fs["cde_parameters"];
-    m_C = static_cast<double>(n["C"]);
-    m_D = static_cast<double>(n["D"]);
-    m_E = static_cast<double>(n["E"]);
+    n = fs["affine_parameters"];
+    m_C = static_cast<double>(n["ac"]);
+    m_D = static_cast<double>(n["ad"]);
+    m_E = static_cast<double>(n["ae"]);
 
-    n = fs["center_parameters"];
     m_center_x = static_cast<double>(n["cx"]);
     m_center_y = static_cast<double>(n["cy"]);
 
@@ -88,22 +87,20 @@ OCAMCamera::Parameters::writeToYamlFile(const std::string& filename) const
     fs << "poly_parameters";
     fs << "{";
     for(int i=0; i < SCARAMUZZA_POLY_SIZE; i++)
-        fs << std::string("a") + boost::lexical_cast<std::string>(i) << m_poly[i];
+        fs << std::string("p") + boost::lexical_cast<std::string>(i) << m_poly[i];
     fs << "}";
 
     fs << "inv_poly_parameters";
     fs << "{";
     for(int i=0; i < SCARAMUZZA_INV_POLY_SIZE; i++)
-        fs << std::string("a") + boost::lexical_cast<std::string>(i) << m_inv_poly[i];
+        fs << std::string("p") + boost::lexical_cast<std::string>(i) << m_inv_poly[i];
     fs << "}";
 
-    fs << "cde_parameters";
-    fs << "{" << "C" << m_C
-              << "D" << m_D
-              << "E" << m_E << "}";
-
-    fs << "projection_parameters";
-    fs << "{" << "cx" << m_center_x
+    fs << "affine_parameters";
+    fs << "{" << "ac" << m_C
+              << "ad" << m_D
+              << "ae" << m_E
+              << "cx" << m_center_x
               << "cy" << m_center_y << "}";
 
     fs.release();
@@ -144,18 +141,16 @@ operator<< (std::ostream& out, const OCAMCamera::Parameters& params)
 
     out << "Poly Parameters" << std::endl;
     for(int i=0; i < SCARAMUZZA_POLY_SIZE; i++)
-        out << std::string("a") + boost::lexical_cast<std::string>(i) << params.m_poly[i] << std::endl;
+        out << std::string("p") + boost::lexical_cast<std::string>(i) << params.m_poly[i] << std::endl;
 
     out << "Inverse Poly Parameters" << std::endl;
     for(int i=0; i < SCARAMUZZA_INV_POLY_SIZE; i++)
-        out << std::string("a") + boost::lexical_cast<std::string>(i) << params.m_inv_poly[i] << std::endl;
+        out << std::string("p") + boost::lexical_cast<std::string>(i) << params.m_inv_poly[i] << std::endl;
 
-    out << "CDE Parameters" << std::endl;
-    out << "            C " << params.m_C << std::endl
-        << "            D " << params.m_D << std::endl
-        << "            E " << params.m_E << std::endl;
-
-    out << "Projection Parameters" << std::endl;
+    out << "Affine Parameters" << std::endl;
+    out << "            ac " << params.m_C << std::endl
+        << "            ad " << params.m_D << std::endl
+        << "            ae " << params.m_E << std::endl;
     out << "            cx " << params.m_center_x << std::endl
         << "            cy " << params.m_center_y << std::endl;
 
