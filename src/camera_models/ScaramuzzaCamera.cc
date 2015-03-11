@@ -17,7 +17,7 @@ namespace camodocal
 {
 
 OCAMCamera::Parameters::Parameters()
- : Camera::Parameters(MEI)
+ : Camera::Parameters(SCARAMUZZA)
  , m_C(0.0)
  , m_D(0.0)
  , m_E(0.0)
