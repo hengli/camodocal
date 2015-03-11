@@ -463,7 +463,7 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             break;
         case Camera::SCARAMUZZA:
             costFunction =
-                new ceres::AutoDiffCostFunction<ReprojectionError1<OCAMCamera>, 2, 20, 4, 3>(
+                new ceres::AutoDiffCostFunction<ReprojectionError1<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3>(
                     new ReprojectionError1<OCAMCamera>(observed_P, observed_p));
             break;
         }
@@ -890,13 +890,13 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             if (optimize_cam_odo_z)
             {
                 costFunction =
-                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 3, 3, 3, 3>(
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 3, 3, 3, 3>(
                         new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
             }
             else
             {
                 costFunction =
-                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 2, 3, 3, 3>(
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 2, 3, 3, 3>(
                         new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
             }
             break;

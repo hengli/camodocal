@@ -613,16 +613,18 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             m_cameraCalibrations = cameraCalibrations;
         }
 
-        std::cout << "# INFO: Running BA on odometry data... " << std::endl;
-
         // perform BA to optimize intrinsics, extrinsics and scene points
         if (optimizeIntrinsics)
         {
+            std::cout << "# INFO: Running BA on odometry data -> optimize CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D ..." << std::endl;
+
             // perform BA to optimize intrinsics, extrinsics, odometry poses, and scene points
             optimize(CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D, true);
         }
         else
         {
+            std::cout << "# INFO: Running BA on odometry data -> optimize CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D ..." << std::endl;
+
             // perform BA to optimize extrinsics, odometry poses, and scene points
             optimize(CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D, true);
         }
@@ -1139,13 +1141,13 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
 
     std::list<FramePtr> windows[m_cameraSystem.cameraCount()];
 
-    while (segmentId < m_graph.frameSetSegments().size())
+    while (segmentId < (int)m_graph.frameSetSegments().size())
     {
         FrameSetPtr& frameSet = m_graph.frameSetSegment(segmentId).at(frameSetId);
 
         for (int cameraId = 0; cameraId < m_cameraSystem.cameraCount(); ++cameraId)
         {
-            std::list<FramePtr>& window = windows[cameraId];
+            //std::list<FramePtr>& window = windows[cameraId];
 
             if (frameSet->frames().at(cameraId).get() != 0)
             {
@@ -1243,7 +1245,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
         }
 
         ++frameSetId;
-        if (frameSetId >= m_graph.frameSetSegment(segmentId).size())
+        if (frameSetId >= (int)m_graph.frameSetSegment(segmentId).size())
         {
             ++segmentId;
             frameSetId = 0;
@@ -1285,7 +1287,7 @@ CameraRigBA::matchFrameToWindow(FramePtr& frame1,
     int windowIdBest = -1;
     std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > corr2D2DBest;
 
-    for (windowId = 0; windowId < window.size(); ++windowId)
+    for (windowId = 0; windowId < (int)window.size(); ++windowId)
     {
         threads[windowId]->join();
 
@@ -1458,7 +1460,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
                          cv::Point2d(rimg1.cols / 2, rimg1.rows / 2),
                          CV_FM_RANSAC, 0.99, reprojErrorThresh, 1000, inlierMat);
 
-    if (cv::countNonZero(inlierMat) < k_minWindowCorrespondences2D2D)
+    if (cv::countNonZero(inlierMat) < (int)k_minWindowCorrespondences2D2D)
     {
         return;
     }
@@ -1501,11 +1503,11 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 
     Eigen::Matrix4d H1 = Eigen::Matrix4d::Identity();
     H1.block<3,3>(0,0) = R1;
-    Eigen::Matrix4d H_rcam1 = H1 * H_cam1;
+    //Eigen::Matrix4d H_rcam1 = H1 * H_cam1;
 
     Eigen::Matrix4d H2 = Eigen::Matrix4d::Identity();
     H2.block<3,3>(0,0) = R2;
-    Eigen::Matrix4d H_rcam2 = H2 * H_cam2;
+    //Eigen::Matrix4d H_rcam2 = H2 * H_cam2;
 
     std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > candidateCorr2D2D(rmatches.size());
     for (size_t i = 0; i < rmatches.size(); ++i)
@@ -1655,7 +1657,7 @@ CameraRigBA::prune(int flags, int poseType)
 {
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odo_cam(m_cameraSystem.cameraCount());
-    for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
+    for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
         T_cam_odo.at(i) = m_cameraSystem.getGlobalCameraPose(i);
 
@@ -1940,7 +1942,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
     // extrinsics
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
-    for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
+    for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
         T_cam_odo.at(i) = Pose(m_cameraSystem.getGlobalCameraPose(i));
     }
@@ -2093,7 +2095,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
     if (flags & CAMERA_ODOMETRY_TRANSFORM)
     {
-        for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
+        for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
         {
             if (optimizeExtrinsics[i])
             {
@@ -2209,7 +2211,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
     if (flags & CAMERA_ODOMETRY_TRANSFORM)
     {
-        for (size_t i = 0; i < m_cameraSystem.cameraCount(); ++i)
+        for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
         {
             m_cameraSystem.setGlobalCameraPose(i, T_cam_odo.at(i).toMatrix());
         }
@@ -2404,7 +2406,7 @@ CameraRigBA::estimateRigOdometryTransform(Eigen::Matrix4d& H_rig_odo) const
     PlanarHandEyeCalibration calib;
     calib.setVerbose(m_verbose);
 
-    for (int segmentId = 0; segmentId < m_graph.frameSetSegments().size(); ++segmentId)
+    for (int segmentId = 0; segmentId < (int)m_graph.frameSetSegments().size(); ++segmentId)
     {
         const FrameSetSegment& segment = m_graph.frameSetSegment(segmentId);
 
@@ -3643,7 +3645,7 @@ CameraRigBA::validateGraph(void) const
                     valid = false;
                 }
 
-                if (frame->cameraId() != k)
+                if (frame->cameraId() != (int)k)
                 {
                     std::cout << "# WARNING: Frame's camera ID does not match expected value." << std::endl;
                     valid = false;
