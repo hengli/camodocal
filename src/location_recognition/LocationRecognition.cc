@@ -90,7 +90,7 @@ LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
 
         matches.push_back(tag);
 
-        if (matches.size() == k)
+        if ((int)matches.size() == k)
         {
             return;
         }
@@ -127,7 +127,7 @@ LocationRecognition::knnMatch(const FrameConstPtr& frame, int k,
 
         matches.push_back(frame);
 
-        if (matches.size() == k)
+        if ((int)matches.size() == k)
         {
             return;
         }

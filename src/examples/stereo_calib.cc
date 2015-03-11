@@ -92,6 +92,9 @@ int main(int argc, char** argv)
     case camodocal::Camera::PINHOLE:
         std::cout << "# INFO: Camera model: Pinhole" << std::endl;
         break;
+    case camodocal::Camera::SCARAMUZZA:
+        std::cout << "# INFO: Camera model: Scaramuzza-Omnidirect" << std::endl;
+        break;
     }
 
     // look for images in input directory
