@@ -476,7 +476,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         windowReprojectionError(minError, maxError, avgError);
 
-        printf("# INFO: Window reprojection error before optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
+        std::cout << "# INFO: Window reprojection error before optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
     }
 
     bool runOptimization = false;
@@ -577,14 +577,14 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     {
         if (nPrunedScenePoints > 0)
         {
-            printf("# INFO: Pruned %lu scene points that had too high reprojection errors.\n", nPrunedScenePoints);
+            std::cout << "# INFO: Pruned " << nPrunedScenePoints << " scene points that had too high reprojection errors." << std::endl;
         }
 
         double minError, maxError, avgError;
 
         windowReprojectionError(minError, maxError, avgError);
 
-        printf("# INFO: Window reprojection error after optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
+        std::cout << "# INFO: Window reprojection error after optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
     }
 
     return true;

@@ -245,7 +245,7 @@ OCAMCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
         phi_i *= phi;
     }
 
-    P << xc[0], xc[1], z;
+    P << xc[0], xc[1], -z;
 }
 
 
@@ -259,7 +259,7 @@ void
 OCAMCamera::spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p) const
 {
     double norm = std::sqrt(P[0] * P[0] + P[1] * P[1]);
-    double theta = std::atan2(P[2], norm);
+    double theta = std::atan2(-P[2], norm);
     double rho = 0.0;
     double theta_i = 1.0;
 

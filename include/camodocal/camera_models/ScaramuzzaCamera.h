@@ -180,7 +180,7 @@ OCAMCamera::spaceToPlane(const T* const params,
     if (norm_sqr > T(0.0))
         norm = sqrt(norm_sqr);
 
-    T theta = atan2(P_c[2], norm);
+    T theta = atan2(-P_c[2], norm);
     T rho = T(0.0);
     T theta_i = T(1.0);
 
