@@ -200,6 +200,8 @@ main(int argc, char** argv)
     {
         uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
 
+        int ignore_frame = 3;
+
         //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
         for (const auto& pair : inputOdometry)
         {
@@ -222,7 +224,8 @@ main(int argc, char** argv)
                 }
             }
 
-            lastTimestamp = timestamp;
+            if (ignore_frame-- < 0)
+                lastTimestamp = timestamp;
         }
     });
 
