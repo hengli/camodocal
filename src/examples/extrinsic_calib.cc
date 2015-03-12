@@ -29,6 +29,7 @@ main(int argc, char** argv)
     std::string dataDir;
     bool verbose;
     std::string inputDir;
+    float refCameraGroundHeight;
 
     //================= Handling Program options ==================
     boost::program_options::options_description desc("Allowed options");
@@ -44,6 +45,7 @@ main(int argc, char** argv)
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
         ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png")
+        ("ref-height", boost::program_options::value<float>(&refCameraGroundHeight)->default_value(0), "Height of the reference camera (cam=0) above the ground (cameras extrinsics will be relative to the reference camera)")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
     boost::program_options::variables_map vm;
@@ -213,7 +215,9 @@ main(int argc, char** argv)
             // pose
             const Eigen::Isometry3f& T = pair.second;
             float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
-            camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], yaw, timestamp);
+            camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
+
+            std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
 
             // frames (make sure that sensor data is always fresher than the image data)
             for (int c=0; c < cameraCount && timestamp > lastTimestamp; c++)
@@ -229,6 +233,8 @@ main(int argc, char** argv)
             if (ignore_frame-- < 0)
                 lastTimestamp = timestamp;
         }
+
+        if (!camRigOdoCalib.isRunning()) camRigOdoCalib.run();
     });
 
 
@@ -292,12 +298,18 @@ main(int argc, char** argv)
         std::cout << H.block<3,1>(0,3).transpose() << std::endl;
     }*/
 
+
+    float camHeightDiff = cameraSystem.getGlobalCameraPose(0)(2,3) - refCameraGroundHeight;
     std::cout << "# INFO: Current estimate (global):" << std::endl;
     for (int i = 0; i < cameraCount; ++i)
     {
         Eigen::Matrix4d H = cameraSystem.getGlobalCameraPose(i);
         H.block<3,1>(0,1) *= -1;
+        H.block<3,1>(0,2) *= -1;
         Eigen::Quaterniond Q(H.block<3,3>(0,0));
+        Eigen::Vector3d T = H.block<3,1>(0,3);
+
+        T[2] -= camHeightDiff;
 
         std::cout << "========== Camera " << i << " ==========" << std::endl;
         std::cout << "Rotation: " << std::endl;
@@ -307,7 +319,7 @@ main(int argc, char** argv)
         std::cout << " " << Q.x() << " " << Q.y() << " " << Q.z() << " " << Q.w() << std::endl;
 
         std::cout << "Translation: " << std::endl;
-        std::cout << H.block<3,1>(0,3).transpose() << std::endl << std::endl;
+        std::cout << T.transpose() << std::endl << std::endl;
     }
 
     return 0;

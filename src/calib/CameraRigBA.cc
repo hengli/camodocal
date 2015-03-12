@@ -1661,11 +1661,11 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 
         oss.str(""); oss.clear();
         oss << "ur" << cameraId1 << "img" << count << ".png";
-        cv::imwrite(oss.str(), frame1->image());
+        //cv::imwrite(oss.str(), frame1->image());
 
         oss.str(""); oss.clear();
         oss << "ur" << cameraId2 << "img" << count << ".png";
-        cv::imwrite(oss.str(), frame2->image());
+        //cv::imwrite(oss.str(), frame2->image());
 
         ++count;
 

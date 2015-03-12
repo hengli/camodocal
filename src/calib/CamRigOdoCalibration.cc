@@ -110,12 +110,14 @@ CamRigOdoCalibration::addFrameSet(const std::vector<cv::Mat>& images,
 }
 
 void
-CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
+CamRigOdoCalibration::addOdometry(double x, double y, double z,
+                                  double yaw,
                                   uint64_t timestamp)
 {
     OdometryPtr odometry = boost::make_shared<Odometry>();
     odometry->x() = x;
     odometry->y() = y;
+    odometry->z() = z;
     odometry->yaw() = yaw;
     odometry->timeStamp() = timestamp;
 

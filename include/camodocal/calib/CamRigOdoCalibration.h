@@ -76,7 +76,8 @@ public:
     void addFrame(int cameraIdx, const cv::Mat& image, uint64_t timestamp);
     void addFrameSet(const std::vector<cv::Mat>& images, uint64_t timestamp);
 
-    void addOdometry(double x, double y, double yaw, uint64_t timestamp);
+    void addOdometry(double x, double y, double yaw, uint64_t timestamp) { addOdometry(x,y,0,yaw,timestamp); }
+    void addOdometry(double x, double y, double z, double yaw, uint64_t timestamp);
 
     void addGpsIns(double lat, double lon, double alt,
                    double roll, double pitch, double yaw,
