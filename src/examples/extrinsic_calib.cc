@@ -205,6 +205,8 @@ main(int argc, char** argv)
         //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
         for (const auto& pair : inputOdometry)
         {
+            if (camRigOdoCalib.isRunning()) break;
+
             // timestamp
             uint64_t timestamp = pair.first;
 
@@ -229,9 +231,6 @@ main(int argc, char** argv)
         }
     });
 
-    //inputThread.join();
-    //if (!camRigOdoCalib.isRunning())
-    //    camRigOdoCalib.run();
 
     //****************
     //
@@ -274,36 +273,41 @@ main(int argc, char** argv)
     camRigOdoCalib.start();
 
     CameraSystem cameraSystem = camRigOdoCalib.cameraSystem();
+    cameraSystem.setReferenceCamera(0);
     cameraSystem.writeToDirectory(outputDir);
 
     std::cout << "# INFO: Wrote calibration data to " << outputDir << "." << std::endl;
 
     std::cout << std::fixed << std::setprecision(5);
 
-    std::cout << "# INFO: Current estimate (local):" << std::endl;
+    /*std::cout << "# INFO: Current estimate (local):" << std::endl;
     for (int i = 0; i < cameraCount; ++i)
     {
         const Eigen::Matrix4d& H = cameraSystem.getLocalCameraPose(i);
-
         std::cout << "========== Camera " << i << " ==========" << std::endl;
         std::cout << "Rotation: " << std::endl;
         std::cout << H.block<3,3>(0,0) << std::endl;
 
         std::cout << "Translation: " << std::endl;
         std::cout << H.block<3,1>(0,3).transpose() << std::endl;
-    }
+    }*/
 
     std::cout << "# INFO: Current estimate (global):" << std::endl;
     for (int i = 0; i < cameraCount; ++i)
     {
-        const Eigen::Matrix4d& H = cameraSystem.getGlobalCameraPose(i);
+        Eigen::Matrix4d H = cameraSystem.getGlobalCameraPose(i);
+        H.block<3,1>(0,1) *= -1;
+        Eigen::Quaterniond Q(H.block<3,3>(0,0));
 
         std::cout << "========== Camera " << i << " ==========" << std::endl;
         std::cout << "Rotation: " << std::endl;
         std::cout << H.block<3,3>(0,0) << std::endl;
 
+        std::cout << "Rotation Q: " << std::endl;
+        std::cout << " " << Q.x() << " " << Q.y() << " " << Q.z() << " " << Q.w() << std::endl;
+
         std::cout << "Translation: " << std::endl;
-        std::cout << H.block<3,1>(0,3).transpose() << std::endl;
+        std::cout << H.block<3,1>(0,3).transpose() << std::endl << std::endl;
     }
 
     return 0;

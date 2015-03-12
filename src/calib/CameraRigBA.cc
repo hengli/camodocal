@@ -5,6 +5,7 @@
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/lexical_cast.hpp>
 #include <camodocal/calib/PlanarHandEyeCalibration.h>
 #include <camodocal/camera_models/CataCamera.h>
 #include <camodocal/camera_models/PinholeCamera.h>
@@ -211,6 +212,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_1.sg";
             m_graph.writeToBinaryFile(graphPath.string());
+
+            boost::filesystem::path pointcloudPath(dataDir);
+            pointcloudPath /= "pointcloud_1";
+            dumpPointCloud(pointcloudPath.string());
         }
     }
 
@@ -429,6 +434,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_2.sg";
             m_graph.writeToBinaryFile(graphPath.string());
+
+            boost::filesystem::path pointcloudPath(dataDir);
+            pointcloudPath /= "pointcloud_2";
+            dumpPointCloud(pointcloudPath.string());
         }
     }
 
@@ -581,6 +590,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_3.sg";
             m_graph.writeToBinaryFile(graphPath.string());
+
+            boost::filesystem::path pointcloudPath(dataDir);
+            pointcloudPath /= "pointcloud_3";
+            dumpPointCloud(pointcloudPath.string());
         }
     }
 
@@ -659,6 +672,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_4.sg";
             m_graph.writeToBinaryFile(graphPath.string());
+
+            boost::filesystem::path pointcloudPath(dataDir);
+            pointcloudPath /= "pointcloud_4";
+            dumpPointCloud(pointcloudPath.string());
         }
     }
 
@@ -702,6 +719,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             boost::filesystem::path graphPath(dataDir);
             graphPath /= "frames_5.sg";
             m_graph.writeToBinaryFile(graphPath.string());
+
+            boost::filesystem::path pointcloudPath(dataDir);
+            pointcloudPath /= "pointcloud_5";
+            dumpPointCloud(pointcloudPath.string());
         }
     }
 
@@ -3682,6 +3703,68 @@ CameraRigBA::validateGraph(void) const
     }
 
     return valid;
+}
+
+// --------------------------------------------------------------------------------------
+void
+CameraRigBA::dumpPointCloud(const std::string& dir)
+{
+    boost::filesystem::path directory(dir);
+
+    for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
+    {
+        std::vector<OdometryPtr> odometry;
+        std::vector<PosePtr> cameraPoses;
+        boost::unordered_set<Point3DFeature*> scenePointSet;
+
+        for (size_t j = 0; j < m_graph.frameSetSegments().size(); ++j)
+        {
+            FrameSetSegment& segment = m_graph.frameSetSegment(j);
+
+            for (size_t k = 0; k < segment.size(); ++k)
+            {
+                FrameSetPtr& frameSet = segment.at(k);
+
+                FramePtr& frame = frameSet->frames().at(i);
+
+                if (!frame)
+                {
+                    continue;
+                }
+
+                odometry.push_back(frame->systemPose());
+                cameraPoses.push_back(frame->cameraPose());
+
+                std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
+
+                for (size_t l = 0; l < features2D.size(); ++l)
+                {
+                    if (!features2D.at(l)->feature3D())
+                    {
+                        continue;
+                    }
+
+                    if (features2D.at(l)->feature3D()->point().norm() < 1000.0)
+                    {
+                        scenePointSet.insert(features2D.at(l)->feature3D().get());
+                    }
+                }
+            }
+        }
+
+        // dump collected 3d points to a point cloud
+        if (!boost::filesystem::is_directory(directory))
+            boost::filesystem::create_directory(directory);
+
+        boost::filesystem::path filepath = directory / (m_cameraSystem.getCamera(i)->cameraName() + ".obj");
+        std::ofstream file(filepath.c_str());
+        for (Point3DFeature* feature : scenePointSet)
+        {
+            Eigen::Vector3i color(255,255,255);
+            color *= feature->pointCovariance().norm();
+            file << "v " << feature->point().transpose() << " " << color.transpose() << std::endl;
+        }
+    }
 }
 
 }

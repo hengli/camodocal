@@ -75,6 +75,10 @@ int main(int argc, char** argv)
     {
         modelType = camodocal::Camera::PINHOLE;
     }
+    else if (boost::iequals(cameraModel, "scaramuzza"))
+    {
+        modelType = camodocal::Camera::SCARAMUZZA;
+    }
     else
     {
         std::cerr << "# ERROR: Unknown camera model: " << cameraModel << std::endl;

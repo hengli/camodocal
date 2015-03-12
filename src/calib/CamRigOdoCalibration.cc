@@ -26,13 +26,13 @@ bool CamRigOdoCalibration::m_stop = false;
 CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
                                            const Options& options)
  : m_camOdoThreads(cameras.size())
+ , m_cameraSystem(cameras.size())
  , m_images(cameras.size())
  , m_cameras(cameras)
  , m_odometryBuffer(1000)
  , m_gpsInsBuffer(1000)
- , m_cameraSystem(cameras.size())
- , m_sketches(cameras.size())
  , m_camOdoCompleted(boost::extents[cameras.size()])
+ , m_sketches(cameras.size())
  , m_options(options)
  , m_running(false)
 {
