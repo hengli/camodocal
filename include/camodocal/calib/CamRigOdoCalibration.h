@@ -83,6 +83,9 @@ public:
                    double roll, double pitch, double yaw,
                    uint64_t timestamp);
 
+    //! If an initial odo transform estimate for a camera is specified there will be no automatic estimation step performed. (@note setup before start()!)
+    void setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT);
+
     void start(void);
     void run(void);
 

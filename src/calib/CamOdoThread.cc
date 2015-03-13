@@ -42,11 +42,13 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
  , m_gpsInsBuffer(gpsInsBuffer)
  , m_interpGpsInsBuffer(interpGpsInsBuffer)
  , m_gpsInsBufferMutex(gpsInsBufferMutex)
+ , m_camOdoTransform(Eigen::Matrix4d::Identity())
+ , m_camOdoTransformUseEstimate(false)
  , m_sketch(sketch)
  , m_completed(completed)
  , m_stop(stop)
- , k_minKeyframeDistance(0.2)
- , k_minVOSegmentSize(15)
+ , k_minKeyframeDistance(minKeyframeDistance)
+ , k_minVOSegmentSize(minVOSegmentSize)
  , k_odometryTimeout(4.0)
 {
     m_camOdoCalib.setVerbose(verbose);
@@ -62,6 +64,19 @@ int
 CamOdoThread::cameraId(void) const
 {
     return m_cameraId;
+}
+
+void
+CamOdoThread::setCamOdoTransformEstimate(const Eigen::Matrix4d& estimate)
+{
+    m_camOdoTransform = estimate;
+    m_camOdoTransformUseEstimate = true;
+}
+
+void
+CamOdoThread::clearCamOdoTransformEstimate()
+{
+    m_camOdoTransformUseEstimate = false;
 }
 
 const Eigen::Matrix4d&
@@ -170,7 +185,7 @@ CamOdoThread::threadFunction(void)
 {
     TemporalFeatureTracker tracker(m_camera,
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
-                                   RATIO_GPU, m_preprocess);
+                                   RATIO_GPU, m_preprocess, m_camOdoTransform);
     tracker.setVerbose(m_camOdoCalib.getVerbose());
 
     FramePtr framePrev;
@@ -438,18 +453,28 @@ CamOdoThread::threadFunction(void)
         }
     }
 
-    std::cout << "# INFO: Calibrating odometry - camera " << m_cameraId << "..." << std::endl;
+    if (!m_camOdoTransformUseEstimate)
+    {
+    //    m_camOdoCalib.writeMotionSegmentsToFile(filename);
 
-//    m_camOdoCalib.writeMotionSegmentsToFile(filename);
+        Eigen::Matrix4d H_cam_odo;
+        m_camOdoCalib.calibrate(H_cam_odo);
 
-    Eigen::Matrix4d H_cam_odo;
-    m_camOdoCalib.calibrate(H_cam_odo);
+        m_camOdoTransform = H_cam_odo;
+    }
 
-    std::cout << "# INFO: Finished calibrating odometry - camera " << m_cameraId << "..." << std::endl;
-    std::cout << "Rotation: " << std::endl << H_cam_odo.block<3,3>(0,0) << std::endl;
-    std::cout << "Translation: " << std::endl << H_cam_odo.block<3,1>(0,3).transpose() << std::endl;
+    {
+        static boost::mutex mutex;
+        boost::mutex::scoped_lock lock(mutex);
 
-    m_camOdoTransform = H_cam_odo;
+        if (m_camOdoTransformUseEstimate)
+            std::cout << "# INFO: Use provided odometry estimate for camera " << m_cameraId << "..." << std::endl;
+        else
+            std::cout << "# INFO: Calibrating odometry - camera " << m_cameraId << "..." << std::endl;
+
+        std::cout << "Rotation: " << std::endl << m_camOdoTransform.block<3,3>(0,0) << std::endl;
+        std::cout << "Translation: " << std::endl << m_camOdoTransform.block<3,1>(0,3).transpose() << std::endl;
+    }
 
     m_running = false;
 

@@ -377,11 +377,12 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
                                                DetectorType detectorType,
                                                DescriptorType descriptorType,
                                                MatchTestType matchTestType,
-                                               bool preprocess)
+                                               bool preprocess,
+                                               const Eigen::Matrix4d& globalCameraPose)
  : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
  , k_camera(camera)
  , m_init(false)
- , m_BA(camera)
+ , m_BA(camera, 20, 6, SlidingWindowBA::VO, globalCameraPose)
  , k_maxDelta(80.0f)
  , k_minFeatureCorrespondences(15)
  , k_nominalFocalLength(300.0)

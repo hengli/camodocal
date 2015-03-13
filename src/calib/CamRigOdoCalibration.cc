@@ -67,6 +67,15 @@ CamRigOdoCalibration::~CamRigOdoCalibration()
 }
 
 void
+CamRigOdoCalibration::setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT)
+{
+    if (camIdx >= m_camOdoThreads.size()) return;
+    if (!m_camOdoThreads[camIdx] || m_camOdoThreads[camIdx]->running()) return;
+
+    m_camOdoThreads[camIdx]->setCamOdoTransformEstimate(odoT);
+}
+
+void
 CamRigOdoCalibration::addFrame(int cameraId, const cv::Mat& image,
                                uint64_t timestamp)
 {

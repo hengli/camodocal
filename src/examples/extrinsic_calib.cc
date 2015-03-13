@@ -1,5 +1,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string.hpp>
 #include <iomanip>
 #include <iostream>
 #include <Eigen/Eigen>
@@ -19,6 +20,7 @@ main(int argc, char** argv)
     namespace fs = ::boost::filesystem;
 
     std::string calibDir;
+    std::string odoEstimateFile;
     int cameraCount;
     float focal;
     std::string outputDir;
@@ -30,12 +32,14 @@ main(int argc, char** argv)
     bool verbose;
     std::string inputDir;
     float refCameraGroundHeight;
+    float keyframeDistance;
 
     //================= Handling Program options ==================
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
         ("help", "produce help message")
         ("calib,c", boost::program_options::value<std::string>(&calibDir)->default_value("calib"), "Directory containing camera calibration files.")
+        ("estimate,e", boost::program_options::value<std::string>(&odoEstimateFile), "File containing estimate for the extrinsic calibration.")
         ("camera-count", boost::program_options::value<int>(&cameraCount)->default_value(1), "Number of cameras in rig.")
         ("f", boost::program_options::value<float>(&focal)->default_value(300.0f), "Nominal focal length.")
         ("output,o", boost::program_options::value<std::string>(&outputDir)->default_value("calibration_data"), "Directory to write calibration data to.")
@@ -46,6 +50,7 @@ main(int argc, char** argv)
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
         ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png")
         ("ref-height", boost::program_options::value<float>(&refCameraGroundHeight)->default_value(0), "Height of the reference camera (cam=0) above the ground (cameras extrinsics will be relative to the reference camera)")
+        ("keydist", boost::program_options::value<float>(&keyframeDistance)->default_value(0.4), "Distance of rig to be traveled before taking a keyframe (distance is measured by means of odometry poses)")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
     boost::program_options::variables_map vm;
@@ -100,26 +105,77 @@ main(int argc, char** argv)
     std::vector<camodocal::CameraPtr> cameras(cameraCount);
     for (int i = 0; i < cameraCount; ++i)
     {
-        boost::filesystem::path calibFilePath(calibDir);
-
-        std::ostringstream oss;
-        oss << "camera_" << i << "_calib.yaml";
-        calibFilePath /= oss.str();
-
-        camodocal::CameraPtr camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(calibFilePath.string());
-        if (camera.get() == 0)
+        camodocal::CameraPtr camera;
         {
-            std::cout << "# ERROR: Unable to read calibration file: " << calibFilePath.string() << std::endl;
+            boost::filesystem::path calibFilePath(calibDir);
 
-            return 0;
+            std::ostringstream oss;
+            oss << "camera_" << i << "_calib.yaml";
+            calibFilePath /= oss.str();
+
+            camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(calibFilePath.string());
+            if (camera.get() == 0)
+            {
+                std::cout << "# ERROR: Unable to read calibration file: " << calibFilePath.string() << std::endl;
+
+                return 0;
+            }
         }
+
+        // read camera mask
+        {
+            boost::filesystem::path maskFilePath(calibDir);
+
+            std::ostringstream oss;
+            oss << "camera_" << i << "_mask.png";
+            maskFilePath /= oss.str();
+
+            cv::Mat mask = cv::imread(maskFilePath.string());
+            if (!mask.empty())
+            {
+                cv::Mat grey;
+                cv::cvtColor(mask, grey, CV_RGB2GRAY, 1);
+                camera->mask() = grey;
+                std::cout << "# INFO: Foudn camera mask for camera " << camera->cameraName() << std::endl;
+            }
+        }
+
 
         cameras.at(i) = camera;
     }
 
+    // read extrinsic estimates
+    std::map<unsigned, Eigen::Matrix4d> estimates;
+    if (odoEstimateFile.length())
+    {
+        std::cout << "# INFO: parse extrinsic calibration estimates file " << odoEstimateFile << std::endl;
+
+        std::ifstream file(odoEstimateFile);
+        if (file.is_open())
+        {
+            std::string line;
+            while(getline(file, line))
+            {
+                auto it = std::find_if(cameras.begin(), cameras.end(), [&line](camodocal::CameraPtr cam)
+                { return cam && boost::iequals(cam->cameraName(), line); });
+
+                if (it == cameras.end()) continue;
+
+                std::cout << "# INFO: found estimate for camera " << line << std::endl;
+
+                Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+                file >> T(0,0) >> T(0,1) >> T(0,2) >> T(0,3);
+                file >> T(1,0) >> T(1,1) >> T(1,2) >> T(1,3);
+                file >> T(2,0) >> T(2,1) >> T(2,2) >> T(2,3);
+
+                estimates[std::distance(cameras.begin(), it)] = T;
+            }
+        }
+    }
+
+
     //========================= Get all file  =========================
     std::vector< std::map<int64_t, std::string> > inputImages(cameraCount);
-    //std::map<int, std::vector<Eigen::Isometry3f> > inputPoses;
     std::map<int64_t, Eigen::Isometry3f> inputOdometry;
     {
         fs::path inputFilePath(inputDir);
@@ -185,7 +241,7 @@ main(int argc, char** argv)
 //    options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = ODOMETRY;
     options.nMotions = nMotions;
-    options.minKeyframeDistance = 0.2;
+    options.minKeyframeDistance = keyframeDistance;
     options.minVOSegmentSize = 15;
     options.preprocessImages = preprocessImages;
     options.optimizeIntrinsics = optimizeIntrinsics;
@@ -196,6 +252,8 @@ main(int argc, char** argv)
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options);
 
+    for(auto it : estimates) camRigOdoCalib.setInitialCameraOdoTransformEstimates(it.first, it.second);
+
     std::cout << "# INFO: Initialization finished!" << std::endl;
 
     std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount]()
@@ -203,6 +261,9 @@ main(int argc, char** argv)
         uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
 
         int ignore_frame = 3;
+
+        std::ofstream pose_dump("pose_dump.obj");
+        int last_vertex_idx = 1;
 
         //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
         for (const auto& pair : inputOdometry)
@@ -218,6 +279,25 @@ main(int argc, char** argv)
             camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
 
             std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
+
+            // dump oriented box
+            {
+                std::vector<Eigen::Vector3f> vertex(4);
+                std::vector<Eigen::Vector3f> color(4);
+                vertex[0] = Eigen::Vector3f(2,1,0);  color[0] = Eigen::Vector3f(255,0,0);
+                vertex[1] = Eigen::Vector3f(2,-1,0); color[1] = Eigen::Vector3f(0,255,0);
+                vertex[2] = Eigen::Vector3f(-2,1,0); color[2] = Eigen::Vector3f(0,0,255);
+                vertex[3] = Eigen::Vector3f(-2,-1,0);color[3] = Eigen::Vector3f(255,0,255);
+
+                for(Eigen::Vector3f v : vertex)
+                {
+                    v = T * v;
+                    pose_dump << "v " << v[0] << " " << v[1] << " " << v[2] << " "  << color[0] << " " << color[1] << " " << color[2] << std::endl;
+                    last_vertex_idx++;
+                }
+                pose_dump << "f " << last_vertex_idx-4 << " " << last_vertex_idx-3 << " " << last_vertex_idx-2 << std::endl;
+                pose_dump << "f " << last_vertex_idx-2 << " " << last_vertex_idx-3 << " " << last_vertex_idx-1 << std::endl;
+            }
 
             // frames (make sure that sensor data is always fresher than the image data)
             for (int c=0; c < cameraCount && timestamp > lastTimestamp; c++)

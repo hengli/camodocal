@@ -3707,10 +3707,49 @@ CameraRigBA::validateGraph(void) const
 
 // --------------------------------------------------------------------------------------
 void
-CameraRigBA::dumpPointCloud(const std::string& dir)
+CameraRigBA::dumpPointCloud(const std::string& dir, bool dumpPoses)
 {
     boost::filesystem::path directory(dir);
+    if (!boost::filesystem::is_directory(directory))
+        boost::filesystem::create_directory(directory);
 
+
+    float hw = 0.5;
+    float hl = 0.25;
+    std::vector<Eigen::Vector3d> vertex(4);
+    vertex[0] = Eigen::Vector3d(hw,hl,0);
+    vertex[1] = Eigen::Vector3d(hw,-hl,0);
+    vertex[2] = Eigen::Vector3d(-hw,hl*0.5,0);
+    vertex[3] = Eigen::Vector3d(-hw,-hl*0.5,0);
+
+    // dump system poses
+    if (dumpPoses)
+    {
+        boost::filesystem::path posePath = directory / ("rig.obj");
+        std::ofstream pose_dump(posePath.string());
+
+        int last_vertex_idx = 1;
+
+        for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
+        {
+            FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
+            for (size_t j = 0; j < segment.size(); ++j)
+            {
+                Eigen::Isometry3d T(segment.at(j)->systemPose()->toMatrix());
+                for(Eigen::Vector3d v : vertex)
+                {
+                    v = T * v;
+                    pose_dump << "v " << v[0] << " " << v[1] << " " << v[2] << std::endl;
+                    last_vertex_idx++;
+                }
+                pose_dump << "f " << last_vertex_idx-4 << " " << last_vertex_idx-3 << " " << last_vertex_idx-2 << std::endl;
+                pose_dump << "f " << last_vertex_idx-2 << " " << last_vertex_idx-3 << " " << last_vertex_idx-1 << std::endl;
+            }
+        }
+    }
+
+    // point cloud
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
         std::vector<OdometryPtr> odometry;
@@ -3749,13 +3788,34 @@ CameraRigBA::dumpPointCloud(const std::string& dir)
                         scenePointSet.insert(features2D.at(l)->feature3D().get());
                     }
                 }
+
+
             }
         }
 
-        // dump collected 3d points to a point cloud
-        if (!boost::filesystem::is_directory(directory))
-            boost::filesystem::create_directory(directory);
 
+        boost::filesystem::path camPath = directory / (m_cameraSystem.getCamera(i)->cameraName() + "_pose.obj");
+        std::ofstream pose_dump(camPath.string());
+        int last_vertex_idx = 1;
+        Eigen::Vector3d origin = cameraPoses.front()->translation();
+
+        for (size_t j = 0; j < cameraPoses.size(); ++j)
+        {
+            PosePtr& cameraPose = cameraPoses.at(j);
+
+            Eigen::Matrix4d H_cam = cameraPose->toMatrix().inverse();
+            //Eigen::Isometry3d T = Eigen::Isometry3d(frame->cameraPose()->toMatrix()).inverse();
+            for(Eigen::Vector3d vhat : vertex)
+            {
+                Eigen::Vector3d v = transformPoint(H_cam, vhat) - origin;
+                pose_dump << "v " << v[0] << " " << v[1] << " " << v[2] << std::endl;
+                last_vertex_idx++;
+            }
+            pose_dump << "f " << last_vertex_idx-4 << " " << last_vertex_idx-3 << " " << last_vertex_idx-2 << std::endl;
+            pose_dump << "f " << last_vertex_idx-2 << " " << last_vertex_idx-3 << " " << last_vertex_idx-1 << std::endl;
+        }
+
+        // dump collected 3d points to a point cloud
         boost::filesystem::path filepath = directory / (m_cameraSystem.getCamera(i)->cameraName() + ".obj");
         std::ofstream file(filepath.c_str());
         for (Point3DFeature* feature : scenePointSet)
