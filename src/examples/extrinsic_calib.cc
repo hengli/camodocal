@@ -33,6 +33,7 @@ main(int argc, char** argv)
     std::string inputDir;
     float refCameraGroundHeight;
     float keyframeDistance;
+    std::string eventFile;
 
     //================= Handling Program options ==================
     boost::program_options::options_description desc("Allowed options");
@@ -48,7 +49,8 @@ main(int argc, char** argv)
         ("preprocess", boost::program_options::bool_switch(&preprocessImages)->default_value(false), "Preprocess images.")
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
-        ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png")
+        ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png. In case if event file is specified, this is the path where to find frame_X/ subfolders")
+        ("event", boost::program_options::value<std::string>(&eventFile)->default_value(std::string("")), "Event log file to be used for frame and pose events.")
         ("ref-height", boost::program_options::value<float>(&refCameraGroundHeight)->default_value(0), "Height of the reference camera (cam=0) above the ground (cameras extrinsics will be relative to the reference camera)")
         ("keydist", boost::program_options::value<float>(&keyframeDistance)->default_value(0.4), "Distance of rig to be traveled before taking a keyframe (distance is measured by means of odometry poses)")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
@@ -174,10 +176,17 @@ main(int argc, char** argv)
     }
 
 
-    //========================= Get all file  =========================
-    std::vector< std::map<int64_t, std::string> > inputImages(cameraCount);
-    std::map<int64_t, Eigen::Isometry3f> inputOdometry;
+    //========================= Get all files  =========================
+    typedef std::map<int64_t, std::string>  ImageMap;
+    typedef std::map<int64_t, Eigen::Isometry3f> IsometryMap;
+
+    std::vector< ImageMap > inputImages(cameraCount);
+    IsometryMap inputOdometry;
+    bool bUseGPS = false;
+    if (eventFile.length() == 0)
     {
+        printf("Get images and pose files out from result directory\n");
+
         fs::path inputFilePath(inputDir);
 
         fs::recursive_directory_iterator it(inputFilePath);
@@ -230,6 +239,53 @@ main(int argc, char** argv)
 
             it++;
         }
+    }else
+    {
+        printf("Read %s file to get all the events\n", eventFile.c_str());
+
+        std::ifstream file(eventFile.c_str());
+        if (!file.is_open())
+        {
+            printf("Cannot open %s", eventFile.c_str());
+            return 1;
+        }
+
+        // read line by line and interpret accordin event
+        std::string line;
+        Eigen::Quaternionf lastIMU(0,0,0,1);
+        while(std::getline(file, line))
+        {
+            std::stringstream str(line);
+
+            // type of event
+            unsigned long long timestamp = 0;
+            std::string type;
+
+            str >> timestamp >> type;
+
+            if (type.compare("CAM") == 0)
+            {
+                int camid = 0;
+                std::string frame;
+                str >> camid >> frame;
+                inputImages[camid][timestamp] = inputDir + "/frames_" + boost::lexical_cast<std::string>(camid) + "/" + frame;
+            }else if (type.compare("IMU") == 0)
+            {
+                str >> lastIMU.x() >> lastIMU.y() >> lastIMU.z() >> lastIMU.w();
+            }else if (type.compare("GPS") == 0)
+            {
+                Eigen::Vector3f gps(0,0,0);
+                str >> gps[0] >> gps[1] >> gps[2];
+
+                // construct the odometry entry
+                Eigen::Isometry3f T;
+                T.matrix().block<3,3>(0,0) = lastIMU.toRotationMatrix();
+                T.matrix().block<3,1>(0,3) = gps;
+                inputOdometry[timestamp] = T;
+
+                bUseGPS = true;
+            }
+        }
     }
 
     //========================= Start Threads =========================
@@ -239,7 +295,7 @@ main(int argc, char** argv)
     // the entire image area.
     CamRigOdoCalibration::Options options;
 //    options.mode = CamRigOdoCalibration::ONLINE;
-    options.poseSource = ODOMETRY;
+    options.poseSource = PoseSource::GPS_INS;
     options.nMotions = nMotions;
     options.minKeyframeDistance = keyframeDistance;
     options.minVOSegmentSize = 15;
@@ -256,32 +312,83 @@ main(int argc, char** argv)
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
 
-    std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount]()
+    std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount, bUseGPS]()
     {
-        uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
+        //uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
 
-        int ignore_frame = 3;
+        std::vector<ImageMap::iterator> camIterator(cameraCount);
+        IsometryMap::iterator locIterator = inputOdometry.begin();
+        for (int c=0; c < cameraCount; c++)
+            camIterator[c] = inputImages[c].begin();
 
-        std::ofstream pose_dump("pose_dump.obj");
-        int last_vertex_idx = 1;
+        auto addLocation = [&camRigOdoCalib, bUseGPS](uint64_t timestamp, const Eigen::Isometry3f& T)
+        {
+            if (bUseGPS)
+            {
+                Eigen::Quaternionf q(T.rotation());
+                Eigen::Vector3f gps = T.translation();
+                camRigOdoCalib.addGpsIns(gps[0], gps[1], gps[2], q.x(), q.y(), q.z(), q.w(), timestamp);
+
+                std::cout << "GPS: lat=" << gps[0] << ", lon=" << gps[1] << ", alt=" << gps[2]
+                          << ", qx=" << q.x() << ", qy=" << q.y() << ", qz=" << q.z() << ", qw=" << q.w()
+                          << " [" << timestamp << "]" << std::endl;
+            }else
+            {
+                float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
+                camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
+
+                std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
+            }
+        };
+
+        // ensure that we have
+        // location data available, before adding images
+        for (int i=0; i < 3 && locIterator != inputOdometry.end(); i++, locIterator++)
+        {
+            addLocation(locIterator->first, locIterator->second);
+        }
+
+        while(locIterator != inputOdometry.end())
+        {
+            if (camRigOdoCalib.isRunning()) break;
+
+            uint64_t locTime = locIterator->first;
+            addLocation(locTime, locIterator->second);
+
+            // now add image and location data, but such that
+            // location data is always fresher than camera data
+            for (int c=0; c < cameraCount; c++)
+            {
+                if (camIterator[c] == inputImages[c].end()) continue;
+
+                uint64_t camTime = camIterator[c]->first;
+                if (camTime < locTime)
+                {
+                    std::cout << "read " << camIterator[c]->second << std::endl << std::flush;
+                    camRigOdoCalib.addFrame(c, cv::imread(camIterator[c]->second), camTime);
+                    camIterator[c]++;
+                }
+            }
+
+            locIterator++;
+        }
+
+#if 0
+        //int ignore_frame = 3;
+
+        //std::ofstream pose_dump("pose_dump.obj");
+        //int last_vertex_idx = 1;
 
         //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
         for (const auto& pair : inputOdometry)
         {
             if (camRigOdoCalib.isRunning()) break;
 
-            // timestamp
             uint64_t timestamp = pair.first;
-
-            // pose
             const Eigen::Isometry3f& T = pair.second;
-            float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
-            camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
-
-            std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
 
             // dump oriented box
-            {
+            /*{
                 std::vector<Eigen::Vector3f> vertex(4);
                 std::vector<Eigen::Vector3f> color(4);
                 vertex[0] = Eigen::Vector3f(2,1,0);  color[0] = Eigen::Vector3f(255,0,0);
@@ -297,7 +404,7 @@ main(int argc, char** argv)
                 }
                 pose_dump << "f " << last_vertex_idx-4 << " " << last_vertex_idx-3 << " " << last_vertex_idx-2 << std::endl;
                 pose_dump << "f " << last_vertex_idx-2 << " " << last_vertex_idx-3 << " " << last_vertex_idx-1 << std::endl;
-            }
+            }*/
 
             // frames (make sure that sensor data is always fresher than the image data)
             for (int c=0; c < cameraCount && timestamp > lastTimestamp; c++)
@@ -313,6 +420,7 @@ main(int argc, char** argv)
             if (ignore_frame-- < 0)
                 lastTimestamp = timestamp;
         }
+#endif
 
         if (!camRigOdoCalib.isRunning()) camRigOdoCalib.run();
     });

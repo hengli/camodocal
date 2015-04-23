@@ -135,23 +135,32 @@ CamRigOdoCalibration::addOdometry(double x, double y, double z,
 
 void
 CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
+                                double qx, double qy, double qz, double qw,
+                                uint64_t timestamp)
+{
+    // convert latitude/longitude to UTM coordinates
+     double utmX, utmY;
+     std::string utmZone;
+     LLtoUTM(lat, lon, utmX, utmY, utmZone);
+
+     PosePtr pose = boost::make_shared<Pose>();
+     pose->rotation() = Eigen::Quaterniond(qw,qx,qy,qz);
+     pose->translation() = Eigen::Vector3d(utmX, utmY, -alt);
+
+     pose->timeStamp() = timestamp;
+
+     m_gpsInsBuffer.push(timestamp, pose);
+}
+
+void
+CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
                                 double roll, double pitch, double yaw,
                                 uint64_t timestamp)
 {
-   // convert latitude/longitude to UTM coordinates
-    double utmX, utmY;
-    std::string utmZone;
-    LLtoUTM(lat, lon, utmX, utmY, utmZone);
-
-    PosePtr pose = boost::make_shared<Pose>();
-    pose->rotation() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
+    Eigen::Quaterniond q = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
                        * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
                        * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
-    pose->translation() = Eigen::Vector3d(utmX, utmY, -alt);
-
-    pose->timeStamp() = timestamp;
-
-    m_gpsInsBuffer.push(timestamp, pose);
+    addGpsIns(lat, lon, alt, q.x(), q.y(), q.z(), q.w(), timestamp);
 }
 
 void
