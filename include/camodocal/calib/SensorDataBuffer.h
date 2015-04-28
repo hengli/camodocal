@@ -20,7 +20,7 @@ public:
     bool before(uint64_t timestamp, T& data);
     bool after(uint64_t timestamp, T& data);
 
-    void nearest(uint64_t timestamp, T& data);
+    bool nearest(uint64_t timestamp, T& data);
     bool nearest(uint64_t timestamp, T& dataBefore, T& dataAfter);
 
     bool current(T& data);
@@ -203,7 +203,7 @@ SensorDataBuffer<T>::after(uint64_t timestamp, T& data)
 }
 
 template <class T>
-void
+bool
 SensorDataBuffer<T>::nearest(uint64_t timestamp, T& data)
 {
     boost::mutex::scoped_lock lock(mGlobalMutex);

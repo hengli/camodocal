@@ -3,6 +3,7 @@ camodocal_library(camodocal_chessboard
 )
 
 camodocal_link_libraries(camodocal_chessboard
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_CALIB3D_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY}

@@ -12,6 +12,7 @@ camodocal_library(camodocal_infrastr_calib
 )
 
 camodocal_link_libraries(camodocal_infrastr_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_THREAD_LIBRARY}
@@ -30,6 +31,7 @@ camodocal_link_libraries(camodocal_infrastr_calib
 
 if(VCHARGE_VIZ)
 camodocal_link_libraries(camodocal_infrastr_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   overlay
 )
 endif(VCHARGE_VIZ)

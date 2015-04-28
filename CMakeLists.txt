@@ -5,12 +5,36 @@ project(CAMODOCAL C CXX)
 # This sets where to look for modules (e.g. "Find*.cmake" files)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
+# Libraries
+LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib)
+LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib/ufsparse) # Mac OS X
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib)
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib/atlas)
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib/suitesparse) # Ubuntu
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib64/atlas)
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/homebrew/lib) # Mac OS X
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/lib)
+LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/lib/suitesparse)
+# Headers
+LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/include)
+LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/include/ufsparse) # Mac OS X
+LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/var/macports/software/eigen3/opt/local/include/eigen3) # Mac OS X
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/include)
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/include/eigen3) # Ubuntu 10.04's default location.
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/include/suitesparse) # Ubuntu
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/homebrew/include) # Mac OS X
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/homebrew/include/eigen3)  # Mac OS X
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include)
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/eigen3)
+LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/suitesparse)
+
 # Library finding
 include(LibraryConfig)
 
 # General build and compiler options and configurations
 include(BuildConfig)
 
+message(AUTHOR_WARNING "toplevel/CMakeLists.txt:GLOG_FOUND:${GLOG_FOUND}")
 # PRINT macro
 macro(print)
   message(STATUS ${ARGN})
@@ -107,7 +131,23 @@ if(MSVC)
   endif()
 endif(MSVC)
 if(CAMODOCAL_PLATFORM_UNIX)
-  set_linker_flags("-Wl,--no-undefined -ldl -lnsl -lm -pthread -lrt" CACHE)
+
+    #set_linker_flags("-Wl,--no-undefined -ldl -lnsl -lm -pthread -lrt" CACHE)
+    find_package(LibDL)
+    find_package(Libnsl)
+    find_package(LibM)
+    find_package(Threads)
+    find_package(Librt)
+    find_package(Libm)
+    
+    set(CAMODOCAL_PLATFORM_UNIX_LIBRARIES ${LIBDL_LIBRARIES} ${LIBNSL_LIBRARIES} ${LIBM_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${Librt_LIBRARIES})
+    
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        set_linker_flags("-Wl,-undefined,error")
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        set_linker_flags("-Wl,--no-undefined")
+    endif()
+    
 endif(CAMODOCAL_PLATFORM_UNIX)
   
 if(Boost_FOUND)

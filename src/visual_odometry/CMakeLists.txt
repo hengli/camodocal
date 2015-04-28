@@ -12,6 +12,7 @@ camodocal_library(camodocal_visual_odometry SHARED
 )
 
 camodocal_link_libraries(camodocal_visual_odometry
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_THREAD_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_FLANN_LIBRARY}
@@ -29,7 +30,7 @@ camodocal_link_libraries(camodocal_visual_odometry
 )
 
 camodocal_test(SlidingWindowBA)
-camodocal_link_libraries(SlidingWindowBA_test camodocal_gpl camodocal_visual_odometry)
+camodocal_link_libraries(SlidingWindowBA_test ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES} camodocal_gpl camodocal_visual_odometry)
 
 if(VCHARGE_VIZ)
 
@@ -38,6 +39,7 @@ camodocal_executable(SlidingWindowBA_sim
 )
 
 camodocal_link_libraries(SlidingWindowBA_sim
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}    
   camodocal_visual_odometry
   middleware
   overlay

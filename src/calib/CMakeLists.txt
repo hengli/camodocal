@@ -36,6 +36,7 @@ set(SRCS
 camodocal_library(camodocal_calib SHARED ${SRCS})
 
 camodocal_link_libraries(camodocal_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_THREAD_LIBRARY}
@@ -49,6 +50,7 @@ camodocal_link_libraries(camodocal_calib
   camodocal_sparse_graph
   camodocal_visual_odometry
   ceres
+  ${CERES_LIBRARIES}
 )
 
 if(VCHARGE_D3D)
@@ -60,6 +62,7 @@ endif(VCHARGE_D3D)
 if(VCHARGE_VIZ)
 if(GLUT_FOUND)
 camodocal_link_libraries(camodocal_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${GLUT_glut_LIBRARY}
   ${GLUT_Xmu_LIBRARY}
   ${GLUT_Xi_LIBRARY} 
@@ -71,10 +74,19 @@ endif(GLUT_FOUND)
 endif(VCHARGE_VIZ)
 
 camodocal_test(CamOdoCalibration)
-camodocal_link_libraries(CamOdoCalibration_test camodocal_calib)
+camodocal_link_libraries(CamOdoCalibration_test 
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
+  camodocal_calib
+)
 
 camodocal_test(HandEyeCalibration)
-camodocal_link_libraries(HandEyeCalibration_test camodocal_calib)
+camodocal_link_libraries(HandEyeCalibration_test 
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
+  camodocal_calib
+)
 
 camodocal_test(PlanarHandEyeCalibration)
-camodocal_link_libraries(PlanarHandEyeCalibration_test camodocal_calib)
+camodocal_link_libraries(PlanarHandEyeCalibration_test
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
+  camodocal_calib
+)

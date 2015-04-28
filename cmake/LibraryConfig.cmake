@@ -12,7 +12,7 @@ endif()
 ############### Library finding #################
 # Performs the search and sets the variables    #
 camodocal_required_dependency(BLAS)
-camodocal_required_dependency(CUDA)
+camodocal_optional_dependency(CUDA)
 camodocal_required_dependency(Eigen3)
 camodocal_required_dependency(LAPACK)
 camodocal_required_dependency(OpenCV)
@@ -20,6 +20,25 @@ camodocal_required_dependency(SuiteSparse)
 
 camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
+camodocal_optional_dependency(Glog)
+camodocal_optional_dependency(Gflags)
+
+# Consider making this impossible to use external Ceres again due to the following possible issue:
+# https://github.com/ceres-solver/ceres-solver/issues/155
+# essentially, invsible ABI changes are possible depending on eigen flags
+# and the best way to prevent this is to compile everything internally, including ceres
+#camodocal_optional_dependency(Ceres)
+camodocal_optional_dependency(Threads)
+
+# enable GPU enhanced SURF features
+if(CUDA_FOUND)
+    add_definitions(-DHAVE_CUDA)
+endif()
+
+# OSX RPATH
+if(APPLE)
+   set(CMAKE_MACOSX_RPATH ON)
+endif()
 
 ##### Boost #####
 # Expand the next statement if newer boost versions than 1.40.0 are released

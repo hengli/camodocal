@@ -305,7 +305,7 @@ void
 CamRigOdoCalibration::buildGraph(void)
 {
     boost::icl::interval_map<uint64_t, std::set<int> > intervals;
-    std::set<int> cameraIdSets[m_camOdoThreads.size()];
+    std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
 
     for (size_t i = 0; i < m_camOdoThreads.size(); ++i)
     {

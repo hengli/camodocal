@@ -5,6 +5,7 @@ camodocal_executable(intrinsic_calib
 )
 
 camodocal_link_libraries(intrinsic_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
@@ -19,6 +20,7 @@ camodocal_executable(stereo_calib
 )
 
 camodocal_link_libraries(stereo_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
@@ -33,6 +35,7 @@ camodocal_executable(extrinsic_calib
 )
 
 camodocal_link_libraries(extrinsic_calib
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}

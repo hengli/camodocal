@@ -10,6 +10,7 @@ camodocal_library(camodocal_location_recognition SHARED
 )
 
 camodocal_link_libraries(camodocal_location_recognition
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_DBoW2
   camodocal_DUtilsCV
   camodocal_DUtils

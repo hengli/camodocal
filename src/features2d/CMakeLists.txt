@@ -1,4 +1,4 @@
-if(EXISTS ${OPENCV_GPU_LIBRARY})
+if(EXISTS ${OPENCV_GPU_LIBRARY})# AND CUDA_FOUND)
 
 camodocal_library(camodocal_features2d SHARED
   ORBGPU.cc
@@ -6,9 +6,13 @@ camodocal_library(camodocal_features2d SHARED
 )
 
 camodocal_link_libraries(camodocal_features2d
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_NONFREE_LIBRARY}
   ${OPENCV_GPU_LIBRARY}
+  ${OPENCV_LIBRARIES}
+  ${OPENCV_FEATURES2D_LIBRARY}
+  ${Boost_LIBRARIES}
 )
 
-endif(EXISTS ${OPENCV_GPU_LIBRARY})
+endif(EXISTS ${OPENCV_GPU_LIBRARY})# AND CUDA_FOUND)

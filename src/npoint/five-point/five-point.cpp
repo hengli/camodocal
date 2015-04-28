@@ -364,8 +364,8 @@ void CvEMEstimator::computeReprojError( const CvMat* m1, const CvMat* m2,
 	Etx2 = E.transpose() * X2; 
 	SimpsonError = x2tEx1.array().square() / (Ex1.row(0).array().square() + Ex1.row(1).array().square() + Etx2.row(0).array().square() + Etx2.row(1).array().square()); 
 	
-	assert( CV_IS_MAT_CONT(error->type) ); 
-	int i; 
+	assert( CV_IS_MAT_CONT(error->type) );
+    
 	cv::Mat isInliers, R, t; 	
 //	recoverPose( Mat(model), Mat(m1), Mat(m2), R, t, 1.0, cv::Point2d(0, 0), isInliers ); 
 	for (int i = 0; i < SimpsonError.cols(); i++) 
