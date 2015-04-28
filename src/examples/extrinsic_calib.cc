@@ -269,6 +269,7 @@ main(int argc, char** argv)
                 std::string frame;
                 str >> camid >> frame;
                 inputImages[camid][timestamp] = inputDir + "/frames_" + boost::lexical_cast<std::string>(camid) + "/" + frame;
+                //printf("image [%d][%llu] = %s\n", camid, timestamp, inputImages[camid][timestamp].c_str());
             }else if (type.compare("IMU") == 0)
             {
                 str >> lastIMU.x() >> lastIMU.y() >> lastIMU.z() >> lastIMU.w();
@@ -295,7 +296,7 @@ main(int argc, char** argv)
     // the entire image area.
     CamRigOdoCalibration::Options options;
 //    options.mode = CamRigOdoCalibration::ONLINE;
-    options.poseSource = PoseSource::GPS_INS;
+    options.poseSource = bUseGPS ? PoseSource::GPS_INS : PoseSource::ODOMETRY;
     options.nMotions = nMotions;
     options.minKeyframeDistance = keyframeDistance;
     options.minVOSegmentSize = 15;
@@ -352,21 +353,26 @@ main(int argc, char** argv)
         {
             if (camRigOdoCalib.isRunning()) break;
 
-            uint64_t locTime = locIterator->first;
+            int64_t locTime = locIterator->first;
             addLocation(locTime, locIterator->second);
 
             // now add image and location data, but such that
             // location data is always fresher than camera data
-            for (int c=0; c < cameraCount; c++)
+            bool hasData = true;
+            while(hasData)
             {
-                if (camIterator[c] == inputImages[c].end()) continue;
-
-                uint64_t camTime = camIterator[c]->first;
-                if (camTime < locTime)
+                hasData = false;
+                for (int c=0; c < cameraCount; c++)
                 {
-                    std::cout << "read " << camIterator[c]->second << std::endl << std::flush;
-                    camRigOdoCalib.addFrame(c, cv::imread(camIterator[c]->second), camTime);
-                    camIterator[c]++;
+                    if(camIterator[c] == inputImages[c].end()) continue;
+                    if(camIterator[c]->first < locTime)
+                    {
+                        uint64_t camTime = camIterator[c]->first;
+                        std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl << std::flush;
+                        camRigOdoCalib.addFrame(c, cv::imread(camIterator[c]->second), camTime);
+                        camIterator[c]++;
+                        hasData = true;
+                    }
                 }
             }
 
@@ -492,8 +498,8 @@ main(int argc, char** argv)
     for (int i = 0; i < cameraCount; ++i)
     {
         Eigen::Matrix4d H = cameraSystem.getGlobalCameraPose(i);
-        H.block<3,1>(0,1) *= -1;
-        H.block<3,1>(0,2) *= -1;
+        //H.block<3,1>(0,1) *= -1;
+        //H.block<3,1>(0,2) *= -1;
         Eigen::Quaterniond Q(H.block<3,3>(0,0));
         Eigen::Vector3d T = H.block<3,1>(0,3);
 

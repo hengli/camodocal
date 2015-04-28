@@ -313,6 +313,7 @@ CamOdoThread::threadFunction(void)
                         usleep(1000);
                     }
 
+                    printf("LOC: %f %f %f\n", interpGpsIns->translation()[0], interpGpsIns->translation()[1], interpGpsIns->translation()[2]);
                     m_interpGpsInsBuffer.push(timeStamp, interpGpsIns);
                 }
 
@@ -336,6 +337,15 @@ CamOdoThread::threadFunction(void)
                     m_image->notifyProcessingDone();
                     continue;
                 }
+
+                /*if (framePrev.get())
+                {
+                    static boost::mutex mmutex;
+                    boost::mutex::scoped_lock lock(mmutex);
+
+                    std::cout << "FRAME " << timeStamp << " -> mov=" << (pos - framePrev->systemPose()->position()).norm()
+                              << ", POS=(" << pos.transpose() << ") PREVPOS=(" << framePrev->systemPose()->position().transpose() << ")" << std::endl;
+                }*/
 
                 FramePtr frame = boost::make_shared<Frame>();
                 frame->cameraId() = m_cameraId;
@@ -364,6 +374,7 @@ CamOdoThread::threadFunction(void)
                     gpsIns->timeStamp() = interpGpsIns->timeStamp();
                     gpsIns->x() = interpGpsIns->translation()(1);
                     gpsIns->y() = -interpGpsIns->translation()(0);
+                    gpsIns->z() = interpGpsIns->translation()(2);
 
                     Eigen::Matrix3d R = interpGpsIns->rotation().toRotationMatrix();
                     double roll, pitch, yaw;
@@ -504,6 +515,9 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > odoMotions;
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > camMotions;
 
+    //static boost::mutex m;
+    //boost::mutex::scoped_lock lock(m);
+
     for (size_t i = 1; i < odoPoses.size(); ++i)
     {
         Eigen::Matrix4d relativeOdometryPose = odoPoses.at(i)->toMatrix().inverse() * odoPoses.at(i - 1)->toMatrix();
@@ -511,6 +525,13 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
 
         Eigen::Matrix4d relativeCameraPose = camPoses.at(i) * camPoses.at(i - 1).inverse();
         camMotions.push_back(relativeCameraPose);
+
+        //Eigen::Vector3d todo = relativeOdometryPose.block<3,1>(0,3);
+        //Eigen::Vector3d tcam = relativeCameraPose.block<3,1>(0,3);
+        //if (std::isnan(todo[0]) || std::isnan(todo[1]) || std::isnan(todo[2]))
+        //    std::cout << "odo [" << i << "] -> " << relativeOdometryPose.block<3,1>(0,3).transpose() << std::endl;
+        //if (std::isnan(tcam[0]) || std::isnan(tcam[1]) || std::isnan(tcam[2]))
+        //    std::cout << "cam [" << i << "] -> " << relativeCameraPose.block<3,1>(0,3).transpose() << std::endl;
     }
 
     if (!m_camOdoCalib.addMotionSegment(camMotions, odoMotions))

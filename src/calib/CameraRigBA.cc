@@ -131,6 +131,18 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         if (m_verbose)
         {
+            double minError, maxError, avgError;
+            size_t featureCount;
+
+            reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
+
+            printf("# INFO: Reprojection error after triangulation: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+                   avgError, maxError, featureCount);
+            std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
+        }
+
+        if (m_verbose)
+        {
             std::cout << "# INFO: Checking the validity of the graph..." << std::endl;
         }
 
@@ -154,7 +166,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
             reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
 
-            printf("# INFO: Reprojection error after triangulation: avg = %.2f px | max = %.2f px | # obs = %lu\n",
+            printf("# INFO: Reprojection error after pruning: avg = %.2f px | max = %.2f px | # obs = %lu\n",
                    avgError, maxError, featureCount);
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
@@ -802,6 +814,25 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
         {
             maxError = error;
         }
+
+        /*if (std::isnan(error) || error != error)
+        {
+            Eigen::Matrix3d R = frame->cameraPose()->rotation().toRotationMatrix();
+
+            Eigen::Vector3d P_cam = R * feature3D->point() + frame->cameraPose()->translation();
+
+            Eigen::Vector2d p;
+            camera->spaceToPlane(P_cam, p);
+
+            std::cout << "Rotation:\n" << R << std::endl;
+            std::cout << "Translation: " << frame->cameraPose()->translation() << std::endl;
+            std::cout << "# 3D point: " << feature3D->point().transpose() << std::endl;
+            std::cout << "# 3D point (P_cam): " << P_cam.transpose() << std::endl;
+            std::cout << "# 2D point: " << feature2D->keypoint().pt.x << "," << feature2D->keypoint().pt.y << std::endl;
+            std::cout << "# 2D point (P_cam): " << p.transpose() << std::endl;
+            exit(1);
+        }*/
+
         totalError += error;
         ++count;
     }
@@ -1063,7 +1094,7 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
             Eigen::Vector2d gamma = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 
             // check if scene point is behind camera
-            if (gamma(0) < 0.0 || gamma(1) < 0.0)
+            if (gamma(0) < 1e-8 || gamma(1) < 1e-8)
             {
                 continue;
             }
@@ -1071,8 +1102,8 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
             Eigen::Vector3d P = gamma(0) * spt1;
             P = transformPoint(H_cam1, P);
 
-            // validate scene point
-            if (transformPoint(H_cam2_inv, P)(2) < 0.0)
+            // validate scene point (Z can't be 0)
+            if (transformPoint(H_cam2_inv, P)(2) < 1e-6)
             {
                 continue;
             }
@@ -1486,7 +1517,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         return;
     }
 
-    if (0)
+    if (1)
     {
         static boost::mutex rmutex;
         rmutex.lock();
@@ -1624,7 +1655,7 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
         corr2D2D->push_back(candidateCorr2D2D.at(i));
     }
 
-    if (0 && !corr2D2D->empty())
+    if (1  && !corr2D2D->empty())
     {
         std::vector<cv::KeyPoint> keypoints1, keypoints2;
         std::vector<cv::DMatch> matches;
