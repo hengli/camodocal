@@ -26,8 +26,8 @@ PoseGraph::PoseGraph(CameraSystem& cameraSystem,
  : m_cameraSystem(cameraSystem)
  , m_graph(graph)
  , k_lossWidth(0.01)
- , k_maxDistanceRatio(maxDistanceRatio)
  , k_minLoopCorrespondences2D3D(minLoopCorrespondences2D3D)
+ , k_maxDistanceRatio(maxDistanceRatio)
  , k_nImageMatches(nImageMatches)
  , m_verbose(false)
 {
@@ -158,11 +158,11 @@ PoseGraph::findLoopClosures(std::vector<PoseGraph::Edge, Eigen::aligned_allocato
     boost::shared_ptr<LocationRecognition> locRec(new LocationRecognition);
     locRec->setup(m_graph);
 
-    for (int i = 0; i < m_graph.frameSetSegments().size(); ++i)
+    for (int i = 0; i < (int)m_graph.frameSetSegments().size(); ++i)
     {
         const FrameSetSegment& segment = m_graph.frameSetSegment(i);
 
-        for (int j = 0; j < segment.size(); ++j)
+        for (int j = 0; j < (int)segment.size(); ++j)
         {
             const FrameSetPtr& frameSet = segment.at(j);
 
@@ -191,7 +191,7 @@ PoseGraph::findLoopClosures(std::vector<PoseGraph::Edge, Eigen::aligned_allocato
                                                                reprojErrorThresh)));
             }
 
-            for (int k = 0; k < frameSet->frames().size(); ++k)
+            for (int k = 0; k < (int)frameSet->frames().size(); ++k)
             {
                 if (threads[k].get() == 0)
                 {
@@ -242,7 +242,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
         // find 2D-3D correspondences between frame pair
         std::vector<cv::DMatch> matches = matchFeatures(frame->features2D(), frameQuery->features2D(), k_maxDistanceRatio);
 
-        if (matches.size() < k_minLoopCorrespondences2D3D)
+        if ((int)matches.size() < k_minLoopCorrespondences2D3D)
         {
             continue;
         }
@@ -271,7 +271,7 @@ PoseGraph::findLoopClosuresHelper(FrameTag frameTagQuery,
             continue;
         }
 
-        if (nInliers > corr2D3DBest.size())
+        if (nInliers > (int)corr2D3DBest.size())
         {
             frameBest = frame;
             frameTagBest = frameTag;
@@ -454,7 +454,7 @@ PoseGraph::classifySwitches(void)
         *(it->second) = DISABLED;
 
         ++nSwitchesDisabled;
-        if (nSwitchesDisabled >= nMaxSwitchesDisabled)
+        if (nSwitchesDisabled >= (int)nMaxSwitchesDisabled)
         {
             break;
         }

@@ -5,6 +5,7 @@
 
 #ifdef HAVE_CUDA
 #include <opencv2/nonfree/gpu.hpp>
+#include <opencv2/gpu/gpu.hpp>
 #else
 #include <opencv2/nonfree/features2d.hpp>
 #endif // HAVE_CUDA

@@ -2,7 +2,7 @@ include_directories(
   ../ceres-solver/include
 )
 
-camodocal_library(camodocal_camera_systems
+camodocal_library(camodocal_camera_systems SHARED
   CameraSystem.cc
 )
 

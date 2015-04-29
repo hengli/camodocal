@@ -12,6 +12,8 @@
 #include "../gpl/EigenUtils.h"
 #include "ceres/ceres.h"
 
+#include <boost/thread/mutex.hpp>
+
 namespace camodocal
 {
 
@@ -319,7 +321,7 @@ CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen
     }
 
     Eigen::MatrixXd G = Eigen::MatrixXd::Zero(motionCount * 2, 2 + segmentCount * 2);
-    Eigen::MatrixXd w(motionCount * 2, 1);
+    Eigen::MatrixXd w = Eigen::MatrixXd::Zero(motionCount * 2, 1);
 
     int mark = 0;
     for (int segmentId = 0; segmentId < segmentCount; ++segmentId)
@@ -332,8 +334,9 @@ CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen
             const Eigen::Vector3d& tvec2 = tvecs2.at(segmentId).at(motionId);
 
             // Remove zero rotation.
-            if (rvec1.norm() == 0 || rvec2.norm() == 0)
+            if (rvec1.norm() < 1e-10 || rvec2.norm() < 1e-10)
             {
+                ++mark;
                 continue;
             }
 
@@ -479,9 +482,9 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
         for (size_t j = 0; j < rvecs1.at(i).size(); ++j)
         {
             const Eigen::Vector3d& rvec1 = rvecs1.at(i).at(j);
-            const Eigen::Vector3d& tvec1 = tvecs1.at(i).at(j);
+            //const Eigen::Vector3d& tvec1 = tvecs1.at(i).at(j);
             const Eigen::Vector3d& rvec2 = rvecs2.at(i).at(j);
-            const Eigen::Vector3d& tvec2 = tvecs2.at(i).at(j);
+            //const Eigen::Vector3d& tvec2 = tvecs2.at(i).at(j);
 
             // Remove zero rotation.
             if (rvec1.norm() == 0 || rvec2.norm() == 0)

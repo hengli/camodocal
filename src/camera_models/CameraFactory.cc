@@ -6,6 +6,7 @@
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/EquidistantCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"
+#include "camodocal/camera_models/ScaramuzzaCamera.h"
 
 namespace camodocal
 {
@@ -57,6 +58,17 @@ CameraFactory::generateCamera(Camera::ModelType modelType,
         camera->setParameters(params);
         return camera;
     }
+    case Camera::SCARAMUZZA:
+    {
+        OCAMCameraPtr camera(new OCAMCamera);
+
+        OCAMCamera::Parameters params = camera->getParameters();
+        params.cameraName() = cameraName;
+        params.imageWidth() = imageSize.width;
+        params.imageHeight() = imageSize.height;
+        camera->setParameters(params);
+        return camera;
+    }
     case Camera::MEI:
     default:
     {
@@ -96,6 +108,10 @@ CameraFactory::generateCameraFromYamlFile(const std::string& filename)
         {
             modelType = Camera::MEI;
         }
+        else if (boost::iequals(sModelType, "scaramuzza"))
+        {
+            modelType = Camera::SCARAMUZZA;
+        }
         else if (boost::iequals(sModelType, "pinhole"))
         {
             modelType = Camera::PINHOLE;
@@ -123,6 +139,15 @@ CameraFactory::generateCameraFromYamlFile(const std::string& filename)
         PinholeCameraPtr camera(new PinholeCamera);
 
         PinholeCamera::Parameters params = camera->getParameters();
+        params.readFromYamlFile(filename);
+        camera->setParameters(params);
+        return camera;
+    }
+    case Camera::SCARAMUZZA:
+    {
+        OCAMCameraPtr camera(new OCAMCamera);
+
+        OCAMCamera::Parameters params = camera->getParameters();
         params.readFromYamlFile(filename);
         camera->setParameters(params);
         return camera;

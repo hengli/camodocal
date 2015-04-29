@@ -51,6 +51,7 @@ add_compiler_flags("-Os                   -march=native" MinSizeRel     CACHE)
 endif(APPLE)
 
 add_compiler_flags("-fpermissive" CACHE)
+add_compiler_flags("-std=c++11" CACHE)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 # add_compiler_flags("-mtune=pentium4 -march=pentium4 -ftree-vectorize -msse2 -ffast-math -fexpensive-optimizations -fomit-frame-pointer -funroll-loops" Release CACHE)

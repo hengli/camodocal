@@ -76,11 +76,18 @@ public:
     void addFrame(int cameraIdx, const cv::Mat& image, uint64_t timestamp);
     void addFrameSet(const std::vector<cv::Mat>& images, uint64_t timestamp);
 
-    void addOdometry(double x, double y, double yaw, uint64_t timestamp);
+    void addOdometry(double x, double y, double yaw, uint64_t timestamp) { addOdometry(x,y,0,yaw,timestamp); }
+    void addOdometry(double x, double y, double z, double yaw, uint64_t timestamp);
 
     void addGpsIns(double lat, double lon, double alt,
                    double roll, double pitch, double yaw,
                    uint64_t timestamp);
+    void addGpsIns(double lat, double lon, double alt,
+                   double qx, double qy, double qz, double qw,
+                   uint64_t timestamp);
+
+    //! If an initial odo transform estimate for a camera is specified there will be no automatic estimation step performed. (@note setup before start()!)
+    void setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT);
 
     void start(void);
     void run(void);

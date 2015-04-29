@@ -20,10 +20,10 @@ namespace camodocal
 SlidingWindowBA::SlidingWindowBA(const CameraConstPtr& camera,
                                  int N, int n, int mode,
                                  Eigen::Matrix4d globalCameraPose)
- : k_camera(camera)
- , m_N(N)
+ : m_N(N)
  , m_n(n)
  , m_mode(mode)
+ , k_camera(camera)
  , k_epipolarThresh(0.00005)
  , k_minDisparity(3.0)
  , k_nominalFocalLength(300.0)
@@ -56,7 +56,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     }
 
     m_window.push_back(frameCurr);
-    while (m_window.size() > m_N)
+    while ((int)m_window.size() > m_N)
     {
         m_window.pop_front();
     }
@@ -114,7 +114,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             }
         }
 
-        if (imagePoints[0].size() < k_min2D2DFeatureCorrespondences)
+        if ((int)imagePoints[0].size() < k_min2D2DFeatureCorrespondences)
         {
             if (m_verbose)
             {
@@ -217,7 +217,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             std::cout << "# INFO: Triangulated " << points3D.size() << " points." << std::endl;
         }
 
-        if (points3D.size() < k_min2D3DFeatureCorrespondences)
+        if ((int)points3D.size() < k_min2D3DFeatureCorrespondences)
         {
             if (m_verbose)
             {
@@ -263,7 +263,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
 
             Point2DFeaturePtr& f0 = fc.at(0);
-            Point2DFeaturePtr& f1 = fc.at(1);
+            //Point2DFeaturePtr& f1 = fc.at(1);
 
             if (f0->feature3D())
             {
@@ -278,7 +278,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         std::vector<size_t> inliers;
         if (m_mode == VO)
         {
-            if (triFeatureCorrespondences.size() < k_min2D3DFeatureCorrespondences)
+            if ((int)triFeatureCorrespondences.size() < k_min2D3DFeatureCorrespondences)
             {
                 if (m_verbose)
                 {
@@ -476,7 +476,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         windowReprojectionError(minError, maxError, avgError);
 
-        printf("# INFO: Window reprojection error before optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
+        std::cout << "# INFO: Window reprojection error before optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
     }
 
     bool runOptimization = false;
@@ -489,7 +489,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         for (size_t i = 0; i < features2D.size(); ++i)
         {
             const Point2DFeatureConstPtr& feature2D = features2D.at(i);
-            const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
+            //const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
             if (feature2D->feature3D())
             {
@@ -577,14 +577,14 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     {
         if (nPrunedScenePoints > 0)
         {
-            printf("# INFO: Pruned %lu scene points that had too high reprojection errors.\n", nPrunedScenePoints);
+            std::cout << "# INFO: Pruned " << nPrunedScenePoints << " scene points that had too high reprojection errors." << std::endl;
         }
 
         double minError, maxError, avgError;
 
         windowReprojectionError(minError, maxError, avgError);
 
-        printf("# INFO: Window reprojection error after optimization: min = %.2f | max = %.2f | avg = %.2f\n", minError, maxError, avgError);
+        std::cout << "# INFO: Window reprojection error after optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
     }
 
     return true;
@@ -1166,7 +1166,7 @@ SlidingWindowBA::optimize(void)
         problem.SetParameterization(m_T_cam_odo.rotationData(), quaternionParameterization);
     }
 
-    if (m_window.size() > m_N - m_n)
+    if ((int)m_window.size() > m_N - m_n)
     {
         std::list<FramePtr>::iterator it = m_window.begin();
         for (int i = 0; i < m_N - m_n; ++i)

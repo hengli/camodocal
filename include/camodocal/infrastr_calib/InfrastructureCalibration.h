@@ -96,7 +96,7 @@ private:
 
     typedef struct
     {
-        uint64_t timestamp;
+        uint64_t timestamp = 0;
         std::vector<FramePtr> frames;
     } FrameSet;
 

@@ -125,6 +125,8 @@ private:
 
     bool validateGraph(void) const;
 
+    void dumpPointCloud(const std::string& dir, bool dumpPoses = false);
+
     typedef struct
     {
         double mean;

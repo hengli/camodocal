@@ -16,7 +16,8 @@ public:
     {
         KANNALA_BRANDT,
         MEI,
-        PINHOLE
+        PINHOLE,
+        SCARAMUZZA
     };
 
     class Parameters
@@ -79,15 +80,15 @@ public:
 
     // Projects 3D points to the image plane (Pi function)
     // and calculates jacobian
-    virtual void spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p,
-                              Eigen::Matrix<double,2,3>& J) const = 0;
+    //virtual void spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p,
+    //                          Eigen::Matrix<double,2,3>& J) const = 0;
     //%output p
     //%output J
 
     virtual void undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p) const = 0;
     //%output p
 
-    virtual void initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale = 1.0) const = 0;
+    //virtual void initUndistortMap(cv::Mat& map1, cv::Mat& map2, double fScale = 1.0) const = 0;
     virtual cv::Mat initUndistortRectifyMap(cv::Mat& map1, cv::Mat& map2,
                                             float fx = -1.0f, float fy = -1.0f,
                                             cv::Size imageSize = cv::Size(0, 0),

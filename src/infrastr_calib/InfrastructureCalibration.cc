@@ -529,9 +529,9 @@ InfrastructureCalibration::loadFrameSets(const std::string& filename)
     for (size_t i = 0; i < graph.frameSetSegment(0).size(); ++i)
     {
         FrameSet frameset;
-        uint64_t timestamp;
+        uint64_t timestamp = 0;
 
-        for (int j = 0; j < graph.frameSetSegment(0).at(i)->frames().size(); ++j)
+        for (int j = 0; j < (int)graph.frameSetSegment(0).at(i)->frames().size(); ++j)
         {
             FramePtr& frame = graph.frameSetSegment(0).at(i)->frames().at(j);
 
@@ -660,7 +660,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
         // find 2D-3D correspondences
         std::vector<cv::DMatch> matches = matchFeatures(frame->features2D(), trainFrame->features2D());
 
-        if (matches.size() < k_minCorrespondences2D3D)
+        if ((int)matches.size() < k_minCorrespondences2D3D)
         {
             continue;
         }

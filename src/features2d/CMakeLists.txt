@@ -12,6 +12,8 @@ camodocal_link_libraries(camodocal_features2d
   ${OPENCV_GPU_LIBRARY}
   ${OPENCV_LIBRARIES}
   ${OPENCV_FEATURES2D_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY_RELEASE}
+  ${CUDA_CUDART_LIBRARY}
   ${Boost_LIBRARIES}
 )
 

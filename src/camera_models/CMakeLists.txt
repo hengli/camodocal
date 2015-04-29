@@ -10,6 +10,7 @@ camodocal_library(camodocal_camera_models SHARED
   CostFunctionFactory.cc
   EquidistantCamera.cc
   PinholeCamera.cc
+  ScaramuzzaCamera.cc
 )
 
 camodocal_link_libraries(camodocal_camera_models
