@@ -4,6 +4,7 @@
 #include <boost/thread.hpp>
 
 #ifdef HAVE_CUDA
+#include <opencv2/gpu/gpu.hpp>
 #include <opencv2/nonfree/gpu.hpp>
 #else
 #include <opencv2/nonfree/features2d.hpp>
