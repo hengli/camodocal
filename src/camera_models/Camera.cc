@@ -112,6 +112,11 @@ Camera::mask(void) const
     return m_mask;
 }
 
+void Camera::setMask(const cv::Mat& mask)
+{
+  m_mask = mask;
+}
+
 void
 Camera::estimateExtrinsics(const std::vector<cv::Point3f>& objectPoints,
                            const std::vector<cv::Point2f>& imagePoints,
