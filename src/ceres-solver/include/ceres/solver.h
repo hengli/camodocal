@@ -126,7 +126,13 @@ class Solver {
       update_state_every_iteration = false;
     }
 
-    ~Options();
+    //~Options();
+    
+    /// @todo put back ~Options(), was moved to header solver.h frrom solver.cc to resolve strange OS X linker error
+    ~Options() {
+      delete linear_solver_ordering;
+      delete inner_iteration_ordering;
+    }
     // Minimizer options ----------------------------------------
 
     // Ceres supports the two major families of optimization strategies -

@@ -861,7 +861,7 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
 
     for (size_t i = 0; i < features.size(); ++i)
     {
-        Point2DFeaturePtr pt[nViews];
+        std::vector<Point2DFeaturePtr> pt(nViews);
 
         pt[nViews - 1] = features.at(i);
         bool foundCorrespondences = true;

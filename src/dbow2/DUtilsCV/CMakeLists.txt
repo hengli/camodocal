@@ -9,6 +9,7 @@ camodocal_library(camodocal_DUtilsCV SHARED
 )
 
 camodocal_link_libraries(camodocal_DUtilsCV
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${OPENCV_CALIB3D_LIBRARY}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}

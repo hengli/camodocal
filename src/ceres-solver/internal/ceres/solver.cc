@@ -56,10 +56,11 @@ void StringifyOrdering(const vector<int>& ordering, string* report) {
 
 }  // namespace
 
-Solver::Options::~Options() {
-  delete linear_solver_ordering;
-  delete inner_iteration_ordering;
-}
+/// @todo put back ~Options(), was moved to header solver.h frrom solver.cc to resolve strange OS X linker error
+// Solver::Options::~Options() {
+//   delete linear_solver_ordering;
+//   delete inner_iteration_ordering;
+// }
 
 Solver::~Solver() {}
 

@@ -14,6 +14,7 @@ camodocal_library(camodocal_DBoW2 SHARED
 )
 
 camodocal_link_libraries(camodocal_DBoW2
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_DUtils
   camodocal_DUtilsCV
   camodocal_DVision

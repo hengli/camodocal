@@ -7,6 +7,7 @@ camodocal_library(camodocal_sparse_graph SHARED
 )
 
 camodocal_link_libraries(camodocal_sparse_graph
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${OPENCV_CORE_LIBRARY}

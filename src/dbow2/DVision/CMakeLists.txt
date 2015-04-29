@@ -19,6 +19,7 @@ camodocal_library(camodocal_DVision SHARED
 )
 
 camodocal_link_libraries(camodocal_DVision
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${OPENCV_CORE_LIBRARY}
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_FLANN_LIBRARY}

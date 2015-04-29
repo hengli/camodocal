@@ -600,11 +600,17 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     cv::Mat imageProc;
     if (preprocess)
     {
+    
+#ifdef HAVE_CUDA
         cv::gpu::GpuMat gpuImage, gpuImageProc;
         gpuImage.upload(image);
 
         cv::gpu::equalizeHist(gpuImage, gpuImageProc);
         gpuImageProc.download(imageProc);
+#else
+        cv::Mat gpuImage, gpuImageProc;
+        cv::equalizeHist(gpuImage, gpuImageProc);
+#endif
     }
     else
     {

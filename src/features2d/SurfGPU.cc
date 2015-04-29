@@ -41,10 +41,11 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
                 const cv::Mat& mask)
 {
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
+#ifdef HAVE_CUDA
 
-    cv::gpu::GpuMat imageGPU(image);
+    MatType imageGPU(image);
 
-    cv::gpu::GpuMat maskGPU;
+    MatType maskGPU;
     if (!mask.empty())
     {
         maskGPU.upload(mask);
@@ -52,16 +53,18 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
 
     try
     {
-        cv::gpu::GpuMat kptsGPU;
+        MatType kptsGPU;
 
         m_surfGPU(imageGPU, maskGPU, kptsGPU);
-
         m_surfGPU.downloadKeypoints(kptsGPU, keypoints);
     }
     catch (cv::Exception& exception)
     {
         std::cout << "# ERROR: Surf GPU feature detection failed: " << exception.msg << std::endl;
     }
+#else
+  m_surfGPU(image,mask,keypoints);
+#endif
 }
 
 void
@@ -71,19 +74,22 @@ SurfGPU::compute(const cv::Mat& image,
 {
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
-    cv::gpu::GpuMat imageGPU(image);
+#ifdef HAVE_CUDA
+    MatType imageGPU(image);
 
-    cv::gpu::GpuMat dtorsGPU;
+    MatType dtorsGPU;
     try
     {
-        m_surfGPU(imageGPU, cv::gpu::GpuMat(), keypoints, dtorsGPU, true);
+        m_surfGPU(imageGPU, MatType(), keypoints, dtorsGPU, true);
     }
     catch (cv::Exception& exception)
     {
         std::cout << "# ERROR: Surf GPU descriptor computation failed: " << exception.msg << std::endl;
     }
-
     dtorsGPU.download(descriptors);
+#else
+    m_surfGPU(image, MatType(), keypoints, descriptors, true);
+#endif
 }
 
 void
@@ -103,17 +109,20 @@ SurfGPU::knnMatch(const cv::Mat& queryDescriptors,
     }
 
     matches.reserve(queryDescriptors.rows);
+#ifdef HAVE_CUDA
+    MatType qDtorsGPU(queryDescriptors);
+    MatType tDtorsGPU(trainDescriptors);
 
-    cv::gpu::GpuMat qDtorsGPU(queryDescriptors);
-    cv::gpu::GpuMat tDtorsGPU(trainDescriptors);
-
-    cv::gpu::GpuMat maskGPU;
+    MatType maskGPU;
     if (!mask.empty())
     {
         maskGPU.upload(mask);
     }
 
     m_matcher.knnMatch(qDtorsGPU, tDtorsGPU, matches, k, maskGPU, compactResult);
+#else
+    m_matcher.knnMatch(queryDescriptors, trainDescriptors, matches, k,mask,compactResult);
+#endif
 }
 
 void
@@ -133,17 +142,20 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
     }
 
     matches.reserve(queryDescriptors.rows);
+#ifdef HAVE_CUDA
+    MatType qDtorsGPU(queryDescriptors);
+    MatType tDtorsGPU(trainDescriptors);
 
-    cv::gpu::GpuMat qDtorsGPU(queryDescriptors);
-    cv::gpu::GpuMat tDtorsGPU(trainDescriptors);
-
-    cv::gpu::GpuMat maskGPU;
+    MatType maskGPU;
     if (!mask.empty())
     {
         maskGPU.upload(mask);
     }
 
     m_matcher.radiusMatch(qDtorsGPU, tDtorsGPU, matches, maxDistance, maskGPU, compactResult);
+#else
+    m_matcher.radiusMatch(queryDescriptors, trainDescriptors, matches, maxDistance, mask, compactResult);
+#endif // HAVE_CUDA
 }
 
 void
@@ -157,10 +169,10 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
 {
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
-    cv::gpu::GpuMat imageGPU[2];
-    cv::gpu::GpuMat maskGPU[2];
-    cv::gpu::GpuMat dtorsGPU[2];
-
+    MatType imageGPU[2];
+    MatType maskGPU[2];
+    MatType dtorsGPU[2];
+#ifdef HAVE_CUDA
     imageGPU[0].upload(image1);
     imageGPU[1].upload(image2);
 
@@ -172,15 +184,31 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
     {
         maskGPU[1].upload(mask2);
     }
+#else 
+/// @todo eliminate the copies here
+    imageGPU[0] = image1;
+    imageGPU[1] = image2;
 
+    if (!mask1.empty())
+    {
+        maskGPU[0] = mask1;
+    }
+    if (!mask2.empty())
+    {
+        maskGPU[1] = mask2;
+    }
+#endif
     try
     {
         m_surfGPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
         m_surfGPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
-
+#ifdef HAVE_CUDA
         dtorsGPU[0].download(dtors1);
         dtorsGPU[1].download(dtors2);
-
+#else
+        dtors1 = dtorsGPU[0];
+        dtors2 = dtorsGPU[1];
+#endif
         std::vector<std::vector<cv::DMatch> > candidateFwdMatches;
         m_matcher.knnMatch(dtorsGPU[0], dtorsGPU[1], candidateFwdMatches, 2);
 

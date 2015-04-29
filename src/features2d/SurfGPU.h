@@ -2,13 +2,26 @@
 #define SURFGPU_H
 
 #include <boost/thread.hpp>
+
+#ifdef HAVE_CUDA
 #include <opencv2/nonfree/gpu.hpp>
+#else
+#include <opencv2/nonfree/features2d.hpp>
+#endif // HAVE_CUDA
+
+#include <opencv2/legacy/legacy.hpp>
 
 namespace camodocal
 {
 
 class SurfGPU
 {
+
+#ifdef HAVE_CUDA
+    typedef cv::gpu::GpuMat MatType;
+#else
+    typedef cv::Mat MatType;
+#endif // HAVE_CUDA
 public:
     SurfGPU(double hessianThreshold, int nOctaves=4,
             int nOctaveLayers=2, bool extended=false,
@@ -45,8 +58,14 @@ private:
     static cv::Ptr<SurfGPU> m_instance;
     static boost::mutex m_instanceMutex;
 
+    
+#ifdef HAVE_CUDA
     cv::gpu::SURF_GPU m_surfGPU;
     cv::gpu::BruteForceMatcher_GPU<cv::L2<float> > m_matcher;
+#else
+    cv::SURF m_surfGPU;
+    cv::BruteForceMatcher<cv::L2<float> > m_matcher;
+#endif // HAVE_CUDA
 };
 
 }

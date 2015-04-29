@@ -7,6 +7,34 @@
 #include <time.h>
 #endif
 
+
+// source: https://stackoverflow.com/questions/5167269/clock-gettime-alternative-in-mac-os-x
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#define ORWL_NANO (+1.0E-9)
+#define ORWL_GIGA UINT64_C(1000000000)
+
+static double orwl_timebase = 0.0;
+static uint64_t orwl_timestart = 0;
+
+struct timespec orwl_gettime(void) {
+  // be more careful in a multithreaded environement
+  if (!orwl_timestart) {
+    mach_timebase_info_data_t tb = { 0 };
+    mach_timebase_info(&tb);
+    orwl_timebase = tb.numer;
+    orwl_timebase /= tb.denom;
+    orwl_timestart = mach_absolute_time();
+  }
+  struct timespec t;
+  double diff = (mach_absolute_time() - orwl_timestart) * orwl_timebase;
+  t.tv_sec = diff * ORWL_NANO;
+  t.tv_nsec = diff - (t.tv_sec * ORWL_GIGA);
+  return t;
+}
+#endif // __APPLE__
+
+
 const double WGS84_A = 6378137.0;
 const double WGS84_ECCSQ = 0.00669437999013;
 
@@ -121,7 +149,11 @@ clock_gettime(int X, struct timespec *tp)
 unsigned long long timeInMicroseconds(void)
 {
 	 struct timespec tp;
+#ifdef __APPLE__
+     tp = orwl_gettime();
+#else
 	 clock_gettime(CLOCK_REALTIME, &tp);
+#endif
 
 	 return tp.tv_sec * 1000000 + tp.tv_nsec / 1000;
 }
@@ -129,7 +161,11 @@ unsigned long long timeInMicroseconds(void)
 double timeInSeconds(void)
 {
     struct timespec tp;
-    clock_gettime(CLOCK_REALTIME, &tp);
+#ifdef __APPLE__
+     tp = orwl_gettime();
+#else
+	 clock_gettime(CLOCK_REALTIME, &tp);
+#endif
 
 	 return static_cast<double>(tp.tv_sec) +
 			 static_cast<double>(tp.tv_nsec) / 1000000000.0;

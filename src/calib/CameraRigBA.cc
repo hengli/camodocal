@@ -808,7 +808,7 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
     size_t count = 0;
     double totalError = 0.0;
 
-    Pose T_cam_odo[m_cameraSystem.cameraCount()];
+    std::vector<Pose> T_cam_odo(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
         T_cam_odo[i] = m_cameraSystem.getGlobalCameraPose(i);
@@ -1093,7 +1093,7 @@ CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& featu
 
     for (size_t i = 0; i < features.size(); ++i)
     {
-        Point2DFeaturePtr pt[nViews];
+        std::vector<Point2DFeaturePtr> pt(nViews);
 
         pt[nViews - 1] = features.at(i);
         bool foundCorrespondences = true;
@@ -1137,7 +1137,7 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
     int segmentId = 0;
     int frameSetId = 0;
 
-    std::list<FramePtr> windows[m_cameraSystem.cameraCount()];
+    std::vector<std::list<FramePtr> > windows(m_cameraSystem.cameraCount());
 
     while (segmentId < m_graph.frameSetSegments().size())
     {
@@ -1213,8 +1213,9 @@ CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D
                 continue;
             }
 
-            boost::shared_ptr<boost::thread> threads[m_cameraSystem.cameraCount()];
-            std::vector<Correspondence2D2D> subCorr2D2D[m_cameraSystem.cameraCount()];
+            std::vector<boost::shared_ptr<boost::thread> > threads(m_cameraSystem.cameraCount());
+            /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
+            std::vector<std::vector<Correspondence2D2D> > subCorr2D2D(m_cameraSystem.cameraCount());
             for (int cameraId2 = 0; cameraId2 < m_cameraSystem.cameraCount(); ++cameraId2)
             {
                 if (cameraId1 == cameraId2)
@@ -1267,8 +1268,9 @@ CameraRigBA::matchFrameToWindow(FramePtr& frame1,
         return;
     }
 
-    boost::shared_ptr<boost::thread> threads[window.size()];
-    std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > corr2D2D[window.size()];
+    std::vector<boost::shared_ptr<boost::thread> > threads(window.size());
+    /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
+    std::vector<std::vector<std::pair<Point2DFeaturePtr, Point2DFeaturePtr> > > corr2D2D(window.size());
 
     int windowId = -1;
     for (std::vector<FramePtr>::iterator itFrame2 = window.begin(); itFrame2 != window.end(); ++itFrame2)
@@ -1931,7 +1933,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     options.num_linear_solver_threads = 8;
 
     // intrinsics
-    std::vector<double> intrinsicParams[m_cameraSystem.cameraCount()];
+    /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
+    std::vector<std::vector<double> > intrinsicParams(m_cameraSystem.cameraCount());
 
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
@@ -2139,7 +2142,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
-    std::vector<std::vector<double> > chessboardCameraPoses[m_cameraSystem.cameraCount()];
+    /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
+    std::vector<std::vector<std::vector<double> > > chessboardCameraPoses(m_cameraSystem.cameraCount());
 
     if (includeChessboardData)
     {

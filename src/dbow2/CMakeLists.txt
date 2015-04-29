@@ -15,6 +15,7 @@ camodocal_executable(dbow2_demo
 )
 
 camodocal_link_libraries(dbow2_demo
+  ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_DBoW2
   camodocal_DUtils
   camodocal_DUtilsCV

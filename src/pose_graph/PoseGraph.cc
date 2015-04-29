@@ -166,9 +166,10 @@ PoseGraph::findLoopClosures(std::vector<PoseGraph::Edge, Eigen::aligned_allocato
         {
             const FrameSetPtr& frameSet = segment.at(j);
 
-            boost::shared_ptr<boost::thread> threads[frameSet->frames().size()];
-            PoseGraph::Edge edges[frameSet->frames().size()];
-            std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > corr2D3D[frameSet->frames().size()];
+            std::vector<boost::shared_ptr<boost::thread> > threads(frameSet->frames().size());
+            std::vector<PoseGraph::Edge> edges(frameSet->frames().size());
+            /// @todo std::vector<std::vector<>> will be quite slow! consider boost::static_vector<boost::static_vector<>> or a single 2d data type allocation
+            std::vector<std::vector<std::pair<Point2DFeaturePtr, Point3DFeaturePtr> > > corr2D3D(frameSet->frames().size());
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
