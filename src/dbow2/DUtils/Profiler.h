@@ -79,7 +79,7 @@ public:
 
 public:
 
-  Profiler(const float scale = Profiler::SECONDS): 
+  Profiler(const float scale = SECONDS): 
     m_last_profile(""), m_scale(scale){}
   virtual ~Profiler(){}
   
