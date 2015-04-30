@@ -850,7 +850,7 @@ UTMtoLL(double utmNorthing, double utmEasting, const std::string& utmZone,
 
     std::istringstream iss(utmZone);
     iss >> ZoneNumber >> ZoneLetter;
-    if ((ZoneLetter - 'N') >= 0) {
+    if ((static_cast<int>(ZoneLetter) - static_cast<int>('N')) >= 0) {
         NorthernHemisphere = true;//point is in northern hemisphere
     } else {
         NorthernHemisphere = false;//point is in southern hemisphere

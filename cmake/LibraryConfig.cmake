@@ -9,6 +9,24 @@ if(DEPENDENCY_PACKAGE_ENABLE)
   list(REMOVE_ITEM CMAKE_SYSTEM_LIBRARY_PATH "${CMAKE_INSTALL_PREFIX}/bin")
 endif()
 
+
+# Enable C++11
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") 
+	ADD_DEFINITIONS(-fPIC)
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+
+if(COMPILER_SUPPORTS_CXX11)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+elseif(COMPILER_SUPPORTS_CXX0X)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+else()
+    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support, or our tests failed to detect it correctly. Please use a different C++ compiler or report this problem to the developers.")
+endif()
+
 ############### Library finding #################
 # Performs the search and sets the variables    #
 camodocal_required_dependency(BLAS)
@@ -33,6 +51,8 @@ camodocal_optional_dependency(Threads)
 # enable GPU enhanced SURF features
 if(CUDA_FOUND)
     add_definitions(-DHAVE_CUDA)
+
+    set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
 endif()
 
 # OSX RPATH

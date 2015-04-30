@@ -16,13 +16,13 @@ namespace camodocal
 
 enum
 {
-    CAMERA_INTRINSICS = 0x1,
-    CAMERA_POSE = 0x2,
-    POINT_3D = 0x4,
-    ODOMETRY_INTRINSICS = 0x8,
-    ODOMETRY_3D_POSE = 0x10,
-    ODOMETRY_6D_POSE = 0x20,
-    CAMERA_ODOMETRY_TRANSFORM = 0x40
+    CAMERA_INTRINSICS =         1 << 0,
+    CAMERA_POSE =               1 << 1,
+    POINT_3D =                  1 << 2,
+    ODOMETRY_INTRINSICS =       1 << 3,
+    ODOMETRY_3D_POSE =          1 << 4,
+    ODOMETRY_6D_POSE =          1 << 5,
+    CAMERA_ODOMETRY_TRANSFORM = 1 << 6
 };
 
 class CostFunctionFactory

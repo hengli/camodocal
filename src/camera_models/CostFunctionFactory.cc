@@ -4,6 +4,7 @@
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/EquidistantCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"
+#include "camodocal/camera_models/ScaramuzzaCamera.h"
 
 namespace camodocal
 {
@@ -178,29 +179,29 @@ public:
 
     ReprojectionError3(const Eigen::Vector2d& observed_p)
      : m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true)
-     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity()) {}
+     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity())
+     , m_optimize_cam_odo_z(true) {}
 
     ReprojectionError3(const Eigen::Vector2d& observed_p,
                        const Eigen::Matrix2d& sqrtPrecisionMat)
      : m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true)
-     , m_sqrtPrecisionMat(sqrtPrecisionMat) {}
+     , m_sqrtPrecisionMat(sqrtPrecisionMat)
+     , m_optimize_cam_odo_z(true){}
 
     ReprojectionError3(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector2d& observed_p)
      : m_intrinsic_params(intrinsic_params)
      , m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true)
-     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity()) {}
+     , m_sqrtPrecisionMat(Eigen::Matrix2d::Identity())
+     , m_optimize_cam_odo_z(true) {}
 
     ReprojectionError3(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector2d& observed_p,
                        const Eigen::Matrix2d& sqrtPrecisionMat)
      : m_intrinsic_params(intrinsic_params)
      , m_observed_p(observed_p)
-     , m_optimize_cam_odo_z(true)
-     , m_sqrtPrecisionMat(sqrtPrecisionMat) {}
+     , m_sqrtPrecisionMat(sqrtPrecisionMat)
+     , m_optimize_cam_odo_z(true) {}
 
 
     ReprojectionError3(const std::vector<double>& intrinsic_params,
@@ -460,6 +461,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 2, 9, 4, 3>(
                     new ReprojectionError1<CataCamera>(observed_P, observed_p));
             break;
+        case Camera::SCARAMUZZA:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3>(
+                    new ReprojectionError1<OCAMCamera>(observed_P, observed_p));
+            break;
         }
         break;
     case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE:
@@ -479,6 +485,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             costFunction =
                 new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 2, 4, 3, 3, 3>(
                     new ReprojectionError1<CataCamera>(intrinsic_params, observed_P, observed_p));
+            break;
+        case Camera::SCARAMUZZA:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<OCAMCamera>, 2, 4, 3, 3, 3>(
+                    new ReprojectionError1<OCAMCamera>(intrinsic_params, observed_P, observed_p));
             break;
         }
         break;
@@ -519,6 +530,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 new ceres::AutoDiffCostFunction<ReprojectionError1<CataCamera>, 2, 9, 4, 3>(
                     new ReprojectionError1<CataCamera>(observed_P, observed_p, sqrtPrecisionMat));
             break;
+        case Camera::SCARAMUZZA:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError1<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3>(
+                    new ReprojectionError1<OCAMCamera>(observed_P, observed_p, sqrtPrecisionMat));
+            break;
         }
         break;
     }
@@ -555,6 +571,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             costFunction =
                 new ceres::AutoDiffCostFunction<ReprojectionError2<CataCamera>, 2, 4, 3, 3>(
                     new ReprojectionError2<CataCamera>(intrinsic_params, observed_p));
+            break;
+        case Camera::SCARAMUZZA:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError2<OCAMCamera>, 2, 4, 3, 3>(
+                    new ReprojectionError2<OCAMCamera>(intrinsic_params, observed_p));
             break;
         }
         break;
@@ -601,6 +622,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 4, 2, 2, 1, 3>(
                         new ReprojectionError3<CataCamera>(intrinsic_params, observed_p));
+            }
+            break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 3, 2, 1, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 2, 2, 1, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p));
             }
             break;
         }
@@ -650,6 +685,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                         new ReprojectionError3<CataCamera>(intrinsic_params, observed_p));
             }
             break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p));
+            }
+            break;
         }
         break;
     case CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D:
@@ -697,6 +746,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                         new ReprojectionError3<CataCamera>(observed_p));
             }
             break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3, 2, 1, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 2, 2, 1, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p));
+            }
+            break;
         }
         break;
     case CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
@@ -742,6 +805,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 9, 4, 2, 3, 3, 3>(
                         new ReprojectionError3<CataCamera>(observed_p));
+            }
+            break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p));
             }
             break;
         }
@@ -809,6 +886,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                         new ReprojectionError3<CataCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
             }
             break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, observed_p, sqrtPrecisionMat));
+            }
+            break;
         }
         break;
     case CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
@@ -854,6 +945,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 9, 4, 2, 3, 3, 3>(
                         new ReprojectionError3<CataCamera>(observed_p, sqrtPrecisionMat));
+            }
+            break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p, sqrtPrecisionMat));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 2, 3, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(observed_p, sqrtPrecisionMat));
             }
             break;
         }
@@ -922,6 +1027,20 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                         new ReprojectionError3<CataCamera>(intrinsic_params, odo_pos, odo_att, observed_p, optimize_cam_odo_z));
             }
             break;
+        case Camera::SCARAMUZZA:
+            if (optimize_cam_odo_z)
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 3, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, odo_pos, odo_att, observed_p, optimize_cam_odo_z));
+            }
+            else
+            {
+                costFunction =
+                    new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 4, 2, 3>(
+                        new ReprojectionError3<OCAMCamera>(intrinsic_params, odo_pos, odo_att, observed_p, optimize_cam_odo_z));
+            }
+            break;
         }
         break;
     }
@@ -963,6 +1082,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 new ceres::AutoDiffCostFunction<ReprojectionError3<CataCamera>, 2, 3>(
                     new ReprojectionError3<CataCamera>(intrinsic_params, cam_odo_q, cam_odo_t, odo_pos, odo_att, observed_p));
             break;
+        case Camera::SCARAMUZZA:
+            costFunction =
+                new ceres::AutoDiffCostFunction<ReprojectionError3<OCAMCamera>, 2, 3>(
+                    new ReprojectionError3<OCAMCamera>(intrinsic_params, cam_odo_q, cam_odo_t, odo_pos, odo_att, observed_p));
+            break;
         }
         break;
     }
@@ -1000,6 +1124,11 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& cameraL,
         costFunction =
             new ceres::AutoDiffCostFunction<StereoReprojectionError<CataCamera>, 4, 9, 9, 4, 3, 4, 3>(
                 new StereoReprojectionError<CataCamera>(observed_P, observed_p_l, observed_p_r));
+        break;
+    case Camera::SCARAMUZZA:
+        costFunction =
+            new ceres::AutoDiffCostFunction<StereoReprojectionError<OCAMCamera>, 4, SCARAMUZZA_CAMERA_NUM_PARAMS, SCARAMUZZA_CAMERA_NUM_PARAMS, 4, 3, 4, 3>(
+                new StereoReprojectionError<OCAMCamera>(observed_P, observed_p_l, observed_p_r));
         break;
     }
 

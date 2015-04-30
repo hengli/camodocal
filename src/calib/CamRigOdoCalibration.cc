@@ -26,13 +26,13 @@ bool CamRigOdoCalibration::m_stop = false;
 CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
                                            const Options& options)
  : m_camOdoThreads(cameras.size())
+ , m_cameraSystem(cameras.size())
  , m_images(cameras.size())
  , m_cameras(cameras)
  , m_odometryBuffer(1000)
  , m_gpsInsBuffer(1000)
- , m_cameraSystem(cameras.size())
- , m_sketches(cameras.size())
  , m_camOdoCompleted(boost::extents[cameras.size()])
+ , m_sketches(cameras.size())
  , m_options(options)
  , m_running(false)
 {
@@ -64,6 +64,15 @@ CamRigOdoCalibration::CamRigOdoCalibration(std::vector<CameraPtr>& cameras,
 CamRigOdoCalibration::~CamRigOdoCalibration()
 {
 
+}
+
+void
+CamRigOdoCalibration::setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT)
+{
+    if (camIdx >= m_camOdoThreads.size()) return;
+    if (!m_camOdoThreads[camIdx] || m_camOdoThreads[camIdx]->running()) return;
+
+    m_camOdoThreads[camIdx]->setCamOdoTransformEstimate(odoT);
 }
 
 void
@@ -110,12 +119,14 @@ CamRigOdoCalibration::addFrameSet(const std::vector<cv::Mat>& images,
 }
 
 void
-CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
+CamRigOdoCalibration::addOdometry(double x, double y, double z,
+                                  double yaw,
                                   uint64_t timestamp)
 {
     OdometryPtr odometry = boost::make_shared<Odometry>();
     odometry->x() = x;
     odometry->y() = y;
+    odometry->z() = z;
     odometry->yaw() = yaw;
     odometry->timeStamp() = timestamp;
 
@@ -124,23 +135,32 @@ CamRigOdoCalibration::addOdometry(double x, double y, double yaw,
 
 void
 CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
+                                double qx, double qy, double qz, double qw,
+                                uint64_t timestamp)
+{
+    // convert latitude/longitude to UTM coordinates
+     double utmX, utmY;
+     std::string utmZone;
+     LLtoUTM(lat, lon, utmX, utmY, utmZone);
+
+     PosePtr pose = boost::make_shared<Pose>();
+     pose->rotation() = Eigen::Quaterniond(qw,qx,qy,qz);
+     pose->translation() = Eigen::Vector3d(utmX, utmY, -alt);
+
+     pose->timeStamp() = timestamp;
+
+     m_gpsInsBuffer.push(timestamp, pose);
+}
+
+void
+CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
                                 double roll, double pitch, double yaw,
                                 uint64_t timestamp)
 {
-   // convert latitude/longitude to UTM coordinates
-    double utmX, utmY;
-    std::string utmZone;
-    LLtoUTM(lat, lon, utmX, utmY, utmZone);
-
-    PosePtr pose = boost::make_shared<Pose>();
-    pose->rotation() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
+    Eigen::Quaterniond q = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
                        * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
                        * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
-    pose->translation() = Eigen::Vector3d(utmX, utmY, -alt);
-
-    pose->timeStamp() = timestamp;
-
-    m_gpsInsBuffer.push(timestamp, pose);
+    addGpsIns(lat, lon, alt, q.x(), q.y(), q.z(), q.w(), timestamp);
 }
 
 void

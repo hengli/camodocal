@@ -1,4 +1,5 @@
 #include "camodocal/camera_models/Camera.h"
+#include "camodocal/camera_models/ScaramuzzaCamera.h"
 
 #include <opencv2/calib3d/calib3d.hpp>
 
@@ -17,6 +18,9 @@ Camera::Parameters::Parameters(ModelType modelType)
         break;
     case PINHOLE:
         m_nIntrinsics = 8;
+        break;
+    case SCARAMUZZA:
+        m_nIntrinsics = SCARAMUZZA_CAMERA_NUM_PARAMS;
         break;
     case MEI:
     default:
@@ -39,6 +43,9 @@ Camera::Parameters::Parameters(ModelType modelType,
         break;
     case PINHOLE:
         m_nIntrinsics = 8;
+        break;
+    case SCARAMUZZA:
+        m_nIntrinsics = SCARAMUZZA_CAMERA_NUM_PARAMS;
         break;
     case MEI:
     default:

@@ -46,6 +46,8 @@ public:
     const Eigen::Matrix4d& camOdoTransform(void) const;
     const std::vector<std::vector<FramePtr> >& frameSegments(void) const;
 
+    void setCamOdoTransformEstimate(const Eigen::Matrix4d& estimate);
+    void clearCamOdoTransformEstimate();
     void reprojectionError(double& minError, double& maxError, double& avgError) const;
 
     void launch(void);
@@ -70,7 +72,7 @@ private:
     boost::shared_ptr<boost::thread> m_thread;
     int m_cameraId;
     bool m_preprocess;
-    bool m_running;
+    volatile bool m_running; // poor man's synchronisation
     boost::signals2::signal<void ()> m_signalFinished;
 
     CamOdoCalibration m_camOdoCalib;
@@ -85,6 +87,7 @@ private:
     SensorDataBuffer<PosePtr>& m_interpGpsInsBuffer;
     boost::mutex& m_gpsInsBufferMutex;
     Eigen::Matrix4d m_camOdoTransform;
+    bool m_camOdoTransformUseEstimate;
     cv::Mat& m_sketch;
 
     bool& m_completed;

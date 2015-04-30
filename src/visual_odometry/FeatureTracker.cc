@@ -377,11 +377,12 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
                                                DetectorType detectorType,
                                                DescriptorType descriptorType,
                                                MatchTestType matchTestType,
-                                               bool preprocess)
+                                               bool preprocess,
+                                               const Eigen::Matrix4d& globalCameraPose)
  : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
  , k_camera(camera)
  , m_init(false)
- , m_BA(camera)
+ , m_BA(camera, 20, 6, SlidingWindowBA::VO, globalCameraPose)
  , k_maxDelta(80.0f)
  , k_minFeatureCorrespondences(15)
  , k_nominalFocalLength(300.0)
@@ -475,8 +476,8 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
                 int queryIdx = match.at(j).queryIdx;
                 int trainIdx = match.at(j).trainIdx;
 
-                if (queryIdx >= 0 && queryIdx < m_pointFeatures.size() &&
-                    trainIdx >= 0 && trainIdx < pointFeaturesPrev.size())
+                if (queryIdx >= 0 && queryIdx < (int)m_pointFeatures.size() &&
+                    trainIdx >= 0 && trainIdx < (int)pointFeaturesPrev.size())
                 {
                     m_pointFeatures.at(queryIdx)->prevMatches().push_back(pointFeaturesPrev.at(trainIdx));
                     m_pointFeatures.at(queryIdx)->bestPrevMatchId() = 0;
@@ -486,11 +487,11 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
                 }
                 else
                 {
-                    if (queryIdx < 0 || queryIdx >= m_pointFeatures.size())
+                    if (queryIdx < 0 || queryIdx >= (int)m_pointFeatures.size())
                     {
                         std::cout << "# WARNING: Query idx does not have a valid value " << queryIdx << " " << m_pointFeatures.size() << std::endl;
                     }
-                    if (trainIdx < 0 || trainIdx >= pointFeaturesPrev.size())
+                    if (trainIdx < 0 || trainIdx >= (int)pointFeaturesPrev.size())
                     {
                         std::cout << "# WARNING: Train idx does not have a valid value " << trainIdx << " " << pointFeaturesPrev.size() << std::endl;
                     }

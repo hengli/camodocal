@@ -1,4 +1,4 @@
-camodocal_library(camodocal_chessboard
+camodocal_library(camodocal_chessboard SHARED
   Chessboard.cc
 )
 

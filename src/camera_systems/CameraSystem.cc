@@ -293,6 +293,9 @@ CameraSystem::writeToXmlFile(const std::string& filename) const
         case Camera::MEI:
             eCamera.append_attribute("camera-model") = "christopher-mei";
             break;
+        case Camera::SCARAMUZZA:
+            eCamera.append_attribute("camera-model") = "scaramuzza-omnidirect";
+            break;
         default:
             eCamera.append_attribute("camera-model") = "unknown";
         }

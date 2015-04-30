@@ -27,6 +27,8 @@ namespace DBoW2 {
 class GeneralScoring
 {
 public:
+  virtual ~GeneralScoring() {}
+
   /**
    * Computes the score between two vectors. Vectors must be sorted and 
    * normalized if necessary
@@ -45,10 +47,10 @@ public:
   virtual bool mustNormalize(LNorm &norm) const = 0;
 
   /// Log of epsilon
-	static const double LOG_EPS; 
+  static const double LOG_EPS;
   // If you change the type of WordValue, make sure you change also the
-	// epsilon value (this is needed by the KL method)
-	
+  // epsilon value (this is needed by the KL method)
+
 };
 
 /** 

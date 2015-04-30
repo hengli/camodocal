@@ -74,12 +74,12 @@ class Profiler
 public:
 
   // scales of time
-  static const float MS = 1e3; // milliseconds
-  static const float SECONDS = 1; // seconds
+  static constexpr float MS = 1e3; // milliseconds
+  static constexpr float SECONDS = 1; // seconds
 
 public:
 
-  Profiler(const float scale = Profiler::SECONDS): 
+  Profiler(const float scale = SECONDS): 
     m_last_profile(""), m_scale(scale){}
   virtual ~Profiler(){}
   

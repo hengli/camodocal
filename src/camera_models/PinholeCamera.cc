@@ -451,7 +451,7 @@ PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) cons
 {
     double mx_d, my_d,mx2_d, mxy_d, my2_d, mx_u, my_u;
     double rho2_d, rho4_d, radDist_d, Dx_d, Dy_d, inv_denom_d;
-    double lambda;
+    //double lambda;
 
     // Lift points to normalised plane
     mx_d = m_inv_K11 * p(0) + m_inv_K13;
@@ -541,7 +541,7 @@ PinholeCamera::spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p) const
          mParameters.fy() * p_d(1) + mParameters.cy();
 }
 
-
+#if 0
 /**
  * \brief Project a 3D point to the image plane and calculate Jacobian
  *
@@ -606,6 +606,7 @@ PinholeCamera::spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p,
     J << dudx, dudy, dudz,
          dvdx, dvdy, dvdz;
 }
+#endif
 
 /**
  * \brief Projects an undistorted 2D point p_u to the image plane
@@ -829,7 +830,7 @@ PinholeCamera::setParameters(const PinholeCamera::Parameters& parameters)
 void
 PinholeCamera::readParameters(const std::vector<double>& parameterVec)
 {
-    if (parameterVec.size() != parameterCount())
+    if ((int)parameterVec.size() != parameterCount())
     {
         return;
     }

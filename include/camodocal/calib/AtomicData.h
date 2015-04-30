@@ -132,6 +132,7 @@ AtomicData<T>::timedWaitForData(const boost::system_time& timeout)
     boost::unique_lock<boost::mutex> lock(mDataMutex);
 
     bool ret = mDataCond.timed_wait(lock, timeout);
+    (void)ret;
 
     return mAvailable;
 }

@@ -110,7 +110,7 @@ void changeStructure(const cv::Mat &plain, vector<DVision::ORB::bitset> &out,
       for(int k = 0; k < 8; ++k)
       {
           bitset[j * 8 + k] = (c & 0x1);
-          c >> 1;
+          c >>= 1;
       }
     }
     out.at(i) = bitset;

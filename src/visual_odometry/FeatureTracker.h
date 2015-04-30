@@ -112,7 +112,8 @@ public:
                            DetectorType detectorType = ORB_DETECTOR,
                            DescriptorType descriptorType = ORB_DESCRIPTOR,
                            MatchTestType matchTestType = RATIO,
-                           bool preprocess = false);
+                           bool preprocess = false,
+                           const Eigen::Matrix4d& globalCameraPose = Eigen::Matrix4d::Identity());
     bool addFrame(FramePtr& frame, const cv::Mat& mask);
     void clear(void);
 
