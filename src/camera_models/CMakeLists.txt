@@ -23,6 +23,8 @@ camodocal_link_libraries(camodocal_camera_models
   ${GLOG_LIBRARIES}
 )
 
+camodocal_install(camodocal_camera_models)
+
 camodocal_test(CataCamera)
 camodocal_link_libraries(CataCamera_test camodocal_camera_models)
 

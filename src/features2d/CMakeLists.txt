@@ -18,4 +18,6 @@ camodocal_link_libraries(camodocal_features2d
   ${Boost_LIBRARIES}
 )
 
+camodocal_install(camodocal_features2d)
+
 endif(EXISTS ${OPENCV_GPU_LIBRARY})# AND CUDA_FOUND)

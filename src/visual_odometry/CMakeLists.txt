@@ -45,6 +45,8 @@ camodocal_link_libraries(SlidingWindowBA_sim
   overlay
 ) 
 
+camodocal_install(camodocal_visual_odometry)
+
 endif(VCHARGE_VIZ)
 
 endif(CAMODOCAL_FEATURES2D_FOUND)

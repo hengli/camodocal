@@ -28,6 +28,7 @@ LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include)
 LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/eigen3)
 LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/suitesparse)
 
+set(CAMODOCAL_INCLUDE_INSTALL_PATH "include")
 # Library finding
 include(LibraryConfig)
 
@@ -175,6 +176,8 @@ include_directories(
 )
 
 add_subdirectory(src)
+
+install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH})
 
 # Output
 set(_output_blanks "                              ")

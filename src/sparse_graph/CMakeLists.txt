@@ -14,3 +14,5 @@ camodocal_link_libraries(camodocal_sparse_graph
   ${OPENCV_FEATURES2D_LIBRARY}
   ${OPENCV_HIGHGUI_LIBRARY}
 )
+
+camodocal_install(camodocal_sparse_graph)

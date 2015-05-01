@@ -34,4 +34,7 @@ camodocal_link_libraries(camodocal_infrastr_calib
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   overlay
 )
+
+camodocal_install(camodocal_infrastr_calib)
+
 endif(VCHARGE_VIZ)

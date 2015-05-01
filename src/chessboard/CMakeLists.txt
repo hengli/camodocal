@@ -8,3 +8,5 @@ camodocal_link_libraries(camodocal_chessboard
   ${OPENCV_CALIB3D_LIBRARY}
   ${OPENCV_IMGPROC_LIBRARY}
 )
+
+camodocal_install(camodocal_chessboard)

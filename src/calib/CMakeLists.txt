@@ -73,6 +73,8 @@ camodocal_link_libraries(camodocal_calib
 endif(GLUT_FOUND)
 endif(VCHARGE_VIZ)
 
+camodocal_install(camodocal_calib)
+
 camodocal_test(CamOdoCalibration)
 camodocal_link_libraries(CamOdoCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
