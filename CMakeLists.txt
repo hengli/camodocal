@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.6 FATAL_ERROR)
 project(CAMODOCAL C CXX)
 
 # This sets where to look for modules (e.g. "Find*.cmake" files)
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Libraries
 LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib)
