@@ -87,6 +87,10 @@ if(${UNIX})
   add_definitions(-DCERES_HAVE_RWLOCK)
 endif(${UNIX})
 
+if(${TBB_FOUND})
+    set(TBB_LBRARIES_OPTIONAL ${TBB_LIBRARIES})
+endif()
+
 # Use the std namespace for the hash<> and related templates. This may vary by
 # system.
 #add_definitions("\"-DCERES_HASH_NAMESPACE_START=namespace std { namespace tr1 {\"")

@@ -40,6 +40,7 @@ camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
 camodocal_optional_dependency(Glog)
 camodocal_optional_dependency(Gflags)
+camodocal_optional_dependency(TBB)
 
 # Consider making this impossible to use external Ceres again due to the following possible issue:
 # https://github.com/ceres-solver/ceres-solver/issues/155
