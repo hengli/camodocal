@@ -12,7 +12,8 @@ function(_camodocal_library_intern _build _name)
   endif()
 
   if(_build)
-    add_library(${_name} STATIC ${ARGN})
+    #basis_add_library(${_name} STATIC ${ARGN})
+    basis_add_library(${_name} ${ARGN})
 
 	if(CAMODOCAL_PLATFORM_WINDOWS AND BUILD_SHARED_LIBS)
 	  # generate corresponding .lib for .dll
@@ -45,7 +46,7 @@ function(_camodocal_executable_intern _build _name)
   endif()
 
   if(_build)
-    add_executable(${_name} ${ARGN})
+    basis_add_executable(${_name} ${ARGN})
     camodocal_install(${_name})
   endif()
 
@@ -64,8 +65,8 @@ function(_camodocal_test_intern _build _name)
   endif()
 
   if(_build)
-    add_executable(${_name}_test ${_name}_test.cc ${ARGN})
-    target_link_libraries(${_name}_test gtest gtest_main)
+    basis_add_executable(${_name}_test ${_name}_test.cc ${ARGN})
+    basis_target_link_libraries(${_name}_test gtest gtest_main)
     add_test(NAME ${_name}_test
              COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${_name}_test)
     camodocal_install(${_name}_test)
