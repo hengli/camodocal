@@ -37,6 +37,12 @@
 #include <stdlib.h>
 #include <tmmintrin.h>
 
+#ifdef HAVE_OPENCV3
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
+#endif // HAVE_OPENCV3
 
 using namespace cv;
 
@@ -543,9 +549,12 @@ void BriskFeatureDetector::detectImpl( const cv::Mat& image,
 	BriskScaleSpace briskScaleSpace(octaves);
 	briskScaleSpace.constructPyramid(image);
 	briskScaleSpace.getKeypoints(threshold,keypoints);
-
+#ifdef HAVE_OPENCV3
+    KeyPointsFilter::runByPixelsMask(keypoints,mask);
+#else
 	// remove invalid points
 	removeInvalidPoints(mask, keypoints);
+#endif
 }
 
 // construct telling the octaves number:

@@ -9,7 +9,9 @@
 #include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
 #include "../gpl/EigenUtils.h"
+#ifndef HAVE_OPENCV3
 #include "../gpl/OpenCVUtils.h"
+#endif // HAVE_OPENCV3
 #include "../location_recognition/LocationRecognition.h"
 #include "../pose_estimation/P3P.h"
 #include "camodocal/sparse_graph/SparseGraphUtils.h"
@@ -601,13 +603,29 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     if (preprocess)
     {
     
-#ifdef HAVE_CUDA
-        cv::gpu::GpuMat gpuImage, gpuImageProc;
-        gpuImage.upload(image);
 
-        cv::gpu::equalizeHist(gpuImage, gpuImageProc);
+#ifdef HAVE_CUDA
+    //////////////////
+    // CUDA + OPENCV2 + OPENCV3
+    //////////////////
+
+#ifdef HAVE_OPENCV3
+   typedef cv::cuda::GpuMat CUDAMat;
+#else // HAVE_OPENCV3
+   typedef cv::gpu::GpuMat CUDAMat;
+#endif // HAVE_OPENCV3
+
+
+        CUDAMat gpuImage, gpuImageProc;
+        gpuImage.upload(image);
+        cv::equalizeHist(gpuImage, gpuImageProc);
+
+
         gpuImageProc.download(imageProc);
-#else
+#else // HAVE_CUDA
+    //////////////////
+    // OPENCV2 + OPENCV3
+    //////////////////
         cv::Mat gpuImage, gpuImageProc;
         cv::equalizeHist(gpuImage, gpuImageProc);
 #endif

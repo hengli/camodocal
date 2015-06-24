@@ -56,6 +56,12 @@ if(CUDA_FOUND)
     set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
 endif()
 
+if(OpenCV_FOUND)
+    if(NOT ${OpenCV_VERSION} VERSION_LESS 3.0.0)
+        add_definitions(-DHAVE_OPENCV3)
+    endif()
+endif()
+
 # OSX RPATH
 if(APPLE)
    set(CMAKE_MACOSX_RPATH ON)

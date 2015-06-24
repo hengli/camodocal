@@ -26,6 +26,10 @@
 
 #include <vector>
 #include <opencv/cv.h>
+#ifdef HAVE_OPENCV3
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#endif // HAVE_OPENCV3
 
 namespace DUtilsCV
 {

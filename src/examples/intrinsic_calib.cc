@@ -3,6 +3,8 @@
 #include <boost/program_options.hpp>
 #include <iomanip>
 #include <iostream>
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 #include "camodocal/chessboard/Chessboard.h"

@@ -18,9 +18,17 @@
 // OpenCV
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+
+#ifdef HAVE_OPENCV3
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
+#else // HAVE_OpenCV3
 #if CV24
 #include <opencv2/nonfree/features2d.hpp>
-#endif
+#endif // CV24
+#endif // HAVE_OpenCV3
 
 
 using namespace DBoW2;
@@ -72,7 +80,11 @@ void loadFeatures(vector<vector<DVision::ORB::bitset> > &features)
   features.clear();
   features.reserve(NIMAGES);
 
-  cv::ORB orb(1000);
+#ifdef HAVE_OPENCV3
+  cv::Ptr<cv::ORB> orb = cv::ORB::create(1000);
+#else // HAVE_OPENCV3
+  
+#endif // HAVE_OPENCV3
 
   cout << "Extracting ORB features..." << endl;
   for(int i = 0; i < NIMAGES; ++i)
@@ -85,10 +97,15 @@ void loadFeatures(vector<vector<DVision::ORB::bitset> > &features)
     vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
 
-    orb(image, mask, keypoints, descriptors);
+
+#ifdef HAVE_OPENCV3
+    orb->detectAndCompute(image, mask, keypoints, descriptors);
+#else // HAVE_OPENCV3
+    (*orb)(image, mask, keypoints, descriptors);
+#endif // HAVE_OPENCV3
 
     features.push_back(vector<DVision::ORB::bitset>());
-    changeStructure(descriptors, features.back(), orb.descriptorSize());
+    changeStructure(descriptors, features.back(), orb->descriptorSize());
   }
 }
 

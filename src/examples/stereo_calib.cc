@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include "camodocal/chessboard/Chessboard.h"
 #include "camodocal/calib/StereoCameraCalibration.h"

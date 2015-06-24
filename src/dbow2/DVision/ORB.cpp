@@ -28,6 +28,12 @@
 #include <boost/dynamic_bitset.hpp>
 #include <vector>
 
+#ifdef HAVE_OPENCV3
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+#endif // HAVE_OPENCV3
+
 using namespace std;
 using namespace DVision;
 

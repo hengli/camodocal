@@ -65,7 +65,7 @@ Mat findEssentialMat( InputArray _points1, InputArray _points2, double focal, Po
 	
 	assert(npoints >= 5); 
 	threshold /= focal; 
-	if (method = CV_FM_RANSAC)
+	if (method == CV_FM_RANSAC)
 	{
 		estimator.runRANSAC(&p1, &p2, &_E, tempMask, threshold, prob, maxIters); 
 	}
@@ -74,8 +74,13 @@ Mat findEssentialMat( InputArray _points1, InputArray _points2, double focal, Po
 		estimator.runLMeDS(&p1, &p2, &_E, tempMask, prob, maxIters); 
 	}
 	_mask.create(1, npoints, CV_8U, -1, true); 
-	Mat mask = _mask.getMat(); 
-	mask = Mat(tempMask) * 1.0; 
+	Mat mask = _mask.getMat();
+    
+#ifdef HAVE_OPENCV3
+	mask = Mat(cv::cvarrToMat(tempMask)) * 1.0;
+#else
+	mask = Mat(tempMask) * 1.0;
+#endif
 
 	return E; 
 
@@ -257,9 +262,14 @@ int CvEMEstimator::run5Point( const CvMat* q1, const CvMat* q2, CvMat* ematrix )
 	// in this function Q1 denotes right points while Q2 left. 
 	// Therefore, left q1 and right q2 are swap to Q2 and Q1. 
 	// Q1 and Q2 are Nx2 (with omitted third coord as 1). 
-	Eigen::MatrixXd Q1, Q2; 
+	Eigen::MatrixXd Q1, Q2;
+#ifdef HAVE_OPENCV3
+	cv::cv2eigen(cv::cvarrToMat(q1).reshape(1, q1->cols), Q2);
+	cv::cv2eigen(cv::cvarrToMat(q2).reshape(1, q2->cols), Q1);
+#else
 	cv::cv2eigen(cv::Mat(q1).reshape(1, q1->cols), Q2); 
-	cv::cv2eigen(cv::Mat(q2).reshape(1, q2->cols), Q1); 
+	cv::cv2eigen(cv::Mat(q2).reshape(1, q2->cols), Q1);
+#endif
 //	std::cout << Q1 << std::endl; 
 //	std::cout << Q2 << std::endl; 
 
@@ -334,8 +344,18 @@ int CvEMEstimator::run5Point( const CvMat* q1, const CvMat* q2, CvMat* ematrix )
 
 bool CvEMEstimator::reliable( const CvMat* m1, const CvMat* m2, const CvMat* model )
 { 
-	Mat R, t; 
-	return recoverPose( Mat(model), Mat(m1), Mat(m2), R, t ) >= 5; 
+	Mat R, t;
+    
+#ifdef HAVE_OPENCV3
+    Mat m1Mat    = Mat(cv::cvarrToMat(m1));
+    Mat m2Mat    = Mat(cv::cvarrToMat(m2));
+	Mat modelMat = Mat(cv::cvarrToMat(model));
+#else // HAVE_OPENCV3
+    Mat m1Mat    = Mat(m1);
+    Mat m2Mat    = Mat(m2);
+	Mat modelMat = Mat(model);
+#endif // HAVE_OPENCV3
+	return recoverPose( modelMat, m1Mat, m2Mat, R, t ) >= 5;
 }
 
 // Same as the runKernel (run5Point), m1 and m2 should be
@@ -344,9 +364,15 @@ bool CvEMEstimator::reliable( const CvMat* m1, const CvMat* m2, const CvMat* mod
 void CvEMEstimator::computeReprojError( const CvMat* m1, const CvMat* m2,
                                      const CvMat* model, CvMat* error )
 {
-	Eigen::MatrixXd X1t, X2t; 
-	cv::cv2eigen(cv::Mat(m1).reshape(1, m1->cols), X1t); 
-	cv::cv2eigen(cv::Mat(m2).reshape(1, m2->cols), X2t); 
+	Eigen::MatrixXd X1t, X2t;
+    
+#ifdef HAVE_OPENCV3
+	cv::cv2eigen(cv::cvarrToMat(m1).reshape(1, m1->cols), X1t);
+	cv::cv2eigen(cv::cvarrToMat(m2).reshape(1, m2->cols), X2t);
+#else
+	cv::cv2eigen(cv::Mat(m1).reshape(1, q1->cols), Q2);
+	cv::cv2eigen(cv::Mat(m2).reshape(1, q2->cols), Q1);
+#endif
 	Eigen::MatrixXd X1(3, X1t.rows()); 
 	Eigen::MatrixXd X2(3, X2t.rows()); 
 	X1.topRows(2) = X1t.transpose(); 
@@ -354,8 +380,13 @@ void CvEMEstimator::computeReprojError( const CvMat* m1, const CvMat* m2,
 	X1.row(2).setOnes(); 
 	X2.row(2).setOnes(); 
 
-	Eigen::MatrixXd E; 
-	cv::cv2eigen(cv::Mat(model), E); 
+	Eigen::MatrixXd E;
+#ifdef HAVE_OPENCV3
+	Mat modelMat = Mat(cv::cvarrToMat(model));
+#else // HAVE_OPENCV3
+	Mat modelMat = Mat(model);
+#endif // HAVE_OPENCV3
+	cv::cv2eigen(modelMat, E);
 	
 	// Compute Simpson's error
 	Eigen::MatrixXd Ex1, x2tEx1, Etx2, SimpsonError; 

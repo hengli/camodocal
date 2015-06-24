@@ -32,8 +32,14 @@
 // https://code.ros.org/trac/opencv/ticket/825 )
 #define USURF_SUPPORTED 0
 
+#ifdef HAVE_OPENCV3
+#include <opencv2/flann.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
+#else
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+#endif // HAVE_OPENCV3
+
 #include <vector>
 #include <string>
 
@@ -245,7 +251,12 @@ protected:
    * @param params surf detector params
    * @see SurfSet::Extract
    */
-  void extract(const cv::Mat &image, const CvSURFParams &params);
+   
+#ifdef HAVE_OPENCV3
+  void extract(const cv::Mat &image, const cv::xfeatures2d::SURF &params);
+#else // HAVE_OPENCV3
+  void extract(const cv::Mat &image, const cv::SURF &params);
+#endif // HAVE_OPENCV3
 
   /**
    * Performs the actual computation with the provided parameters
@@ -254,8 +265,14 @@ protected:
    * @param params surf detector parameters
    * @see SurfSet::Compute
    */
+#ifdef HAVE_OPENCV3
   void compute(const cv::Mat &image,
-    const std::vector<cv::KeyPoint> &keypoints, const CvSURFParams &params);
+    const std::vector<cv::KeyPoint> &keypoints, const cv::xfeatures2d::SURF &params);
+#else // HAVE_OPENCV3
+  void compute(const cv::Mat &image,
+    const std::vector<cv::KeyPoint> &keypoints, const cv::SURF &params);
+    
+#endif // HAVE_OPENCV3
 
 	/** 
 	 * Calculates the square distance between two descriptors
@@ -301,7 +318,9 @@ protected:
    * @note This function is copied from the opencv surf.cpp file, written
    *    by Liu Liu
    */
+#ifndef HAVE_OPENCV3
   int getPointOctave(const CvSURFPoint& kpt, const CvSURFParams& params) const;
+#endif
 
 protected:
   
