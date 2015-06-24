@@ -4,11 +4,25 @@
 #include <iomanip>
 #include <iostream>
 #include <Eigen/Eigen>
-#include <opencv2/gpu/gpu.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <fstream>
 #include <thread>
 #include <limits>
+
+#ifdef HAVE_OPENCV3
+#include <opencv2/imgproc.hpp>
+#endif // HAVE_OPENCV3
+
+#ifdef HAVE_CUDA
+#ifdef HAVE_OPENCV3
+#include <opencv2/core/cuda.hpp>
+#else // HAVE_OPENCV3
+#include <opencv2/gpu/gpu.hpp>
+namespace cv {
+  namespace cuda = gpu;
+}
+#endif // HAVE_OPENCV3
+#endif // HAVE_CUDA
 
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
@@ -77,17 +91,17 @@ main(int argc, char** argv)
     if (beginStage > 0)
     {
         // check for CUDA devices
-        cv::gpu::DeviceInfo info;
-        if (cv::gpu::getCudaEnabledDeviceCount() > 0 && info.isCompatible())
+        cv::cuda::DeviceInfo info;
+        if (cv::cuda::getCudaEnabledDeviceCount() > 0 && info.isCompatible())
         {
-            cv::gpu::setDevice(0);
-            cv::gpu::resetDevice();
+            cv::cuda::setDevice(0);
+            cv::cuda::resetDevice();
 
             // dummy function call
             cv::Mat dummy(1, 1, CV_8UC1);
             dummy = cv::Scalar(0);
 
-            cv::gpu::GpuMat dummyGPU;
+            cv::cuda::GpuMat dummyGPU;
             dummyGPU.upload(dummy);
 
             dummyGPU.release();

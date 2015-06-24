@@ -181,6 +181,14 @@ HandEyeCalibration::estimateHandEyeScrew(const std::vector<Eigen::Vector3d, Eige
         }
         else 
         {
+            std::cout << "u1:" << std::endl;
+            std::cout << u1 << std::endl;
+            std::cout << "v1:" << std::endl;
+            std::cout << v1 << std::endl;
+            std::cout << "u2:" << std::endl;
+            std::cout << u2 << std::endl;
+            std::cout << "v2:" << std::endl;
+            std::cout << v2 << std::endl;
             std::cout << "Not handled yet. " << std::endl; 
             exit(0); 
         }

@@ -25,6 +25,11 @@
 #include "Types.h"
 #include <opencv/cv.h>
 
+#ifdef HAVE_OPENCV3
+#include <opencv2/core.hpp>
+#include <opencv2/calib3d.hpp>
+#endif
+
 using namespace DUtilsCV;
 
 // ----------------------------------------------------------------------------

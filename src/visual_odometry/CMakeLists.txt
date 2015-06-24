@@ -18,7 +18,7 @@ camodocal_link_libraries(camodocal_visual_odometry
   ${OPENCV_FLANN_LIBRARY}
   ${OPENCV_HIGHGUI_LIBRARY}
   ${OPENCV_NONFREE_LIBRARY}
-  ${OPENCV_GPU_LIBRARY}
+  ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
   camodocal_brisk
   camodocal_camera_models
   camodocal_features2d

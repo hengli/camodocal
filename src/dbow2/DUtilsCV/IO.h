@@ -27,7 +27,9 @@
 #include <iostream>
 #include <vector>
 #include <opencv/cv.h>
+#ifndef HAVE_OPENCV3
 #include <opencv2/legacy/legacy.hpp>
+#endif // HAVE_OPENCV3
 #include <string>
 
 namespace DUtilsCV
@@ -115,9 +117,10 @@ public:
   template<class T>
   static void load(const std::string &filename, T& c,
     const std::string &nodename = "data");
-  
+
+#ifndef HAVE_OPENCV3
   // Save and Load functions to make calling easier
-  
+
   /**
    * Saves a fern classifier
    * @param filename
@@ -137,6 +140,7 @@ public:
   inline static void load(const std::string &filename, 
     cv::FernClassifier &c,
     const std::string &nodename = "fern_classifier");
+#endif // HAVE_OPENCV3
 
 };
 
@@ -180,6 +184,7 @@ void IO::load(const std::string &filename, T& c,
 
 // ---------------------------------------------------------------------------
 
+#ifndef HAVE_OPENCV3
 inline void IO::save(const std::string &filename, 
     const cv::FernClassifier &c,
     const std::string &nodename)
@@ -195,7 +200,7 @@ inline void IO::load(const std::string &filename,
 {
   IO::load<cv::FernClassifier>(filename, c, nodename);
 }
-
+#endif
 // ---------------------------------------------------------------------------
 
 }

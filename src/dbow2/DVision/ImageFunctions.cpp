@@ -22,6 +22,9 @@
  */
 
 #include <opencv/cv.h>
+#ifdef HAVE_OPENCV3
+#include <opencv2/imgproc/imgproc.hpp>
+#endif // HAVE_OPENCV3
 #include "ImageFunctions.h"
 #include "DUtils.h"
 

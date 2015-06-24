@@ -11,7 +11,12 @@ boost::mutex SurfGPU::m_instanceMutex;
 SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  int nOctaveLayers, bool extended,
                  float keypointsRatio)
- : m_surfGPU(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio)
+ :
+#ifdef HAVE_OPENCV3
+    m_surfGPU(new SURFType(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
+#else // HAVE_OPENCV3
+    m_surfGPU(new SURFType(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio))
+#endif // HAVE_OPENCV3
 {
 
 }
@@ -55,8 +60,8 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
     {
         MatType kptsGPU;
 
-        m_surfGPU(imageGPU, maskGPU, kptsGPU);
-        m_surfGPU.downloadKeypoints(kptsGPU, keypoints);
+        (*m_surfGPU)(imageGPU, maskGPU, kptsGPU);
+        m_surfGPU->downloadKeypoints(kptsGPU, keypoints);
     }
     catch (cv::Exception& exception)
     {
@@ -75,21 +80,38 @@ SurfGPU::compute(const cv::Mat& image,
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 
 #ifdef HAVE_CUDA
+
+    //////////////////
+    // OPENCV3.0.0 + OPENCV2 + CUDA
+    //////////////////
+    
     MatType imageGPU(image);
 
     MatType dtorsGPU;
     try
     {
-        m_surfGPU(imageGPU, MatType(), keypoints, dtorsGPU, true);
+        (*m_surfGPU)(imageGPU, MatType(), keypoints, dtorsGPU, true);
     }
     catch (cv::Exception& exception)
     {
         std::cout << "# ERROR: Surf GPU descriptor computation failed: " << exception.msg << std::endl;
     }
     dtorsGPU.download(descriptors);
-#else
-    m_surfGPU(image, MatType(), keypoints, descriptors, true);
-#endif
+#else // HAVE_CUDA
+#ifdef HAVE_OPENCV3
+    //////////////////
+    // OPENCV3
+    //////////////////
+    m_surfGPU->compute(image, keypoints, descriptors);
+    
+#else // HAVE_OPENCV3
+
+    //////////////////
+    // OPENCV2
+    //////////////////
+    (*m_surfGPU)(image, MatType(), keypoints, descriptors, true);
+#endif // HAVE_OPENCV3
+#endif // HAVE_CUDA
 }
 
 void
@@ -119,9 +141,9 @@ SurfGPU::knnMatch(const cv::Mat& queryDescriptors,
         maskGPU.upload(mask);
     }
 
-    m_matcher.knnMatch(qDtorsGPU, tDtorsGPU, matches, k, maskGPU, compactResult);
+    m_matcher->knnMatch(qDtorsGPU, tDtorsGPU, matches, k, maskGPU, compactResult);
 #else
-    m_matcher.knnMatch(queryDescriptors, trainDescriptors, matches, k,mask,compactResult);
+    m_matcher->knnMatch(queryDescriptors, trainDescriptors, matches, k,mask,compactResult);
 #endif
 }
 
@@ -152,9 +174,9 @@ SurfGPU::radiusMatch(const cv::Mat& queryDescriptors,
         maskGPU.upload(mask);
     }
 
-    m_matcher.radiusMatch(qDtorsGPU, tDtorsGPU, matches, maxDistance, maskGPU, compactResult);
+    m_matcher->radiusMatch(qDtorsGPU, tDtorsGPU, matches, maxDistance, maskGPU, compactResult);
 #else
-    m_matcher.radiusMatch(queryDescriptors, trainDescriptors, matches, maxDistance, mask, compactResult);
+    m_matcher->radiusMatch(queryDescriptors, trainDescriptors, matches, maxDistance, mask, compactResult);
 #endif // HAVE_CUDA
 }
 
@@ -200,8 +222,8 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
 #endif
     try
     {
-        m_surfGPU(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
-        m_surfGPU(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
+        (*m_surfGPU)(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
+        (*m_surfGPU)(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
 #ifdef HAVE_CUDA
         dtorsGPU[0].download(dtors1);
         dtorsGPU[1].download(dtors2);
@@ -210,10 +232,10 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
         dtors2 = dtorsGPU[1];
 #endif
         std::vector<std::vector<cv::DMatch> > candidateFwdMatches;
-        m_matcher.knnMatch(dtorsGPU[0], dtorsGPU[1], candidateFwdMatches, 2);
+        m_matcher->knnMatch(dtorsGPU[0], dtorsGPU[1], candidateFwdMatches, 2);
 
         std::vector<std::vector<cv::DMatch> > candidateRevMatches;
-        m_matcher.knnMatch(dtorsGPU[1], dtorsGPU[0], candidateRevMatches, 2);
+        m_matcher->knnMatch(dtorsGPU[1], dtorsGPU[0], candidateRevMatches, 2);
 
         std::vector<std::vector<cv::DMatch> > fwdMatches(candidateFwdMatches.size());
         for (size_t i = 0; i < candidateFwdMatches.size(); ++i)
