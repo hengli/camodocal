@@ -26,6 +26,14 @@
 #include <opencv/highgui.h>
 #include "Drawing.h"
 
+
+#ifdef HAVE_OPENCV3
+#include <opencv2/core.hpp>
+#include <opencv2/calib3d.hpp>
+#endif
+
+
+
 using namespace std;
 using namespace DUtilsCV;
 
@@ -138,7 +146,11 @@ void Drawing::drawCorrespondences(cv::Mat &image, const cv::Mat &img1,
 	
   cvSetImageROI(ipl_ret, roi);
   IplImage ipl_aux1 = IplImage(aux1);
+#ifdef HAVE_OPENCV3
+  cvCopy(&ipl_aux1, ipl_ret);
+#else // HAVE_OPENCV3
   cvCopyImage(&ipl_aux1, ipl_ret);
+#endif // HAVE_OPENCV3
   
   roi.x = 0;
   roi.y = img1.rows;
@@ -147,7 +159,11 @@ void Drawing::drawCorrespondences(cv::Mat &image, const cv::Mat &img1,
 	
   cvSetImageROI(ipl_ret, roi);
   IplImage ipl_aux2 = IplImage(aux2);
+#ifdef HAVE_OPENCV3
+  cvCopy(&ipl_aux2, ipl_ret);
+#else // HAVE_OPENCV3
   cvCopyImage(&ipl_aux2, ipl_ret);
+#endif // HAVE_OPENCV3
 
 	cvResetImageROI(ipl_ret);
 

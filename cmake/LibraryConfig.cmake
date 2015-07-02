@@ -40,6 +40,7 @@ camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
 camodocal_optional_dependency(Glog)
 camodocal_optional_dependency(Gflags)
+camodocal_optional_dependency(TBB)
 
 # Consider making this impossible to use external Ceres again due to the following possible issue:
 # https://github.com/ceres-solver/ceres-solver/issues/155
@@ -53,6 +54,12 @@ if(CUDA_FOUND)
     add_definitions(-DHAVE_CUDA)
 
     set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
+endif()
+
+if(OpenCV_FOUND)
+    if(NOT ${OpenCV_VERSION} VERSION_LESS 3.0.0)
+        add_definitions(-DHAVE_OPENCV3)
+    endif()
 endif()
 
 # OSX RPATH

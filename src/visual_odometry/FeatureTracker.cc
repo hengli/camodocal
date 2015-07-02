@@ -1,11 +1,54 @@
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 #include <Eigen/Dense>
-#include <opencv2/core/core.hpp>
 #include <opencv2/core/eigen.hpp>
+
+#ifdef HAVE_CUDA
+#ifdef HAVE_OPENCV3
+
+    //////////////////
+    // CUDA + OPENCV3
+    //////////////////
+#include <opencv2/cudafeatures2d.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
+#else  // HAVE_OPENCV3
+
+    //////////////////
+    // CUDA + OPENCV2
+    //////////////////
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/nonfree/gpu.hpp>
 #include <opencv2/gpu/gpu.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+
+#endif // HAVE_OPENCV3
+#else  // HAVE_CUDA
+
+#ifdef HAVE_OPENCV3
+
+    //////////////////
+    // OPENCV3
+    //////////////////
+#include <opencv2/xfeatures2d.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
+#else // HAVE_OPENCV3
+
+    //////////////////
+    // OPENCV2
+    //////////////////
 #include <opencv2/nonfree/features2d.hpp>
+
+#endif // HAVE_OPENCV3
+#endif // HAVE_CUDA
+
+#ifndef HAVE_OPENCV3
+#include <opencv2/legacy/legacy.hpp>
+#endif // HAVE_OPENCV3
+
 
 #include "../brisk/include/brisk/brisk.h"
 #include "../camera_models/CostFunctionFactory.h"
@@ -19,6 +62,7 @@
 namespace camodocal
 {
 
+/// @todo when DETECTOR and DESCRIPTOR match, should only one be created and given to both cv::Ptr objects?
 FeatureTracker::FeatureTracker(DetectorType detectorType,
                                DescriptorType descriptorType,
                                MatchTestType matchTestType,
@@ -31,30 +75,88 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
  , m_verbose(false)
 {
     bool crossCheck = false;
-
+    static const int orbNFeatures = 1000;
+    static const int surfNFeatures = 500;
+    static const int surfGPU_NFeatures = 200;
+    
+    // FEATURE DETECTORS
+#ifdef HAVE_OPENCV3
+    switch (detectorType)
+    {
+    case FAST_DETECTOR:
+        m_featureDetector = cv::FastFeatureDetector::create(25);
+        break;
+    case ORB_DETECTOR:
+        m_featureDetector = cv::ORB::create(orbNFeatures);
+        break;
+    case ORB_GPU_DETECTOR:
+        m_ORB_GPU = ORBGPU::instance(orbNFeatures);
+        break;
+    case STAR_DETECTOR:
+//        m_featureDetector = new cv::GridAdaptedFeatureDetector(new cv::StarDetector(15, 5, 10, 8, 20), 500, 3, 2);
+        m_featureDetector = cv::xfeatures2d::StarDetector::create(16, 25, 10, 8, 5);
+        break;
+    case SURF_GPU_DETECTOR:
+        m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
+        break; 
+    case SURF_DETECTOR:
+    default:
+        m_featureDetector = cv::xfeatures2d::SurfFeatureDetector::create(surfNFeatures, 5, 2);
+    }
+#else // HAVE_OPENCV3
     switch (detectorType)
     {
     case FAST_DETECTOR:
         m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::FastFeatureDetector(25));
         break;
     case ORB_DETECTOR:
-        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::OrbFeatureDetector(1000));
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::OrbFeatureDetector(orbNFeatures));
         break;
     case ORB_GPU_DETECTOR:
-        m_ORB_GPU = ORBGPU::instance(1000);
+        m_ORB_GPU = ORBGPU::instance(orbNFeatures);
         break;
     case STAR_DETECTOR:
 //        m_featureDetector = new cv::GridAdaptedFeatureDetector(new cv::StarDetector(15, 5, 10, 8, 20), 500, 3, 2);
         m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::StarDetector(16, 25, 10, 8, 5));
         break;
     case SURF_GPU_DETECTOR:
-        m_SURF_GPU = SurfGPU::instance(200.0);
+        m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
         break; 
     case SURF_DETECTOR:
     default:
-        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(500.0, 5, 2));
+        m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(surfNFeatures, 5, 2));
     }
 
+#endif // HAVE_OPENCV3
+
+
+
+
+
+    // FEATURE DESCRIPTORS
+#ifdef HAVE_OPENCV3
+    switch (descriptorType)
+    {
+    case BRISK_DESCRIPTOR:
+        m_descriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::BriskDescriptorExtractor);
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
+        break;
+    case ORB_DESCRIPTOR:
+        m_descriptorExtractor =  cv::ORB::create(orbNFeatures);
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
+        break;
+    case ORB_GPU_DESCRIPTOR:
+        m_ORB_GPU = ORBGPU::instance(orbNFeatures);
+        break;
+    case SURF_GPU_DESCRIPTOR:
+        m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
+        break;
+    case SURF_DESCRIPTOR:
+    default:
+        m_descriptorExtractor = cv::xfeatures2d::SurfFeatureDetector::create(surfNFeatures, 5, 2);
+        m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_L2, crossCheck));
+    }
+#else // HAVE_OPENCV3
     switch (descriptorType)
     {
     case BRISK_DESCRIPTOR:
@@ -66,16 +168,18 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
         m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_HAMMING, crossCheck));
         break;
     case ORB_GPU_DESCRIPTOR:
-        m_ORB_GPU = ORBGPU::instance(1000);
+        m_ORB_GPU = ORBGPU::instance(orbNFeatures);
         break;
     case SURF_GPU_DESCRIPTOR:
-        m_SURF_GPU = SurfGPU::instance(200.0);
+        m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
         break;
     case SURF_DESCRIPTOR:
     default:
         m_descriptorExtractor = cv::Ptr<cv::DescriptorExtractor>(new cv::SurfDescriptorExtractor(5, 2));
         m_descriptorMatcher = cv::Ptr<cv::DescriptorMatcher>(new cv::BFMatcher(cv::NORM_L2, crossCheck));
     }
+
+#endif // HAVE_OPENCV3
 }
 
 cv::Mat&

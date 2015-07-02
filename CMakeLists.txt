@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.6 FATAL_ERROR)
 project(CAMODOCAL C CXX)
 
 # This sets where to look for modules (e.g. "Find*.cmake" files)
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Libraries
 LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib)
@@ -28,6 +28,7 @@ LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include)
 LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/eigen3)
 LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/suitesparse)
 
+set(CAMODOCAL_INCLUDE_INSTALL_PATH "include")
 # Library finding
 include(LibraryConfig)
 
@@ -175,6 +176,8 @@ include_directories(
 )
 
 add_subdirectory(src)
+
+install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH})
 
 # Output
 set(_output_blanks "                              ")

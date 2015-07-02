@@ -9,57 +9,47 @@ FIND_PATH(CHOLMOD_INCLUDE_DIR NAMES cholmod.h amd.h camd.h
     NO_DEFAULT_PATH
   )
 
+set(SUITESPARSE_PATHS 
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  /sw/lib
+  /usr/lib/x86_64-linux-gnu
+)
+
 FIND_LIBRARY(CHOLMOD_LIBRARY NAMES cholmod
      PATHS
-     /usr/lib
-     /usr/local/lib
-     /opt/local/lib
-     /sw/lib
+     ${SUITESPARSE_PATHS}
      NO_DEFAULT_PATH
    )
 
 FIND_LIBRARY(AMD_LIBRARY NAMES SHARED NAMES amd
   PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 
 FIND_LIBRARY(CAMD_LIBRARY NAMES camd
   PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 
 FIND_LIBRARY(LDL_LIBRARY NAMES ldl
   PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 
 FIND_LIBRARY(SUITESPARSEQR_LIBRARY NAMES spqr
   PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 
 FIND_LIBRARY(SUITESPARSE_CONFIG_LIBRARY NAMES suitesparseconfig
   PATHS
-  /usr/lib
-  /usr/local/lib
-  /opt/local/lib
-  /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 
@@ -68,10 +58,7 @@ IF(CYGWIN)
   FIND_PACKAGE(PkgConfig)
   FIND_LIBRARY(COLAMD_LIBRARY NAMES colamd
     PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
+    ${SUITESPARSE_PATHS}
     NO_DEFAULT_PATH
     )
   PKG_CHECK_MODULES(LAPACK lapack REQUIRED)
@@ -114,19 +101,13 @@ ELSE(APPLE)
 
   FIND_LIBRARY(COLAMD_LIBRARY NAMES colamd
     PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
+    ${SUITESPARSE_PATHS}
     NO_DEFAULT_PATH
     )
 
   FIND_LIBRARY(CCOLAMD_LIBRARY NAMES ccolamd
     PATHS
-    /usr/lib
-    /usr/local/lib
-    /opt/local/lib
-    /sw/lib
+    ${SUITESPARSE_PATHS}
     NO_DEFAULT_PATH
     )
 
@@ -159,6 +140,7 @@ FIND_LIBRARY(CSPARSE_LIBRARY NAMES cxsparse
   /usr/local/lib
   /opt/local/lib
   /sw/lib
+  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 

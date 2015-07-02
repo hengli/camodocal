@@ -186,8 +186,9 @@ bool CvModelEstimator2::runRANSAC( const CvMat* m1, const CvMat* m2, CvMat* mode
     return result;
 }
 
-
+#ifndef HAVE_OPENCV3
 static CV_IMPLEMENT_QSORT( icvSortDistances, int, CV_LT )
+#endif
 
 bool CvModelEstimator2::runLMeDS( const CvMat* m1, const CvMat* m2, CvMat* model,
                                   CvMat* mask, double confidence, int maxIters )
@@ -247,7 +248,12 @@ bool CvModelEstimator2::runLMeDS( const CvMat* m1, const CvMat* m2, CvMat* model
             CvMat model_i;
             cvGetRows( models, &model_i, i*modelSize.height, (i+1)*modelSize.height );
             computeReprojError( m1, m2, &model_i, err );
+#ifdef HAVE_OPENCV3
+            /// @todo verify this change is correct, also consider cv::sort
+            std::sort(err->data.i,err->data.i+count);
+#else
             icvSortDistances( err->data.i, count, 0 );
+#endif
 
             double median = count % 2 != 0 ?
                 err->data.fl[count/2] : (err->data.fl[count/2-1] + err->data.fl[count/2])*0.5;

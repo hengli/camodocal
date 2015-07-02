@@ -11,3 +11,5 @@ include_directories(include)
 #build the brisk library dynamic and static versions
 camodocal_library(camodocal_brisk SHARED ${BRISK_SOURCE_FILES} ${BRISK_HEADER_FILES})
 camodocal_link_libraries(camodocal_brisk agast ${OPENCV_CORE_LIBRARY})
+
+camodocal_install(camodocal_brisk)

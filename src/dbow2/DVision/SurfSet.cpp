@@ -34,11 +34,20 @@
 #include "DUtils.h"
 #include "DUtilsCV.h" // defines macros CVXX
 
+
+#ifdef HAVE_OPENCV3
+#include <opencv2/flann.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
+#else // HAVE_OPENCV3
+
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+
 #if CV24
 #include <opencv2/nonfree/features2d.hpp>
 #endif
+
+#endif // HAVE_OPENCV3
 
 
 

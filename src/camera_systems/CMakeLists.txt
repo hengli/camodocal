@@ -13,3 +13,5 @@ camodocal_link_libraries(camodocal_camera_systems
   camodocal_camera_models
   camodocal_pugixml
 )
+
+camodocal_install(camodocal_camera_systems)

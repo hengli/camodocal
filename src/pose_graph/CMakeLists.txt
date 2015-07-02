@@ -19,3 +19,5 @@ camodocal_link_libraries(camodocal_pose_graph
   ceres
   ${CERES_LIBRARIES}
 )
+
+camodocal_install(camodocal_pose_graph)

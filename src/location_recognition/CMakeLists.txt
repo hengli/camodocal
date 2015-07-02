@@ -17,3 +17,5 @@ camodocal_link_libraries(camodocal_location_recognition
   camodocal_DVision
   camodocal_sparse_graph
 )
+
+camodocal_install(camodocal_location_recognition)

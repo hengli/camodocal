@@ -4,7 +4,15 @@
 #include <iostream>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgproc/imgproc_c.h>
+#ifndef HAVE_OPENCV3
 #include <opencv2/core/internal.hpp>
+#endif // HAVE_OPENCV3
+
+
+/// @todo remove this dypedef and replace with more modern cast
+#ifndef CV_CAST_8U
+#define CV_CAST_8U(t) (uchar)(!((t) & ~255) ? (t) : (t) > 0 ? 255 : 0)
+#endif // CV_CAST_8U
 
 void cvEqualizeHist( const CvArr* srcarr, CvArr* dstarr, CvMat* mask )
 {
@@ -18,7 +26,11 @@ void cvEqualizeHist( const CvArr* srcarr, CvArr* dstarr, CvMat* mask )
 
     CV_Assert( CV_ARE_SIZES_EQ(src, mask) && CV_MAT_TYPE(mask->type) == CV_8UC1); 
 
+#ifdef HAVE_OPENCV3
+    CvSize size = cvGetSize(src);
+#else // HAVE_OPENCV3
     CvSize size = cvGetMatSize(src);
+#endif // HAVE_OPENCV3
     if( CV_IS_MAT_CONT(src->type & dst->type) )
     {
         size.width *= size.height;
