@@ -127,6 +127,10 @@ Eigen::Matrix<T,4,4> QuaternionMultMatRight(const Eigen::Quaternion<T>& q)
                                       -q.x(), -q.y(), -q.z(), q.w()).finished();
 }
 
+/// @param theta - rotation about screw axis
+/// @param d - projection of tvec on the rotation axis
+/// @param l - screw axis direction
+/// @param m - screw axis moment
 template<typename T>
 void AngleAxisAndTranslationToScrew(const Eigen::Matrix<T, 3, 1>& rvec,
                                     const Eigen::Matrix<T, 3, 1>& tvec,
@@ -134,10 +138,6 @@ void AngleAxisAndTranslationToScrew(const Eigen::Matrix<T, 3, 1>& rvec,
                                     Eigen::Matrix<T, 3, 1>& l,
                                     Eigen::Matrix<T, 3, 1>& m)
 {
-    // theta - rotation about screw axis
-    // d - projection of tvec on the rotation axis
-    // l - screw axis direction
-    // m - screw axis moment
 
     theta = rvec.norm();
     if (theta == 0)
