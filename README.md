@@ -22,7 +22,7 @@ Typically for a set of 4 cameras with 500 frames each, the extrinsic self-calibr
 
 The landing page of the library is located at http://people.inf.ethz.ch/hengli/camodocal/
 
-The workings of the library are described in the two papers:
+The workings of the library are described in the three papers:
 
         Lionel Heng, Bo Li, and Marc Pollefeys,
         CamOdoCal: Automatic Intrinsic and Extrinsic Calibration of a Rig with Multiple Generic Cameras and Odometry,
@@ -30,9 +30,13 @@ The workings of the library are described in the two papers:
 
         Lionel Heng, Mathias Bürki, Gim Hee Lee, Paul Furgale, Roland Siegwart, and Marc Pollefeys,
         Infrastructure-Based Calibration of a Multi-Camera Rig,
-        Submitted to IEEE International Conference on Robotics and Automation, 2014.
+        In Proc. IEEE International Conference on Robotics and Automation (ICRA), 2014.
+        
+        Lionel Heng, Paul Furgale, and Marc Pollefeys,
+        Leveraging Image-based Localization for Infrastructure-based Calibration of a Multi-camera Rig,
+        Journal of Field Robotics (JFR), 2015.
 
-If you use this library in an academic publication, please cite either or both of the papers depending on what you use the library for.
+If you use this library in an academic publication, please cite at least one of the following papers depending on what you use the library for.
 
 #### Acknowledgements ####
 
