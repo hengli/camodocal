@@ -23,9 +23,14 @@ public:
     HandEyeCalibration();
 
     
-    /// @brief Given two vectors with N equivalent transforms in each index i, estimate the 4x4 Homogeneous transformation matrix between them.
+    /// @brief Estimate an unknown rigid transform using two matching series of changing known rigid transforms.
     ///
-    /// @param rvecs1 vector of size N containing the unit axis and angle for the first transform
+    /// Given two vectors with N equivalent but changing transforms in each index i,
+    /// estimate the 4x4 rigid Homogeneous transformation matrix between them.
+    ///
+    /// Each known transform can be from the first to the current T_0_i,
+    /// or from the previous to the current T_(i-1)_i, but they must be consistent.
+    ///
     ///
     /// 1. Each measurement taken at a different time, position, and orientation narrows down the possible transforms that can represent the unknown X
     ///
@@ -36,6 +41,13 @@ public:
     ///      - Translations are in the normal [x,y,z] format
     /// 3. Pass both vectors into EstimateHandEyeScrew()
     /// 4. Returns X in the form of a 4x4 transform estimate
+    ///
+    /// @param rvecs1 vector of the unit axis and angle for the first transform set with size N
+    /// @param tvecs1 vector of the translation for the first transform set with size N
+    /// @param rvecs2 vector of size N with each element containing the unit axis and angle for the second transform with size N
+    /// @param tvecs2 vector of the translation for the second transform with size N
+    ///
+    /// @pre all sets of parameters must have the same number of elements
     static void estimateHandEyeScrew(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs1,
                                      const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& tvecs1,
                                      const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& rvecs2,
