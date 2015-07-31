@@ -22,12 +22,27 @@ find_path(OPENCV_INCLUDE_DIRS opencv2/opencv.hpp
   PATHS ${OpenCV_IncludeSearchPaths}
 )
 
-find_file(OPENCV_CONFIG_VERSION_CMAKE NAMES OpenCVConfig-version.cmake
-  PATHS
+set(OPENCV_CMAKE_PATHS
+
   /usr/local/share/OpenCV/
   /usr/share/OpenCV/
   /opt/local/share/OpenCV/
   $ENV{OpenCV_DIR}/share/OpenCV
+)
+
+
+find_file(OPENCV_CONFIG_CMAKE NAMES OpenCVConfig.cmake
+  PATHS
+  ${OPENCV_CMAKE_PATHS}
+)
+
+if(EXISTS ${OPENCV_CONFIG_CMAKE})
+    include(${OPENCV_CONFIG_CMAKE})
+endif()
+
+find_file(OPENCV_CONFIG_VERSION_CMAKE NAMES OpenCVConfig-version.cmake
+  PATHS
+  ${OPENCV_CMAKE_PATHS}
 )
 
 if(EXISTS ${OPENCV_CONFIG_VERSION_CMAKE})
