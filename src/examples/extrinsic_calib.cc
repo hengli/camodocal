@@ -90,6 +90,7 @@ main(int argc, char** argv)
 
     if (beginStage > 0)
     {
+#ifdef HAVE_CUDA
         // check for CUDA devices
         cv::cuda::DeviceInfo info;
         if (cv::cuda::getCudaEnabledDeviceCount() > 0 && info.isCompatible())
@@ -109,8 +110,12 @@ main(int argc, char** argv)
         else
         {
             std::cout << "# ERROR: No Cuda device found!\n";
-            exit(0);
+            exit(1);
         }
+#else  // HAVE_CUDA
+        std::cout << "# ERROR: Application not compiled with CUDA! Either recompile with CUDA or modify this program to work without it.\n";
+        exit(1);
+#endif // HAVE_CUDA
     }
 
     //========================= Handling Input =======================

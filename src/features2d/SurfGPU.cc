@@ -12,11 +12,31 @@ SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  int nOctaveLayers, bool extended,
                  float keypointsRatio)
  :
-#ifdef HAVE_OPENCV3
+#ifdef    HAVE_CUDA
+#ifdef    HAVE_OPENCV3
+    
+    // opencv3 + CUDA
     m_surfGPU(new SURFType(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
-#else // HAVE_OPENCV3
+    
+#else  // HAVE_OPENCV3
+    
+    // opencv2 + CUDA
     m_surfGPU(new SURFType(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio))
+    
 #endif // HAVE_OPENCV3
+#else  // HAVE_CUDA
+#ifdef HAVE_OPENCV3
+    
+    // opencv3
+    m_surfGPU(cv::xfeatures2d::SURF::create(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
+    
+#else // HAVE_OPENCV3
+    
+    // opencv2
+    m_surfGPU(new SURFType(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio))
+    
+#endif // HAVE_OPENCV3
+#endif // HAVE_CUDA
 {
 
 }
@@ -47,7 +67,7 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
 {
     boost::lock_guard<boost::mutex> lock(m_instanceMutex);
 #ifdef HAVE_CUDA
-
+    // CUDA, Both OpenCV2 and OpenCV3?
     MatType imageGPU(image);
 
     MatType maskGPU;
@@ -68,7 +88,11 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
         std::cout << "# ERROR: Surf GPU feature detection failed: " << exception.msg << std::endl;
     }
 #else
-  m_surfGPU(image,mask,keypoints);
+#ifdef    HAVE_OPENCV3
+    m_surfGPU->detect(image,keypoints,mask);
+#else  // HAVE_OPENCV3
+    (*m_surfGPU)(image,mask,keypoints);
+#endif // HAVE_OPENCV3
 #endif
 }
 
@@ -222,8 +246,17 @@ SurfGPU::match(const cv::Mat& image1, std::vector<cv::KeyPoint>& keypoints1,
 #endif
     try
     {
+        
+#ifdef HAVE_OPENCV3
+        // OpenCV3
+        (*m_surfGPU).detectAndCompute(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
+        (*m_surfGPU).detectAndCompute(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
+#else
+        // OpenCV2
         (*m_surfGPU)(imageGPU[0], maskGPU[0], keypoints1, dtorsGPU[0], useProvidedKeypoints);
         (*m_surfGPU)(imageGPU[1], maskGPU[1], keypoints2, dtorsGPU[1], useProvidedKeypoints);
+#endif
+        
 #ifdef HAVE_CUDA
         dtorsGPU[0].download(dtors1);
         dtorsGPU[1].download(dtors2);

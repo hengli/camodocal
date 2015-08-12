@@ -85,7 +85,7 @@ class SurfGPU
     //////////////////
     // OPENCV3
     //////////////////
-    typedef cv::SURF                                       SURFType;
+    typedef cv::xfeatures2d::SURF                          SURFType;
     typedef cv::Mat                                        MatType;
     typedef cv::DescriptorMatcher                          MatcherType;
     
