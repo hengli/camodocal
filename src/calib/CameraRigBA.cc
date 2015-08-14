@@ -2405,7 +2405,15 @@ CameraRigBA::reweightScenePoints(void)
         }
     }
 
-    double weightS = static_cast<double>(nObsMultipleCams) / static_cast<double>(nObs - nObsMultipleCams);
+    double weightS = 0.0;
+    if (nObsMultipleCams == 0)
+    {
+        weightS = 1.0;
+    }
+    else
+    {
+        weightS = static_cast<double>(nObsMultipleCams) / static_cast<double>(nObs - nObsMultipleCams);
+    }
 
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
