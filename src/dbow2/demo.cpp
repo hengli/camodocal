@@ -83,7 +83,7 @@ void loadFeatures(vector<vector<DVision::ORB::bitset> > &features)
 #ifdef HAVE_OPENCV3
   cv::Ptr<cv::ORB> orb = cv::ORB::create(1000);
 #else // HAVE_OPENCV3
-  
+  cv::Ptr<cv::ORB> orb = new cv::ORB(1000);
 #endif // HAVE_OPENCV3
 
   cout << "Extracting ORB features..." << endl;
@@ -227,5 +227,6 @@ void testDatabase(const vector<vector<DVision::ORB::bitset> > &features)
 }
 
 // ----------------------------------------------------------------------------
+
 
 

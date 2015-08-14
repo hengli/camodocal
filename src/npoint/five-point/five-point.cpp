@@ -370,8 +370,8 @@ void CvEMEstimator::computeReprojError( const CvMat* m1, const CvMat* m2,
 	cv::cv2eigen(cv::cvarrToMat(m1).reshape(1, m1->cols), X1t);
 	cv::cv2eigen(cv::cvarrToMat(m2).reshape(1, m2->cols), X2t);
 #else
-	cv::cv2eigen(cv::Mat(m1).reshape(1, q1->cols), Q2);
-	cv::cv2eigen(cv::Mat(m2).reshape(1, q2->cols), Q1);
+	cv::cv2eigen(cv::Mat(m1).reshape(1, m1->cols), X1t);
+	cv::cv2eigen(cv::Mat(m2).reshape(1, m2->cols), X2t);
 #endif
 	Eigen::MatrixXd X1(3, X1t.rows()); 
 	Eigen::MatrixXd X2(3, X2t.rows()); 

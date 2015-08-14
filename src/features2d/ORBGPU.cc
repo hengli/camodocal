@@ -15,10 +15,12 @@ ORBGPU::ORBGPU(int nFeatures, float scaleFactor,
  
 #ifdef HAVE_OPENCV3
  mORB_GPU(ORBType::create(nFeatures, scaleFactor, nLevels, edgeThreshold,
-            firstLevel, WTA_K, scoreType, patchSize))
+            firstLevel, WTA_K, scoreType, patchSize)),
+ mMatcher(new MatcherType())
 #else // HAVE_OPENCV3
-  mORB_GPU(new OrbType(nFeatures, scaleFactor, nLevels, edgeThreshold,
-            firstLevel, WTA_K, scoreType, patchSize))
+  mORB_GPU(new ORBType(nFeatures, scaleFactor, nLevels, edgeThreshold,
+            firstLevel, WTA_K, scoreType, patchSize)),
+  mMatcher(new MatcherType())
 #endif // HAVE_OPENCV3
     
 {
@@ -101,7 +103,7 @@ ORBGPU::compute(const cv::Mat& image,
 #else // HAVE_OPENCV3
     
         mImageGPU.upload(image);
-        mORB_GPU->compute(mImageGPU, MatType(), keypoints, mDtorsGPU);
+        (*mORB_GPU)(mImageGPU, MatType(), keypoints, mDtorsGPU);
 #endif // HAVE_OPENCV3
     }
     catch (cv::Exception& exception)

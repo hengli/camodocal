@@ -255,7 +255,7 @@ protected:
 #ifdef HAVE_OPENCV3
   void extract(const cv::Mat &image, const cv::xfeatures2d::SURF &params);
 #else // HAVE_OPENCV3
-  void extract(const cv::Mat &image, const cv::SURF &params);
+  void extract(const cv::Mat &image, const CvSURFParams &params);
 #endif // HAVE_OPENCV3
 
   /**
@@ -270,7 +270,7 @@ protected:
     const std::vector<cv::KeyPoint> &keypoints, const cv::xfeatures2d::SURF &params);
 #else // HAVE_OPENCV3
   void compute(const cv::Mat &image,
-    const std::vector<cv::KeyPoint> &keypoints, const cv::SURF &params);
+    const std::vector<cv::KeyPoint> &keypoints, const CvSURFParams &params);
     
 #endif // HAVE_OPENCV3
 

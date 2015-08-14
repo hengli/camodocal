@@ -13,9 +13,11 @@ SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  float keypointsRatio)
  :
 #ifdef HAVE_OPENCV3
-    m_surfGPU(new SURFType(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
+    m_surfGPU(new SURFType(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio)),
+    m_matcher(new MatcherType())
 #else // HAVE_OPENCV3
-    m_surfGPU(new SURFType(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio))
+    m_surfGPU(new SURFType(hessianThreshold, nOctaves, nOctaveLayers, extended, keypointsRatio)),
+    m_matcher(new MatcherType())
 #endif // HAVE_OPENCV3
 {
 

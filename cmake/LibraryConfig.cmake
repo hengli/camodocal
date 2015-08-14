@@ -57,7 +57,7 @@ if(CUDA_FOUND)
 endif()
 
 if(OPENCV_FOUND)
-    if(NOT ${OPENCV_VERSION} VERSION_LESS 3.0.0)
+    if(NOT ${OpenCV_VERSION} VERSION_LESS 3.0.0)
         add_definitions(-DHAVE_OPENCV3)
     endif()
 endif()
