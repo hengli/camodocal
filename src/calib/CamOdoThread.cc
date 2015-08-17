@@ -3,6 +3,10 @@
 #include <boost/make_shared.hpp>
 #include <iostream>
 
+#ifdef HAVE_OPENCV3
+#include <opencv2/imgproc.hpp>
+#endif
+
 #include "../gpl/EigenUtils.h"
 #include "../visual_odometry/FeatureTracker.h"
 #include "utils.h"

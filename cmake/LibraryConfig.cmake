@@ -33,7 +33,6 @@ camodocal_required_dependency(BLAS)
 camodocal_optional_dependency(CUDA)
 camodocal_required_dependency(Eigen3)
 camodocal_required_dependency(LAPACK)
-camodocal_required_dependency(OpenCV)
 camodocal_required_dependency(SuiteSparse)
 
 camodocal_optional_dependency(GTest)
@@ -41,6 +40,7 @@ camodocal_optional_dependency(OpenMP)
 camodocal_optional_dependency(Glog)
 camodocal_optional_dependency(Gflags)
 camodocal_optional_dependency(TBB)
+camodocal_optional_dependency(OpenCV)
 
 # Consider making this impossible to use external Ceres again due to the following possible issue:
 # https://github.com/ceres-solver/ceres-solver/issues/155
@@ -52,13 +52,16 @@ camodocal_optional_dependency(Threads)
 # enable GPU enhanced SURF features
 if(CUDA_FOUND)
     add_definitions(-DHAVE_CUDA)
+    message(STATUS "defined HAVE_CUDA")
 
     set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
 endif()
 
-if(OPENCV_FOUND)
-    if(NOT ${OpenCV_VERSION} VERSION_LESS 3.0.0)
+if(OpenCV_FOUND)
+	message(STATUS "OpenCV version: "${OpenCV_VERSION})
+    if(NOT OpenCV_VERSION VERSION_LESS "3.0.0")
         add_definitions(-DHAVE_OPENCV3)
+		message(STATUS "defined HAVE_OPENCV3")
     endif()
 endif()
 

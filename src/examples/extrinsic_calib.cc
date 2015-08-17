@@ -112,9 +112,12 @@ main(int argc, char** argv)
         else
         {
             std::cout << "# ERROR: No Cuda device found!\n";
-            exit(0);
+            exit(1);
         }
-#endif // HAVE_CUDA 
+#else  // HAVE_CUDA
+        std::cout << "# ERROR: Application not compiled with CUDA! Either recompile with CUDA or modify this program to work without it.\n";
+        exit(1);
+#endif // HAVE_CUDA
     }
 
     //========================= Handling Input =======================
