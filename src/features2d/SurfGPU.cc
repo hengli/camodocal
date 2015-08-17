@@ -70,7 +70,7 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
         std::cout << "# ERROR: Surf GPU feature detection failed: " << exception.msg << std::endl;
     }
 #else
-  m_surfGPU(image,mask,keypoints);
+    m_surfGPU->detect(image,keypoints,mask);
 #endif
 }
 
