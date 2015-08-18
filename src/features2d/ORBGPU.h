@@ -67,9 +67,9 @@ class ORBGPU
     //////////////////
     // CUDA + OPENCV2
     //////////////////
-    typedef cv::gpu::ORB_GPU                               ORBType
+    typedef cv::gpu::ORB_GPU                               ORBType;
     typedef cv::gpu::GpuMat                                MatType;
-    typedef cv::gpu::BruteForceMatcher_GPU<cv::Hamming >   MatcherType
+    typedef cv::gpu::BruteForceMatcher_GPU<cv::Hamming >   MatcherType;
 #endif // HAVE_OPENCV3
 #else // HAVE_CUDA
     

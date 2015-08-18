@@ -27,6 +27,10 @@
 *.out
 *.app
 
+# Editors
+.*~
+*~
+
 # Build Folder
 build/*
 xcodebuild/*

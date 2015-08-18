@@ -12,6 +12,7 @@ SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
                  int nOctaveLayers, bool extended,
                  float keypointsRatio)
  :
+    m_matcher(new MatcherType()),
 #ifdef    HAVE_CUDA
 #ifdef    HAVE_OPENCV3
     
@@ -92,6 +93,7 @@ SurfGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
     m_surfGPU->detect(image,keypoints,mask);
 #else  // HAVE_OPENCV3
     (*m_surfGPU)(image,mask,keypoints);
+    //m_surfGPU->detect(image,keypoints,mask);
 #endif // HAVE_OPENCV3
 #endif
 }

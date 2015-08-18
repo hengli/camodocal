@@ -15,10 +15,12 @@ ORBGPU::ORBGPU(int nFeatures, float scaleFactor,
  
 #ifdef HAVE_OPENCV3
  mORB_GPU(ORBType::create(nFeatures, scaleFactor, nLevels, edgeThreshold,
-            firstLevel, WTA_K, scoreType, patchSize))
+            firstLevel, WTA_K, scoreType, patchSize)),
+ mMatcher(new MatcherType())
 #else // HAVE_OPENCV3
-  mORB_GPU(new OrbType(nFeatures, scaleFactor, nLevels, edgeThreshold,
-            firstLevel, WTA_K, scoreType, patchSize))
+  mORB_GPU(new ORBType(nFeatures, scaleFactor, nLevels, edgeThreshold,
+            firstLevel, WTA_K, scoreType, patchSize)),
+  mMatcher(new MatcherType())
 #endif // HAVE_OPENCV3
     
 {
@@ -55,10 +57,7 @@ ORBGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
 
     try
     {
-#ifdef HAVE_OPENCV3
-        mORB_GPU->detect(image,keypoints, mask);
-    
-#else // HAVE_OPENCV3
+#ifdef HAVE_CUDA // HAVE_CUDA
 
         mImageGPU.upload(image);
         if (!mask.empty())
@@ -72,7 +71,10 @@ ORBGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
     
         (*mORB_GPU)(mImageGPU, mMaskGPU, mKptsGPU);
         (*mORB_GPU).downloadKeyPoints(mKptsGPU, keypoints);
-#endif // HAVE_OPENCV3
+#else // HAVE_CUDA
+        mORB_GPU->detect(image,keypoints, mask);
+#endif // HAVE_CUDA
+
     }
     catch (cv::Exception& exception)
     {
@@ -94,24 +96,27 @@ ORBGPU::compute(const cv::Mat& image,
     boost::mutex::scoped_lock lock(mORBMutex);
 
     try
-    {
-#ifdef HAVE_OPENCV3
-       mORB_GPU->compute(image,keypoints,descriptors);
-    
-#else // HAVE_OPENCV3
-    
+    {    
+#ifdef HAVE_CUDA // HAVE_CUDA
         mImageGPU.upload(image);
-        mORB_GPU->compute(mImageGPU, MatType(), keypoints, mDtorsGPU);
-#endif // HAVE_OPENCV3
+        (*mORB_GPU)(mImageGPU, MatType(), keypoints, mDtorsGPU);
+
+#else // HAVE_CUDA
+        (*mORB_GPU).compute(image,keypoints,descriptors);
+
+#endif // HAVE_CUDA
     }
     catch (cv::Exception& exception)
     {
         std::cout << "# ERROR: ORB GPU descriptor computation failed: " << exception.msg << std::endl;
     }
 
-#ifndef HAVE_OPENCV3
+#ifdef HAVE_CUDA // HAVE_CUDA
     mDtorsGPU.download(descriptors);
 
+#endif // HAVE_CUDA
+
+#ifndef HAVE_OPENCV3
     mImageGPU.release();
     mDtorsGPU.release();
 #endif
@@ -132,9 +137,8 @@ ORBGPU::knnMatch(const cv::Mat& queryDescriptors,
         matches.clear();
         return;
     }
-#ifdef HAVE_OPENCV3
-    mMatcher->knnMatch(queryDescriptors, trainDescriptors, matches, k,mask,compactResult);
-#else // HAVE_OPENCV3
+#ifdef HAVE_CUDA // HAVE_CUDA
+
     matches.reserve(queryDescriptors.rows);
 
     mQDtorsGPU.upload(queryDescriptors);
@@ -150,7 +154,11 @@ ORBGPU::knnMatch(const cv::Mat& queryDescriptors,
     }
 
     mMatcher->knnMatch(mQDtorsGPU, mTDtorsGPU, matches, k, mMatchMaskGPU, compactResult);
-#endif // HAVE_OPENCV3
+
+#else // HAVE_CUDA
+    mMatcher->knnMatch(queryDescriptors, trainDescriptors, matches, k,mask,compactResult);
+
+#endif // HAVE_CUDA
 }
 
 void
@@ -168,9 +176,7 @@ ORBGPU::radiusMatch(const cv::Mat& queryDescriptors,
         matches.clear();
         return;
     }
-#ifdef HAVE_OPENCV3
-    mMatcher->radiusMatch(queryDescriptors, trainDescriptors, matches, maxDistance, mask, compactResult);
-#else // HAVE_OPENCV3
+#ifdef HAVE_CUDA // HAVE_CUDA
 
     matches.reserve(queryDescriptors.rows);
 
@@ -187,7 +193,11 @@ ORBGPU::radiusMatch(const cv::Mat& queryDescriptors,
     }
 
     mMatcher->radiusMatch(mQDtorsGPU, mTDtorsGPU, matches, maxDistance, mMatchMaskGPU, compactResult);
-#endif // HAVE_OPENCV3
+
+#else // HAVE_CUDA
+    mMatcher->radiusMatch(queryDescriptors, trainDescriptors, matches, maxDistance, mask, compactResult);
+
+#endif // HAVE_CUDA
 }
 
 }
