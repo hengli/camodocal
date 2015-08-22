@@ -11,6 +11,8 @@
 
 #ifdef HAVE_OPENCV3
 #include <opencv2/imgproc.hpp>
+#else
+#include <opencv2/imgproc/imgproc.hpp>
 #endif // HAVE_OPENCV3
 
 #ifdef HAVE_CUDA
@@ -90,7 +92,7 @@ main(int argc, char** argv)
 
     if (beginStage > 0)
     {
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA 
         // check for CUDA devices
         cv::cuda::DeviceInfo info;
         if (cv::cuda::getCudaEnabledDeviceCount() > 0 && info.isCompatible())

@@ -75,9 +75,9 @@ class SurfGPU
     //////////////////
     // CUDA + OPENCV2
     //////////////////
-    typedef cv::gpu::SURF_GPU                              SurfType
+    typedef cv::gpu::SURF_GPU                              SURFType;
     typedef cv::gpu::GpuMat                                MatType;
-    typedef cv::gpu::BruteForceMatcher_GPU<cv::L2<float> > MatcherType
+    typedef cv::gpu::BruteForceMatcher_GPU<cv::L2<float> > MatcherType;
 #endif // HAVE_OPENCV3
 #else // HAVE_CUDA
     
