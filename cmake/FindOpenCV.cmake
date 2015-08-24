@@ -226,7 +226,7 @@ else()
     handle_library_types(OPENCV_CUDAFEATURES2D_LIBRARY )
 	
 	if(OPENCV_IMGCODECS_LIBRARY)
-		list(APPEND OPENCV_VERSION_SPECIFIC_LIBRARIES ${OPENCV_IMGCODECS_LIBRARY_FOUND})
+		list(APPEND OPENCV_VERSION_SPECIFIC_LIBRARIES ${OPENCV_IMGCODECS_LIBRARY})
 	endif()
 	
 	if(OPENCV_XFEATURES2D_LIBRARY)
@@ -259,6 +259,16 @@ find_package_handle_standard_args(OpenCV "Could NOT find opencv_core (OpenCV)"
   OPENCV_INCLUDE_DIRS
   OPENCV_CORE_LIBRARY
 )
+
+# there seems to be some differences
+# between versions of CMake for the OpenCV_FOUND variable
+# The value set in OpenCVConfig.cmake may not match
+# what is specified in CMake's find_package_handle_standard_args
+if(OPENCV_FOUND AND NOT OpenCV_FOUND)
+    set(OpenCV_FOUND ${OPENCV_FOUND})
+elseif(OpenCV_FOUND AND NOT OPENCV_FOUND)
+    set(OPENCV_FOUND ${OpenCV_FOUND})
+endif()
 
 mark_as_advanced(
   OPENCV_INCLUDE_DIRS

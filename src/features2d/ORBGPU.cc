@@ -15,8 +15,7 @@ ORBGPU::ORBGPU(int nFeatures, float scaleFactor,
  
 #ifdef HAVE_OPENCV3
  mORB_GPU(ORBType::create(nFeatures, scaleFactor, nLevels, edgeThreshold,
-            firstLevel, WTA_K, scoreType, patchSize)),
- mMatcher(new MatcherType())
+            firstLevel, WTA_K, scoreType, patchSize))
 #else // HAVE_OPENCV3
   mORB_GPU(new ORBType(nFeatures, scaleFactor, nLevels, edgeThreshold,
             firstLevel, WTA_K, scoreType, patchSize)),
@@ -57,7 +56,7 @@ ORBGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
 
     try
     {
-#ifdef HAVE_CUDA // HAVE_CUDA
+#if defined(HAVE_CUDA) && !defined(HAVE_OPENCV3)
 
         mImageGPU.upload(image);
         if (!mask.empty())
@@ -71,9 +70,9 @@ ORBGPU::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
     
         (*mORB_GPU)(mImageGPU, mMaskGPU, mKptsGPU);
         (*mORB_GPU).downloadKeyPoints(mKptsGPU, keypoints);
-#else // HAVE_CUDA
+#else //  defined(HAVE_CUDA) && !defined(HAVE_OPENCV3)
         mORB_GPU->detect(image,keypoints, mask);
-#endif // HAVE_CUDA
+#endif //  defined(HAVE_CUDA) && !defined(HAVE_OPENCV3)
 
     }
     catch (cv::Exception& exception)
@@ -97,7 +96,7 @@ ORBGPU::compute(const cv::Mat& image,
 
     try
     {    
-#ifdef HAVE_CUDA // HAVE_CUDA
+#if defined(HAVE_CUDA) && !defined(HAVE_OPENCV3)
         mImageGPU.upload(image);
         (*mORB_GPU)(mImageGPU, MatType(), keypoints, mDtorsGPU);
 
