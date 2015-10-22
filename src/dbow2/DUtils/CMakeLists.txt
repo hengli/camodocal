@@ -11,3 +11,5 @@ camodocal_library(camodocal_DUtils SHARED
   TimeManager.cpp
   Timestamp.cpp
 )
+
+camodocal_install(camodocal_DUtils)

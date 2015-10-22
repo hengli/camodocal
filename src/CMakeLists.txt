@@ -1,4 +1,6 @@
+if(NOT CERES_FOUND)
 add_subdirectory(ceres-solver)
+endif()
 add_subdirectory(brisk)
 add_subdirectory(calib)
 add_subdirectory(camera_models)

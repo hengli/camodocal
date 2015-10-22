@@ -20,6 +20,12 @@
 #  BLAS_USE_FILE - The name of the cmake module to include to compile
 #     applications or libraries using BLAS.
 #
+# The following variables control the behaviour of this module:
+#
+# BLAS_DIR:         Specify a custom directory where suitesparse is located
+#                   libraries and headers will be searched for in
+#                   ${BLAS_DIR}/include and ${BLAS_DIR}/lib
+#
 # This module was modified by CGAL team:
 # - find BLAS library shipped with TAUCS
 # - find libraries for a C++ compiler, instead of Fortran
@@ -65,17 +71,17 @@ macro(check_fortran_libraries DEFINITIONS LIBRARIES _prefix _name _flags _list _
       if ( WIN32 )
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS ENV LIB
+                    PATHS ${BLAS_DIR}/lib ${BLAS_DIR} ENV LIB
                     )
       elseif ( APPLE )
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV DYLD_LIBRARY_PATH
+                    PATHS ${BLAS_DIR}/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV DYLD_LIBRARY_PATH
                     )
       else ()
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV LD_LIBRARY_PATH
+                    PATHS ${BLAS_DIR}/lib ~/.linuxbrew/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV LD_LIBRARY_PATH
                     )
       endif()
       #message("DEBUG: find_library(${_library}) = ${${_prefix}_${_library}_LIBRARY}")

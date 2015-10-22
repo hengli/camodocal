@@ -1,15 +1,41 @@
-FIND_PATH(CHOLMOD_INCLUDE_DIR NAMES cholmod.h amd.h camd.h
-    PATHS
+
+# The following variables control the behaviour of this module:
+#
+# SUITESPARSE_DIR:         Specify a custom directory where suitesparse is located
+#                          libraries and headers will be searched for in
+#                          ${SUITESPARSE_DIR}/include and ${SUITESPARSE_DIR}/lib
+
+set(SUITESPARSE_INCLUDE_SEARCH_PATHS
+    ${SUITESPARSE_DIR}/include
+    ${SUITESPARSE_DIR}/include/suitesparse
+    ${SUITESPARSE_DIR}/include/ufsparse
+    ${CHOLMOD_DIR}/include
+    ${CHOLMOD_DIR}/include/suitesparse
+    ${CHOLMOD_DIR}/include/ufsparse
+    ~/.linuxbrew/include
+    ~/.linuxbrew/include/suitesparse
+    ~/.linuxbrew/include/ufsparse
     /usr/include/suitesparse
+    /usr/include
+    /opt/local/include
+    /usr/local/include
+    /sw/include
     /usr/include/ufsparse
     /opt/local/include/ufsparse
     /usr/local/include/ufsparse
-    /usr/local/include
     /sw/include/ufsparse
+)
+
+FIND_PATH(CHOLMOD_INCLUDE_DIR NAMES cholmod.h amd.h camd.h
+    PATHS
+    ${SUITESPARSE_INCLUDE_SEARCH_PATHS}
     NO_DEFAULT_PATH
   )
 
 set(SUITESPARSE_PATHS 
+  ${SUITESPARSE_DIR}/lib
+  ${CHOLMOD_DIR}/lib
+  ~/.linuxbrew/lib
   /usr/lib
   /usr/local/lib
   /opt/local/lib
@@ -123,24 +149,16 @@ ENDIF(CHOLMOD_INCLUDE_DIR AND CHOLMOD_LIBRARIES)
 # Look for csparse; note the difference in the directory specifications!
 FIND_PATH(CSPARSE_INCLUDE_DIR NAMES cs.h
   PATHS
-  /usr/include/suitesparse
-  /usr/include
-  /opt/local/include
-  /usr/local/include
-  /sw/include
-  /usr/include/ufsparse
-  /opt/local/include/ufsparse
-  /usr/local/include/ufsparse
-  /sw/include/ufsparse
+  ${SUITESPARSE_INCLUDE_SEARCH_PATHS}
   )
 
 FIND_LIBRARY(CSPARSE_LIBRARY NAMES cxsparse
   PATHS
+  ${SUITESPARSE_PATHS}
   /usr/lib
   /usr/local/lib
   /opt/local/lib
   /sw/lib
-  ${SUITESPARSE_PATHS}
   NO_DEFAULT_PATH
   )
 

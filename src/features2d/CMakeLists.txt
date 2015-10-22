@@ -1,4 +1,4 @@
-
+if(OPENCV_FOUND)
 camodocal_library(camodocal_features2d SHARED
   ORBGPU.cc
   SurfGPU.cc
@@ -18,3 +18,4 @@ camodocal_link_libraries(camodocal_features2d
 
 camodocal_install(camodocal_features2d)
 
+endif(OPENCV_FOUND)

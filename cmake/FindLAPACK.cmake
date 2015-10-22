@@ -58,23 +58,23 @@ macro(check_lapack_libraries DEFINITIONS LIBRARIES _prefix _name _flags _list _b
       # search first in ${_path}
       find_library(${_prefix}_${_library}_LIBRARY
                   NAMES ${_library}
-                  PATHS ${_path} NO_DEFAULT_PATH
+                  PATHS ${LAPACK_DIR} ${LAPACK_DIR}/lib ${_path} NO_DEFAULT_PATH
                   )
       # if not found, search in environment variables and system
       if ( WIN32 )
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS ENV LIB
+                    PATHS ${LAPACK_DIR} ${LAPACK_DIR}/lib ENV LIB
                     )
       elseif ( APPLE )
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV DYLD_LIBRARY_PATH
+                    PATHS ${LAPACK_DIR} ${LAPACK_DIR}/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV DYLD_LIBRARY_PATH
                     )
       else ()
         find_library(${_prefix}_${_library}_LIBRARY
                     NAMES ${_library}
-                    PATHS /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV LD_LIBRARY_PATH
+                    PATHS ${LAPACK_DIR} ${LAPACK_DIR}/lib ~/.linuxbrew/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 ENV LD_LIBRARY_PATH
                     )
       endif()
       mark_as_advanced(${_prefix}_${_library}_LIBRARY)

@@ -1,4 +1,5 @@
-if(CAMODOCAL_CALIB_FOUND)
+
+if(CAMODOCAL_CALIB_FOUND AND OPENCV_FOUND)
 
 camodocal_executable(intrinsic_calib
   intrinsic_calib.cc
@@ -42,7 +43,7 @@ camodocal_link_libraries(extrinsic_calib
   camodocal_calib
 )
 
-endif(CAMODOCAL_CALIB_FOUND)
+endif(CAMODOCAL_CALIB_FOUND AND OPENCV_FOUND)
 
 include_directories(
   ../dbow2/DBoW2

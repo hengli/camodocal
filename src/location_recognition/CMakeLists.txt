@@ -1,3 +1,4 @@
+if(OPENCV_FOUND)
 include_directories(
   ../dbow2/DBoW2
   ../dbow2/DUtils
@@ -19,3 +20,4 @@ camodocal_link_libraries(camodocal_location_recognition
 )
 
 camodocal_install(camodocal_location_recognition)
+endif(OPENCV_FOUND)

@@ -1,18 +1,27 @@
+
+# The following variables control the behaviour of this module:
+#
+# OPENCV_DIR:         Specify a custom directory where suitesparse is located
+#                     libraries and headers will be searched for in
+#                     ${OPENCV_DIR}/include and ${OPENCV_DIR}/lib
+
 include(FindPackageHandleStandardArgs)
 include(HandleLibraryTypes)
 
 # @TODO: Consider using standard find_package(OpenCV) because this will support a broader range of versions.
 
 set(OpenCV_IncludeSearchPaths
+  ${OPENCV_DIR}/include
+  $ENV{OpenCV_DIR}/include
   /usr/include/
   /usr/include/opencv-2.3.1
   /usr/local/include/
   /opt/local/include/
-  $ENV{OpenCV_DIR}/include
   ~/.linuxbrew/include
 )
 
 set(OpenCV_LibrarySearchPaths
+  ${OPENCV_DIR}/lib
   /usr/lib/
   /usr/local/lib/
   /opt/local/lib/
@@ -25,7 +34,7 @@ find_path(OPENCV_INCLUDE_DIRS opencv2/opencv.hpp
 )
 
 set(OPENCV_CMAKE_PATHS
-
+  ${OPENCV_DIR}/share/OpenCV/
   /usr/local/share/OpenCV/
   /usr/share/OpenCV/
   /opt/local/share/OpenCV/
