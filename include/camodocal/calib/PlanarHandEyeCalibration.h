@@ -2,7 +2,7 @@
 #define PLANARHANDEYECALIBRATION_H
 
 #include <Eigen/Eigen>
-#include <opencv2/core/core.hpp>
+#include <Eigen/StdVector>
 
 namespace camodocal
 {

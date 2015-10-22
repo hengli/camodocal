@@ -27,6 +27,8 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support, or our tests failed to detect it correctly. Please use a different C++ compiler or report this problem to the developers.")
 endif()
 
+option(USE_INTERNAL_CERES "internal ceres-solver source code" OFF)
+
 ############### Library finding #################
 # Performs the search and sets the variables    #
 camodocal_required_dependency(BLAS)
@@ -35,6 +37,9 @@ camodocal_required_dependency(Eigen3)
 camodocal_required_dependency(LAPACK)
 camodocal_required_dependency(SuiteSparse)
 
+if(NOT USE_INTERNAL_CERES)
+camodocal_optional_dependency(Ceres)
+endif()
 camodocal_optional_dependency(GTest)
 camodocal_optional_dependency(OpenMP)
 camodocal_optional_dependency(Glog)
@@ -68,6 +73,13 @@ endif()
 # OSX RPATH
 if(APPLE)
    set(CMAKE_MACOSX_RPATH ON)
+endif()
+
+if(NOT CERES_FOUND OR USE_INTERNAL_CERES)
+    message(STATUS "Using internal version of ceres-solver")
+    # we will be using the ceres version included with camodocal
+    set(CERES_LIBRARIES ceres)
+    set(CERES_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/../ceres-solver/include)
 endif()
 
 ##### Boost #####

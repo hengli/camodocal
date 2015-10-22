@@ -3,7 +3,7 @@
 
 #include <Eigen/Dense>
 
-#include "../ceres-solver/include/ceres/rotation.h"
+#include "ceres/rotation.h"
 #include "gpl.h"
 
 namespace camodocal

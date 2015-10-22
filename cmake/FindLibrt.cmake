@@ -6,15 +6,32 @@
 #  Librt_LIBRARIES - the libraries needed to use librt
 #  Librt_STATIC_LIBRARIES - static libraries of librt
 #
+# The following variables control the behaviour of this module:
+#
+# LIBRT_DIR:         Specify a custom directory where suitesparse is located
+#                    libraries and headers will be searched for in
+#                    ${LIBRT_DIR}/include and ${LIBRT_DIR}/lib
 	
 	FIND_PATH(Librt_INCLUDE_DIR NAMES time.h PATHS
-	        ${LIBRTDIR}/include/
-                /usr/include/
+	        ${LIBRT_DIR}/include/
+            ~/.linuxbrew/include/
+            /usr/include/
+            /usr/local/include/
 	)
 	
-	FIND_LIBRARY(Librt_LIBRARY rt)
+	FIND_LIBRARY(Librt_LIBRARY rt PATHS
+	        ${LIBRT_DIR}/lib/
+            ~/.linuxbrew/lib/
+	        /usr/local/lib64/
+	        /usr/local/lib/
+	        /usr/lib/i386-linux-gnu/
+	        /usr/lib/x86_64-linux-gnu/
+	        /usr/lib64/
+	        /usr/lib/
+    )
 	FIND_FILE(Librt_STATIC_LIBRARIES librt.a PATHS
-	        ${LIBRTDIR}/lib/
+	        ${LIBRT_DIR}/lib/
+            ~/.linuxbrew/lib/
 	        /usr/local/lib64/
 	        /usr/local/lib/
 	        /usr/lib/i386-linux-gnu/

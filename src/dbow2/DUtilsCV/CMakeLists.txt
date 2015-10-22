@@ -17,3 +17,5 @@ camodocal_link_libraries(camodocal_DUtilsCV
   ${OPENCV_IMGPROC_LIBRARY}
   ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
 )
+
+camodocal_install(camodocal_DUtilsCV)

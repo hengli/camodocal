@@ -1,3 +1,4 @@
+
 if(VCHARGE_D3D)
 include_directories(../D3D)
 endif(VCHARGE_D3D)
@@ -12,7 +13,7 @@ endif(GLUT_FOUND)
 endif(VCHARGE_VIZ)
 
 include_directories(
-  ../ceres-solver/include
+  ${CERES_INCLUDE_DIRECTORIES}
   ../D3D
   ../dbow2/DBoW2
   ../dbow2/DUtils
@@ -21,17 +22,36 @@ include_directories(
 )
 
 set(SRCS
+    HandEyeCalibration.cc
+    PlanarHandEyeCalibration.cc
+)
+
+if(OPENCV_FOUND)
+
+list(APPEND SRCS
   CameraCalibration.cc
   CameraRigBA.cc
   CamOdoCalibration.cc
   CamOdoThread.cc
   CamOdoWatchdogThread.cc
   CamRigOdoCalibration.cc
-  HandEyeCalibration.cc
-  PlanarHandEyeCalibration.cc
   StereoCameraCalibration.cc
   utils.cc
 )
+
+set(CALIB_OPTIONAL_DEPENDENCIES
+
+    ${OPENCV_CORE_LIBRARY}
+    ${OPENCV_IMGPROC_LIBRARY}
+    ${OPENCV_CALIB3D_LIBRARY}
+    camodocal_camera_models
+    camodocal_camera_systems
+    camodocal_gpl
+    camodocal_pose_graph
+    camodocal_sparse_graph
+    camodocal_visual_odometry
+)
+endif(OPENCV_FOUND)
 
 camodocal_library(camodocal_calib SHARED ${SRCS})
 
@@ -40,16 +60,7 @@ camodocal_link_libraries(camodocal_calib
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_THREAD_LIBRARY}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_IMGPROC_LIBRARY}
-  ${OPENCV_CALIB3D_LIBRARY}
-  camodocal_camera_models
-  camodocal_camera_systems
-  camodocal_gpl
-  camodocal_pose_graph
-  camodocal_sparse_graph
-  camodocal_visual_odometry
-  ceres
+  ${CALIB_OPTIONAL_DEPENDENCIES}
   ${CERES_LIBRARIES}
 )
 
@@ -75,11 +86,14 @@ endif(VCHARGE_VIZ)
 
 camodocal_install(camodocal_calib)
 
+if(OPENCV_FOUND)
 camodocal_test(CamOdoCalibration)
 camodocal_link_libraries(CamOdoCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
 )
+endif(OPENCV_FOUND)
+
 
 camodocal_test(HandEyeCalibration)
 camodocal_link_libraries(HandEyeCalibration_test 

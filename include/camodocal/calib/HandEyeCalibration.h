@@ -2,7 +2,7 @@
 #define HANDEYECALIBRATION_H
 
 #include <Eigen/Eigen>
-#include <opencv2/core/core.hpp>
+#include <Eigen/StdVector>
 
 #include "DualQuaternion.h"
 

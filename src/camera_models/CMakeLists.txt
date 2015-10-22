@@ -1,8 +1,8 @@
 include_directories(
-  ../ceres-solver/include
+  ${CERES_INCLUDE_DIRECTORIES}
 )
 
-if(GLOG_FOUND)
+if(GLOG_FOUND AND OPENCV_FOUND)
 camodocal_library(camodocal_camera_models SHARED
   Camera.cc
   CameraFactory.cc
@@ -34,4 +34,4 @@ camodocal_link_libraries(EquidistantCamera_test camodocal_camera_models)
 camodocal_test(PinholeCamera)
 camodocal_link_libraries(PinholeCamera_test camodocal_camera_models)
 
-endif(GLOG_FOUND)
+endif(GLOG_FOUND AND OPENCV_FOUND)

@@ -18,6 +18,8 @@
 #   GTEST_ROOT - (as a CMake or environment variable)
 #                The root directory of the gtest install prefix
 #
+#   GTEST_DIR  - same as GTEST_ROOT
+#
 #   GTEST_MSVC_SEARCH - If compiling with MSVC, this variable can be set to
 #                       "MD" or "MT" to enable searching a GTest build tree
 #                       (defaults: "MD")
@@ -98,6 +100,8 @@ function(_gtest_find_library _name)
     find_library(${_name}
         NAMES ${ARGN}
         HINTS
+            $ENV{GTEST_DIR}
+            ${GTEST_DIR}
             $ENV{GTEST_ROOT}
             ${GTEST_ROOT}
         PATH_SUFFIXES ${_gtest_libpath_suffixes}

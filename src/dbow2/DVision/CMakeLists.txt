@@ -39,3 +39,5 @@ camodocal_link_libraries(camodocal_DVision
   camodocal_DUtils
   ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
 )
+
+camodocal_install(camodocal_DVision)

@@ -2,7 +2,7 @@ if(CAMODOCAL_CAMERA_MODELS_FOUND)
 if(CAMODOCAL_FEATURES2D_FOUND)
 
 include_directories(
-  ../ceres-solver/include
+  ${CERES_INCLUDE_DIRECTORIES}
   ../brisk/thirdparty/agast/include
 )
 
@@ -26,7 +26,7 @@ camodocal_link_libraries(camodocal_visual_odometry
   camodocal_gpl
   camodocal_pose_estimation
   camodocal_sparse_graph
-  ceres
+  ${CERES_LIBRARIES}
 )
 
 camodocal_test(SlidingWindowBA)
@@ -45,9 +45,11 @@ camodocal_link_libraries(SlidingWindowBA_sim
   overlay
 ) 
 
-camodocal_install(camodocal_visual_odometry)
+camodocal_install(SlidingWindowBA_sim)
 
 endif(VCHARGE_VIZ)
+
+camodocal_install(camodocal_visual_odometry)
 
 endif(CAMODOCAL_FEATURES2D_FOUND)
 endif(CAMODOCAL_CAMERA_MODELS_FOUND)

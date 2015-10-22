@@ -38,6 +38,9 @@
 #
 # The following variables control the behaviour of this module:
 #
+# GLOG_DIR:                Specify a custom directory where glog is located
+#                          libraries and headers will be searched for in
+#                          ${GLOG_DIR}/include and ${GLOG_DIR}/lib
 # GLOG_INCLUDE_DIRS_HINTS: List of additional directories in which to
 #                          search for glog includes, e.g: /timbuktu/include.
 # GLOG_LIBRARY_DIRS_HINTS: List of additional directories in which to
@@ -83,12 +86,16 @@ MACRO(GLOG_REPORT_NOT_FOUND REASON_MSG)
 ENDMACRO(GLOG_REPORT_NOT_FOUND)
 # TODO: Add standard Windows search locations for glog.
 LIST(APPEND GLOG_CHECK_INCLUDE_DIRS
+  ${GLOG_DIR}/include
+  ~/.linuxbrew/include
   /usr/include
   /usr/local/include
   /usr/local/homebrew/include # Mac OS X
   /opt/local/var/macports/software # Mac OS X.
   /opt/local/include)
 LIST(APPEND GLOG_CHECK_LIBRARY_DIRS
+  ${GLOG_DIR}/lib
+  ~/.linuxbrew/lib
   /usr/lib
   /usr/local/lib
   /usr/local/homebrew/lib # Mac OS X.

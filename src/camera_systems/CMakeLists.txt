@@ -1,5 +1,5 @@
 include_directories(
-  ../ceres-solver/include
+  ${CERES_INCLUDE_DIRECTORIES}
 )
 
 camodocal_library(camodocal_camera_systems SHARED

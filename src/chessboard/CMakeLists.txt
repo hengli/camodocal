@@ -1,3 +1,4 @@
+if(OPENCV_FOUND)
 camodocal_library(camodocal_chessboard SHARED
   Chessboard.cc
 )
@@ -10,3 +11,4 @@ camodocal_link_libraries(camodocal_chessboard
 )
 
 camodocal_install(camodocal_chessboard)
+endif(OPENCV_FOUND)

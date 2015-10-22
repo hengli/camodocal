@@ -1,3 +1,4 @@
+if(OPENCV_FOUND)
 camodocal_library(camodocal_sparse_graph SHARED
   Odometry.cc
   Pose.cc
@@ -17,3 +18,4 @@ camodocal_link_libraries(camodocal_sparse_graph
 )
 
 camodocal_install(camodocal_sparse_graph)
+endif(OPENCV_FOUND)
