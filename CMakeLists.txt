@@ -5,7 +5,7 @@ project(CAMODOCAL C CXX)
 
 ########################### Misc. Configs ##############################
 # Add custom cmake files folder
-SET (PROJECT_CMAKE_DIR ${PROJECT_SOURCE_DIR}/cmake)
+SET (PROJECT_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # This sets where to look for modules (e.g. "Find*.cmake" files)
 SET (CMAKE_MODULE_PATH "${PROJECT_CMAKE_DIR}" "${CMAKE_MODULE_PATH}" )
 
