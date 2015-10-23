@@ -79,7 +79,7 @@ if(NOT CERES_FOUND OR USE_INTERNAL_CERES)
     message(STATUS "Using internal version of ceres-solver")
     # we will be using the ceres version included with camodocal
     set(CERES_LIBRARIES ceres)
-    set(CERES_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/../ceres-solver/include)
+    set(CERES_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_LIST_DIR}/../ceres-solver/include)
 endif()
 
 ##### Boost #####
