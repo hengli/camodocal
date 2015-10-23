@@ -7,7 +7,7 @@ project(CAMODOCAL C CXX)
 # Add custom cmake files folder
 SET (PROJECT_CMAKE_DIR ${PROJECT_SOURCE_DIR}/cmake)
 # This sets where to look for modules (e.g. "Find*.cmake" files)
-SET (CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_CMAKE_DIR}")
+SET (CMAKE_MODULE_PATH "${PROJECT_CMAKE_DIR}" "${CMAKE_MODULE_PATH}" )
 
 # Add custom Install Settings
 INCLUDE(InstallSettings)
@@ -304,5 +304,8 @@ print("")
 INCLUDE(InstallProjectConfig)
 
 ###################### Add uninstall target ############################
-ADD_CUSTOM_TARGET(uninstall
-  COMMAND ${CMAKE_COMMAND} -P ${PROJECT_CMAKE_DIR}/cmake_uninstall.cmake)
+if("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
+    ADD_CUSTOM_TARGET(uninstall
+      COMMAND ${CMAKE_COMMAND} -P ${PROJECT_CMAKE_DIR}/cmake_uninstall.cmake)
+endif()
+
