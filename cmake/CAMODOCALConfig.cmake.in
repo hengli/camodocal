@@ -1,13 +1,13 @@
-# Config file for the QtPropertyBrowser package
-# This adds QtPropertyBrowser IMPORTED target
+# Config file for the CAMODOCAL package
+# This adds CAMODOCAL IMPORTED target
 #
 # Usage example:
 # 
-#   find_package(QtPropertyBrowser)
+#   find_package(CAMODOCAL)
 #   add_executable(foo foo.cpp)
-#   target_link_libraries(foo QtPropertyBrowser)
+#   target_link_libraries(foo CAMODOCAL)
 #
-# Additionaly you can use the following varaibles:
+# Additionaly you can use the following variables:
 #
 #  CAMODOCAL_FOUND   	    - standard CMake Package found indicator
 #  CAMODOCAL_INCLUDE_DIR  - include directories for CAMODOCAL alone
@@ -15,14 +15,14 @@
 #  CAMODOCAL_DEFINITIONS  - Definitions needed to build with CAMODOCAL
 #  CAMODOCAL_LIBRARIES    - Libraries needed to build with CAMODOCAL
 
-
-include(CMakeFindDependencyMacro)
-find_dependency(Gflags)
-find_dependency(Glog)
-find_dependency(Gtest)
-find_dependency(LAPACK)
-find_dependency(OpenCV)
-find_dependency(SuiteSparse)
+# todo: implement a mechanism for find_dependency scripts to work
+# include(CMakeFindDependencyMacro)
+# find_dependency(Gflags)
+# find_dependency(Glog)
+# find_dependency(Gtest)
+# find_dependency(LAPACK)
+# find_dependency(OpenCV)
+# find_dependency(SuiteSparse)
 
 # Our library dependencies (contains definitions for IMPORTED targets)
 if(NOT TARGET CAMODOCAL)
@@ -31,5 +31,5 @@ endif()
 
 # @PACKAGE_INIT@
 
-# check_required_components(QtPropertyBrowser)
+# check_required_components(CAMODOCAL)
 
