@@ -16,6 +16,7 @@ SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
 #ifdef    HAVE_OPENCV3
     
     // opencv3 + CUDA
+    m_matcher(cv::cuda::DescriptorMatcher::createBFMatcher(cv::NORM_L2)),
     m_surfGPU(new SURFType(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
     
 #else  // HAVE_OPENCV3
@@ -29,6 +30,7 @@ SurfGPU::SurfGPU(double hessianThreshold, int nOctaves,
 #ifdef HAVE_OPENCV3
     
     // opencv3
+    m_matcher(cv::DescriptorMatcher::create("BruteForce")),
     m_surfGPU(cv::xfeatures2d::SURF::create(hessianThreshold,nOctaves,nOctaveLayers,extended,keypointsRatio))
     
 #else // HAVE_OPENCV3
