@@ -1,4 +1,4 @@
-if(OPENCV_FOUND)
+if(OpenCV_FOUND)
 camodocal_library(camodocal_fivepoint SHARED
   five-point/five-point.cpp
   five-point/modelest.cpp
@@ -6,9 +6,8 @@ camodocal_library(camodocal_fivepoint SHARED
 
 camodocal_link_libraries(camodocal_fivepoint
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_CALIB3D_LIBRARY}
+  ${OpenCV_LIBS}
 )
 
 camodocal_install(camodocal_fivepoint)
-endif(OPENCV_FOUND)
+endif(OpenCV_FOUND)

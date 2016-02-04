@@ -1,5 +1,5 @@
 
-if(CAMODOCAL_CALIB_FOUND AND OPENCV_FOUND)
+if(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND)
 
 camodocal_executable(intrinsic_calib
   intrinsic_calib.cc
@@ -10,8 +10,7 @@ camodocal_link_libraries(intrinsic_calib
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_HIGHGUI_LIBRARY}
+  ${OpenCV_LIBS}
   camodocal_calib
   camodocal_chessboard
 )
@@ -25,8 +24,7 @@ camodocal_link_libraries(stereo_calib
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_HIGHGUI_LIBRARY}
+  ${OpenCV_LIBS}
   camodocal_calib
   camodocal_chessboard
 )
@@ -43,7 +41,7 @@ camodocal_link_libraries(extrinsic_calib
   camodocal_calib
 )
 
-endif(CAMODOCAL_CALIB_FOUND AND OPENCV_FOUND)
+endif(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND)
 
 include_directories(
   ../dbow2/DBoW2

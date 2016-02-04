@@ -14,11 +14,7 @@ camodocal_library(camodocal_visual_odometry SHARED
 camodocal_link_libraries(camodocal_visual_odometry
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${Boost_THREAD_LIBRARY}
-  ${OPENCV_FEATURES2D_LIBRARY}
-  ${OPENCV_FLANN_LIBRARY}
-  ${OPENCV_HIGHGUI_LIBRARY}
-  ${OPENCV_NONFREE_LIBRARY}
-  ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
+  ${OpenCV_LIBS}
   camodocal_brisk
   camodocal_camera_models
   camodocal_features2d

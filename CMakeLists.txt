@@ -14,30 +14,6 @@ INCLUDE(InstallSettings)
 
 
 # Libraries
-LIST(APPEND CMAKE_LIBRARY_PATH ~/.linuxbrew/lib)
-LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib)
-LIST(APPEND CMAKE_LIBRARY_PATH /opt/local/lib/ufsparse) # Mac OS X
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib)
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib/atlas)
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib/suitesparse) # Ubuntu
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/lib64/atlas)
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/homebrew/lib) # Mac OS X
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/lib)
-LIST(APPEND CMAKE_LIBRARY_PATH /usr/local/lib/suitesparse)
-# Headers
-LIST(APPEND CMAKE_INCLUDE_PATH ~/.linuxbrew/include)
-LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/include)
-LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/include/ufsparse) # Mac OS X
-LIST(APPEND CMAKE_INCLUDE_PATH /opt/local/var/macports/software/eigen3/opt/local/include/eigen3) # Mac OS X
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/include)
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/include/eigen3) # Ubuntu 10.04's default location.
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/include/suitesparse) # Ubuntu
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/homebrew/include) # Mac OS X
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/homebrew/include/eigen3)  # Mac OS X
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include)
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/eigen3)
-LIST(APPEND CMAKE_INCLUDE_PATH /usr/local/include/suitesparse)
-
 set(CAMODOCAL_INCLUDE_INSTALL_PATH "include")
 # Library finding
 include(LibraryConfig)
@@ -119,7 +95,7 @@ configure_file(CamOdoCalPathConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/CamOdoCalPat
 include_directories(
   # External
   ${EIGEN3_INCLUDE_DIR}
-  ${OPENCV_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 
   # All library includes are prefixed with the path to avoid conflicts
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -146,7 +122,7 @@ if(CAMODOCAL_PLATFORM_UNIX)
     #set_linker_flags("-Wl,--no-undefined -ldl -lnsl -lm -pthread -lrt" CACHE)
     find_package(LibDL)
     find_package(Libnsl)
-    find_package(LibM)
+    # find_package(LibM)
     find_package(Threads)
     find_package(Librt)
     find_package(Libm)
@@ -191,6 +167,7 @@ include_directories(
   include
 )
 
+message("GLOG_FOUND in main" ${GLOG_FOUND})
 add_subdirectory(src)
 
 install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH})
