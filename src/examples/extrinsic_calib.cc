@@ -545,6 +545,7 @@ main(int argc, char** argv)
         std::cout << "Translation: " << std::endl;
         std::cout << T.transpose() << std::endl << std::endl;
     }
+    inputThread.join();
 
     return 0;
 }
