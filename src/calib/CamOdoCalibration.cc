@@ -173,6 +173,11 @@ CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
     tvecsOdo.resize(mSegments.size());
     rvecsCam.resize(mSegments.size());
     tvecsCam.resize(mSegments.size());
+    if (mSegments.empty())
+    {
+        std::cerr << "# ERROR: No segments, calibration fails!!" << std::endl;
+        return false;
+    }
 
     for (size_t i = 0; i < mSegments.size(); ++i)
     {
