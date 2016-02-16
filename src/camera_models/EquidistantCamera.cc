@@ -341,7 +341,8 @@ EquidistantCamera::estimateIntrinsics(const cv::Size& boardSize,
     double f0 = 0.0;
     for (size_t i = 0; i < imagePoints.size(); ++i)
     {
-        std::vector<Eigen::Vector2d> center(boardSize.height);
+        std::vector<Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d> > center(boardSize.height);
+
         double radius[boardSize.height];
         for (int r = 0; r < boardSize.height; ++r)
         {

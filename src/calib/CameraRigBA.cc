@@ -242,7 +242,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // For each scene point, record its coordinates with respect to the
         // first camera it was observed in.
 
-        boost::unordered_map<Point3DFeature*, Eigen::Vector3d> scenePointMap;
+        //boost::unordered_map<Point3DFeature*, Eigen::Vector3d, boost::hash<Point3DFeature*>, std::equal_to<Point3DFeature*>, Eigen::aligned_allocator<std::pair<const > > > scenePointMap;
+        
+        std::map<Point3DFeature*, Eigen::Vector3d, std::less<Point3DFeature*>, Eigen::aligned_allocator<std::pair<const Point3DFeature*, Eigen::Vector3d> > > scenePointMap;
+
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
             FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -2141,7 +2144,6 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 {
                     ceres::LocalParameterization* quaternionParameterization =
                         new EigenQuaternionParameterization;
-
                     problem.SetParameterization(frame->cameraPose()->rotationData(), quaternionParameterization);
                 }
             }
@@ -2250,7 +2252,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                 ceres::LocalParameterization* quaternionParameterization =
                     new EigenQuaternionParameterization;
-
+                
                 problem.SetParameterization(chessboardCameraPoses[i].at(j).data(),
                                             quaternionParameterization);
             }
@@ -3759,7 +3761,9 @@ CameraRigBA::dumpPointCloud(const std::string& dir, bool dumpPoses)
 
     float hw = 0.5;
     float hl = 0.25;
-    std::vector<Eigen::Vector3d> vertex(4);
+    
+    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > vertex(4);
+
     vertex[0] = Eigen::Vector3d(hw,hl,0);
     vertex[1] = Eigen::Vector3d(hw,-hl,0);
     vertex[2] = Eigen::Vector3d(-hw,hl*0.5,0);
