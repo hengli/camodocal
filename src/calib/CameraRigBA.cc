@@ -242,10 +242,8 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // For each scene point, record its coordinates with respect to the
         // first camera it was observed in.
 
-        //boost::unordered_map<Point3DFeature*, Eigen::Vector3d, boost::hash<Point3DFeature*>, std::equal_to<Point3DFeature*>, Eigen::aligned_allocator<std::pair<const > > > scenePointMap;
+        boost::unordered_map<Point3DFeature*, Eigen::Vector3d, boost::hash<Point3DFeature*>, std::equal_to<Point3DFeature*>, Eigen::aligned_allocator<std::pair<Point3DFeature* const, Eigen::Vector3d> > > scenePointMap;
         
-        std::map<Point3DFeature*, Eigen::Vector3d, std::less<Point3DFeature*>, Eigen::aligned_allocator<std::pair<const Point3DFeature*, Eigen::Vector3d> > > scenePointMap;
-
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
             FrameSetSegment& segment = m_graph.frameSetSegment(i);
