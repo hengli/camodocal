@@ -2,7 +2,6 @@ include_directories(
   ${CERES_INCLUDE_DIRECTORIES}
 )
 
-message("CV "${OpenCV_FOUND} "CV2" ${OpenCV_CORE_FOUND} "G " ${GLOG_FOUND})
 if(GLOG_FOUND AND OpenCV_FOUND)
 camodocal_library(camodocal_camera_models SHARED
   Camera.cc

@@ -167,7 +167,6 @@ include_directories(
   include
 )
 
-message("GLOG_FOUND in main" ${GLOG_FOUND})
 add_subdirectory(src)
 
 install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH})
