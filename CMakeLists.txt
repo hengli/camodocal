@@ -21,7 +21,6 @@ include(LibraryConfig)
 # General build and compiler options and configurations
 include(BuildConfig)
 
-message(AUTHOR_WARNING "toplevel/CMakeLists.txt:GLOG_FOUND:${GLOG_FOUND}")
 # PRINT macro
 macro(print)
   message(STATUS ${ARGN})
