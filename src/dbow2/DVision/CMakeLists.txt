@@ -30,14 +30,8 @@ camodocal_library(camodocal_DVision SHARED
 
 camodocal_link_libraries(camodocal_DVision
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_FEATURES2D_LIBRARY}
-  ${OPENCV_FLANN_LIBRARY}
-  ${OPENCV_IMGPROC_LIBRARY} 
-  ${OPENCV_LEGACY_LIBRARY}
-  ${OPENCV_NONFREE_LIBRARY}
+  ${OpenCV_LIBS}
   camodocal_DUtils
-  ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
 )
 
 camodocal_install(camodocal_DVision)

@@ -26,7 +26,7 @@ set(SRCS
     PlanarHandEyeCalibration.cc
 )
 
-if(OPENCV_FOUND)
+if(OpenCV_FOUND)
 
 list(APPEND SRCS
   CameraCalibration.cc
@@ -41,9 +41,7 @@ list(APPEND SRCS
 
 set(CALIB_OPTIONAL_DEPENDENCIES
 
-    ${OPENCV_CORE_LIBRARY}
-    ${OPENCV_IMGPROC_LIBRARY}
-    ${OPENCV_CALIB3D_LIBRARY}
+    ${OpenCV_LIBS}
     camodocal_camera_models
     camodocal_camera_systems
     camodocal_gpl
@@ -51,7 +49,7 @@ set(CALIB_OPTIONAL_DEPENDENCIES
     camodocal_sparse_graph
     camodocal_visual_odometry
 )
-endif(OPENCV_FOUND)
+endif(OpenCV_FOUND)
 
 camodocal_library(camodocal_calib SHARED ${SRCS})
 
@@ -86,13 +84,13 @@ endif(VCHARGE_VIZ)
 
 camodocal_install(camodocal_calib)
 
-if(OPENCV_FOUND)
+if(OpenCV_FOUND)
 camodocal_test(CamOdoCalibration)
 camodocal_link_libraries(CamOdoCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
 )
-endif(OPENCV_FOUND)
+endif(OpenCV_FOUND)
 
 
 camodocal_test(HandEyeCalibration)

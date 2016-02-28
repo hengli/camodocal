@@ -34,6 +34,8 @@ main(int argc, char** argv)
 {
     using namespace camodocal;
     namespace fs = ::boost::filesystem;
+    
+    //Eigen::initParallel();
 
     std::string calibDir;
     std::string odoEstimateFile;
@@ -168,7 +170,7 @@ main(int argc, char** argv)
     }
 
     // read extrinsic estimates
-    std::map<unsigned, Eigen::Matrix4d> estimates;
+    std::map<unsigned, Eigen::Matrix4d, std::less<unsigned>, Eigen::aligned_allocator<std::pair<const unsigned, Eigen::Matrix4d> > > estimates;
     if (odoEstimateFile.length())
     {
         std::cout << "# INFO: parse extrinsic calibration estimates file " << odoEstimateFile << std::endl;
@@ -199,7 +201,7 @@ main(int argc, char** argv)
 
     //========================= Get all files  =========================
     typedef std::map<int64_t, std::string>  ImageMap;
-    typedef std::map<int64_t, Eigen::Isometry3f> IsometryMap;
+    typedef std::map<int64_t, Eigen::Isometry3f, std::less<int64_t>, Eigen::aligned_allocator<std::pair<const int64_t, Eigen::Isometry3f> > > IsometryMap;
 
     std::vector< ImageMap > inputImages(cameraCount);
     IsometryMap inputOdometry;
@@ -225,6 +227,7 @@ main(int argc, char** argv)
                     printf("cannot find input image camera_[d]_[llu].png\n");
                     return 1;
                 }
+                printf("image name : %s time : %ld", it->path().string().c_str(), timestamp);
                 inputImages[camera][timestamp] = it->path().string();
             }
 
@@ -241,6 +244,7 @@ main(int argc, char** argv)
                 Eigen::Vector3f t;
                 Eigen::Matrix3f R;
                 std::ifstream file(it->path().c_str());
+                std::cout << "pose path : " << it->path().c_str() << std::endl;
                 if (!file.is_open())
                 {
                     printf("cannot find file %s containg a valid pose\n", it->path().c_str());
@@ -251,8 +255,12 @@ main(int argc, char** argv)
                 file >> R(1,0) >> R(1, 1) >> R(1, 2);
                 file >> R(2,0) >> R(2, 1) >> R(2, 2);
                 file >> t[0] >> t[1] >> t[2];
+                
+                file.close();
+
 
                 Eigen::Isometry3f T;
+
                 T.matrix().block<3,3>(0,0) = R;
                 T.matrix().block<3,1>(0,3) = t;
                 inputOdometry[timestamp] = T;
@@ -389,7 +397,8 @@ main(int argc, char** argv)
                     if(camIterator[c]->first < locTime)
                     {
                         uint64_t camTime = camIterator[c]->first;
-                        std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl << std::flush;
+                        std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl;
+                        std::cout << "Pose : " << locIterator->first << std::endl << locIterator->second.linear() << std::endl;
                         camRigOdoCalib.addFrame(c, cv::imread(camIterator[c]->second), camTime);
                         camIterator[c]++;
                         hasData = true;
@@ -492,7 +501,7 @@ main(int argc, char** argv)
     // waiting for the minimum motion requirement to be met,
     //camRigOdoCalib.run();
     camRigOdoCalib.start();
-
+    
     CameraSystem cameraSystem = camRigOdoCalib.cameraSystem();
     cameraSystem.setReferenceCamera(0);
     cameraSystem.writeToDirectory(outputDir);
@@ -536,6 +545,7 @@ main(int argc, char** argv)
         std::cout << "Translation: " << std::endl;
         std::cout << T.transpose() << std::endl << std::endl;
     }
+    inputThread.join();
 
     return 0;
 }

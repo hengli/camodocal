@@ -1,4 +1,4 @@
-if(OPENCV_FOUND)
+if(OpenCV_FOUND)
 include_directories(
   ${CERES_INCLUDE_DIRECTORIES}
   ../dbow2/DBoW2
@@ -17,10 +17,7 @@ camodocal_link_libraries(camodocal_infrastr_calib
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_THREAD_LIBRARY}
-  ${OPENCV_CORE_LIBRARY}
-  ${OPENCV_IMGPROC_LIBRARY}
-  ${OPENCV_CALIB3D_LIBRARY}
-  ${OPENCV_VERSION_SPECIFIC_LIBRARIES}
+  ${OpenCV_LIBS}
   camodocal_camera_systems
   camodocal_features2d
   camodocal_gpl
@@ -40,4 +37,4 @@ camodocal_link_libraries(camodocal_infrastr_calib
 camodocal_install(camodocal_infrastr_calib)
 
 endif(VCHARGE_VIZ)
-endif(OPENCV_FOUND)
+endif(OpenCV_FOUND)
