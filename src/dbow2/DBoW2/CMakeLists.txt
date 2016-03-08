@@ -3,7 +3,7 @@ include_directories(
   ../DVision
 )
 
-camodocal_library(camodocal_DBoW2 SHARED
+camodocal_library(camodocal_dbow2 SHARED
   BowVector.cpp
   FBrief.cpp
   FeatureVector.cpp
@@ -13,11 +13,11 @@ camodocal_library(camodocal_DBoW2 SHARED
   ScoringObject.cpp
 )
 
-camodocal_link_libraries(camodocal_DBoW2
+camodocal_link_libraries(camodocal_dbow2
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_dutils
   camodocal_dutilscv
   camodocal_dvision
 )
 
-camodocal_install(camodocal_DBoW2)
+camodocal_install(camodocal_dbow2)
