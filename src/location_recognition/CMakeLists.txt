@@ -13,7 +13,7 @@ camodocal_library(camodocal_location_recognition SHARED
 camodocal_link_libraries(camodocal_location_recognition
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_dbow2
-  camodocal_dutilscV
+  camodocal_dutilscv
   camodocal_dutils
   camodocal_dvision
   camodocal_sparse_graph
