@@ -168,7 +168,7 @@ include_directories(
 
 add_subdirectory(src)
 
-install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH})
+install(DIRECTORY "include/camodocal" DESTINATION ${CAMODOCAL_INCLUDE_INSTALL_PATH} )
 
 # Output
 set(_output_blanks "                              ")
@@ -277,6 +277,7 @@ print("")
 
 
 INCLUDE(InstallProjectConfig)
+export(PACKAGE CAMODOCAL)
 
 ###################### Add uninstall target ############################
 if("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
