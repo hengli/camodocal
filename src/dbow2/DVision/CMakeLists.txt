@@ -14,7 +14,7 @@ if(OpenCV_FOUND)
   endif()
 endif()
 
-camodocal_library(camodocal_DVision SHARED
+camodocal_library(camodocal_dvision SHARED
   BRIEF.cpp
   BundleCamera.cpp
   FSolver.cpp
@@ -28,10 +28,10 @@ camodocal_library(camodocal_DVision SHARED
   ${DVision_COMPONENTS}
 )
 
-camodocal_link_libraries(camodocal_DVision
+camodocal_link_libraries(camodocal_dvision
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   ${OpenCV_LIBS}
-  camodocal_DUtils
+  camodocal_dutils
 )
 
-camodocal_install(camodocal_DVision)
+camodocal_install(camodocal_dvision)

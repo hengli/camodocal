@@ -1,4 +1,4 @@
-camodocal_library(camodocal_DUtils SHARED
+camodocal_library(camodocal_dutils SHARED
   BinaryFile.cpp
   ConfigFile.cpp
   DebugFunctions.cpp
@@ -12,4 +12,4 @@ camodocal_library(camodocal_DUtils SHARED
   Timestamp.cpp
 )
 
-camodocal_install(camodocal_DUtils)
+camodocal_install(camodocal_dutils)

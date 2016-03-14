@@ -56,5 +56,5 @@ camodocal_executable(train_voctree
 )
 
 camodocal_link_libraries(train_voctree
-  camodocal_DBoW2
+  camodocal_dbow2
 )
