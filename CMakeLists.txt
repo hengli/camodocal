@@ -159,6 +159,26 @@ set(TARGET_NAME ${PROJECT_NAME})
 add_custom_target(${TARGET_NAME} ALL)
 include(GenerateExportHeader)
 
+
+install(
+  FILES 
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindBLAS.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindEigen3.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGflags.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGlog.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGTest.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLAPACK.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLibDL.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLibm.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLibnsl.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLibrt.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindOpenMP.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSuiteSparse.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindTBB.cmake
+  DESTINATION ${INSTALL_CMAKE_DIR}
+  COMPONENT Devel
+  )
+
 ################ Sub Directories ################
 
 # Global includes
@@ -277,11 +297,4 @@ print("")
 
 
 INCLUDE(InstallProjectConfig)
-export(PACKAGE CAMODOCAL)
-
-###################### Add uninstall target ############################
-if("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
-    ADD_CUSTOM_TARGET(uninstall
-      COMMAND ${CMAKE_COMMAND} -P ${PROJECT_CMAKE_DIR}/cmake_uninstall.cmake)
-endif()
 

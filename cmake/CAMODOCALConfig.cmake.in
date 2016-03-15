@@ -1,28 +1,21 @@
 # Config file for the CAMODOCAL package
-# This adds CAMODOCAL IMPORTED target
+# This adds CAMODOCAL IMPORTED targets
 #
 # Usage example:
 # 
 #   find_package(CAMODOCAL)
 #   add_executable(foo foo.cpp)
-#   target_link_libraries(foo CAMODOCAL)
+#   target_link_libraries(foo CAMODOCALTargets)
 #
-# Additionaly you can use the following variables:
-#
-#  CAMODOCAL_FOUND   	    - standard CMake Package found indicator
-#  CAMODOCAL_INCLUDE_DIR  - include directories for CAMODOCAL alone
-#  CAMODOCAL_INCLUDE_DIRS - include directories for CAMODOCAL with all dpendencies
-#  CAMODOCAL_DEFINITIONS  - Definitions needed to build with CAMODOCAL
-#  CAMODOCAL_LIBRARIES    - Libraries needed to build with CAMODOCAL
+# for a list of possible targets see the file
+# CAMODOCALTargets.cmake in the same folder as this file
 
 # todo: implement a mechanism for find_dependency scripts to work
-# include(CMakeFindDependencyMacro)
-# find_dependency(Gflags)
-# find_dependency(Glog)
-# find_dependency(Gtest)
-# find_dependency(LAPACK)
-# find_dependency(OpenCV)
-# find_dependency(SuiteSparse)
+include(CMakeFindDependencyMacro)
+find_dependency(Gflags)
+find_dependency(Glog)
+find_dependency(OpenCV)
+find_dependency(Ceres)
 
 # Our library dependencies (contains definitions for IMPORTED targets)
 if(NOT TARGET CAMODOCAL)
