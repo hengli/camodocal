@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "CameraRigBA.h"
 
 #include <boost/dynamic_bitset.hpp>
@@ -782,8 +784,8 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
             continue;
         }
 
-        if (isnan(feature3D->point()(0)) || isnan(feature3D->point()(1)) ||
-            isnan(feature3D->point()(2)))
+        if (std::isnan(feature3D->point()(0)) || std::isnan(feature3D->point()(1)) ||
+            std::isnan(feature3D->point()(2)))
         {
             continue;
         }
@@ -2036,8 +2038,8 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                         continue;
                     }
 
-                    if (isnan(feature3D->point()(0)) || isnan(feature3D->point()(1)) ||
-                        isnan(feature3D->point()(2)))
+                    if (std::isnan(feature3D->point()(0)) || std::isnan(feature3D->point()(1)) ||
+                        std::isnan(feature3D->point()(2)))
                     {
                         continue;
                     }

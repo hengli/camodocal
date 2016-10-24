@@ -54,20 +54,46 @@ camodocal_optional_dependency(OpenCV)
 #camodocal_optional_dependency(Ceres)
 camodocal_optional_dependency(Threads)
 
-# enable GPU enhanced SURF features
-if(CUDA_FOUND)
-    add_definitions(-DHAVE_CUDA)
-    message(STATUS "defined HAVE_CUDA")
-
-    set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
-endif()
-
 if(OpenCV_FOUND)
 	message(STATUS "OpenCV version: ${OpenCV_VERSION}")
     if(NOT OpenCV_VERSION VERSION_LESS "3.0.0")
         add_definitions(-DHAVE_OPENCV3)
 		message(STATUS "defined HAVE_OPENCV3")
+
+        set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${OPENCV_INCLUDE_DIRS})
+        include(CheckIncludeFileCXX)
+
+        check_include_file_cxx(opencv2/face/facerec.hpp HAVE_OPENCV_CONTRIB)
+        if(HAVE_OPENCV_CONTRIB)
+            add_definitions(-DHAVE_OPENCV_CONTRIB)
+        elseif()
+            message(STATUS "OPENCV_CONTRIB NOT PRESENT, DISABLING LOTS OF FUNCTIONALITY, SEE https://github.com/opencv/opencv_contrib")
+        endif()
+
+        check_include_file_cxx(opencv2/xfeatures2d/nonfree.hpp HAVE_OPENCV_XFEATURES2D_NONFREE)
+        if(HAVE_OPENCV_XFEATURES2D_NONFREE)
+            add_definitions(-DHAVE_OPENCV_XFEATURES2D_NONFREE)
+        elseif()
+            message(STATUS "OPENCV_XFEATURES2D_NONFREE NOT PRESENT, DISABLING LOTS OF FUNCTIONALITY, SEE https://github.com/opencv/opencv_contrib")
+        endif()
+
+        check_include_file_cxx(opencv2/cudafeatures2d.hpp HAVE_OPENCV_CUDAFEATURES2D)
+        if(HAVE_OPENCV_CUDAFEATURES2D)
+            add_definitions(-DHAVE_OPENCV_CUDAFEATURES2D)
+        elseif()
+            message(STATUS "OPENCV_CUDAFEATURES2D NOT PRESENT, DISABLING LOTS OF FUNCTIONALITY")
+        endif()
+
     endif()
+endif()
+
+# enable GPU enhanced SURF features
+# if BOTH CUDA and the OPENCV contrib cuda features are available
+if(CUDA_FOUND AND HAVE_OPENCV_CUDAFEATURES2D)
+    add_definitions(-DHAVE_CUDA)
+    message(STATUS "defined HAVE_CUDA")
+
+    set(CUDA_CUDART_LIBRARY_OPTIONAL ${CUDA_CUDART_LIBRARY})
 endif()
 
 # OSX RPATH

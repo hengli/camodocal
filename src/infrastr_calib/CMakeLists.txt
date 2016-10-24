@@ -1,4 +1,4 @@
-if(OpenCV_FOUND)
+if(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 include_directories(
   ${CERES_INCLUDE_DIRECTORIES}
   ../dbow2/DBoW2
@@ -37,4 +37,4 @@ camodocal_link_libraries(camodocal_infrastr_calib
 camodocal_install(camodocal_infrastr_calib)
 
 endif(VCHARGE_VIZ)
-endif(OpenCV_FOUND)
+endif(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)

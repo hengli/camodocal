@@ -99,7 +99,9 @@ LIST(APPEND GLOG_CHECK_LIBRARY_DIRS
   /usr/lib
   /usr/local/lib
   /usr/local/homebrew/lib # Mac OS X.
-  /opt/local/lib)
+  /opt/local/lib
+  /usr/lib/x86_64-linux-gnu/ # Ubuntu 16.04
+  )
 # Search supplied hint directories first if supplied.
 FIND_PATH(GLOG_INCLUDE_DIR
   NAMES glog/logging.h

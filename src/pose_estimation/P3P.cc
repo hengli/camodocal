@@ -47,6 +47,7 @@
 #include <cmath>
 #include <complex>
 #include <iostream>
+#include <cmath>
 
 namespace Eigen
 {
@@ -313,7 +314,7 @@ solveP3P(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vect
         {
             for (int k = 0; k < 4; ++k)
             {
-                if (isnan(H(j,k)))
+                if (std::isnan(H(j,k)))
                 {
                     valid = false;
 

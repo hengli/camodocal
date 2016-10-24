@@ -1,5 +1,5 @@
 
-if(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND)
+if(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 
 camodocal_executable(intrinsic_calib
   intrinsic_calib.cc
@@ -41,7 +41,7 @@ camodocal_link_libraries(extrinsic_calib
   camodocal_calib
 )
 
-endif(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND)
+endif(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 
 include_directories(
   ../dbow2/DBoW2

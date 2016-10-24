@@ -1,4 +1,4 @@
-if(OpenCV_FOUND)
+if(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 camodocal_library(camodocal_features2d SHARED
   ORBGPU.cc
   SurfGPU.cc
@@ -15,4 +15,4 @@ camodocal_link_libraries(camodocal_features2d
 
 camodocal_install(camodocal_features2d)
 
-endif(OpenCV_FOUND)
+endif(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)

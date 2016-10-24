@@ -26,7 +26,7 @@ set(SRCS
     PlanarHandEyeCalibration.cc
 )
 
-if(OpenCV_FOUND)
+if(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 
 list(APPEND SRCS
   CameraCalibration.cc
@@ -49,7 +49,7 @@ set(CALIB_OPTIONAL_DEPENDENCIES
     camodocal_sparse_graph
     camodocal_visual_odometry
 )
-endif(OpenCV_FOUND)
+endif(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 
 camodocal_library(camodocal_calib SHARED ${SRCS})
 
