@@ -11,11 +11,11 @@
 # CAMODOCALTargets.cmake in the same folder as this file
 
 # todo: implement a mechanism for find_dependency scripts to work
-include(CMakeFindDependencyMacro)
-find_dependency(Gflags)
-find_dependency(Glog)
-find_dependency(OpenCV)
-find_dependency(Ceres)
+#include(CMakeFindDependencyMacro)
+#find_dependency(Gflags)
+#find_dependency(Glog)
+#find_dependency(OpenCV)
+#find_dependency(Ceres)
 
 # Our library dependencies (contains definitions for IMPORTED targets)
 if(NOT TARGET CAMODOCAL)
@@ -24,5 +24,5 @@ endif()
 
 # @PACKAGE_INIT@
 
-# check_required_components(CAMODOCAL)
+check_required_components(CAMODOCAL)
 
