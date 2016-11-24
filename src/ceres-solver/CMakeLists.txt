@@ -1,4 +1,4 @@
-#if(NOT CERES_FOUND)
+if(NOT CERES_FOUND)
 if(GLOG_FOUND)
     # Google Logging
     set(GLOG_LIB ${GLOG_LIBRARIES})
@@ -108,4 +108,4 @@ include_directories(
 add_subdirectory(internal/ceres)
 
 endif(GLOG_FOUND)
-#endif(NOT CERES_FOUND)
+endif(NOT CERES_FOUND)
