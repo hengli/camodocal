@@ -94,7 +94,6 @@ camodocal_link_libraries(CamOdoCalibration_test
 )
 
 camodocal_test(HandEyeCalibration)
-message(STATUS "FOUND OpenCV libs: " ${OpenCV_LIBS})
 camodocal_link_libraries(HandEyeCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
