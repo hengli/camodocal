@@ -84,23 +84,31 @@ endif(VCHARGE_VIZ)
 
 camodocal_install(camodocal_calib)
 
-if(OpenCV_FOUND)
+if(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 camodocal_test(CamOdoCalibration)
 camodocal_link_libraries(CamOdoCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
+  ${OPENCV_LIBS}
+  camodocal_gpl
 )
-endif(OpenCV_FOUND)
-
 
 camodocal_test(HandEyeCalibration)
+message(STATUS "FOUND OpenCV libs: " ${OpenCV_LIBS})
 camodocal_link_libraries(HandEyeCalibration_test 
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
+  ${OPENCV_LIBS}
+  camodocal_gpl
 )
 
 camodocal_test(PlanarHandEyeCalibration)
 camodocal_link_libraries(PlanarHandEyeCalibration_test
   ${CAMODOCAL_PLATFORM_UNIX_LIBRARIES}
   camodocal_calib
+  ${OPENCV_LIBS}
+  camodocal_gpl
 )
+else(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
+  message(STATUS "CANNOT BUILD CamOdoCalibration_test, HandEyeCalibration_test, and PlanarHandEyeCalibration_test because it depends on OPENCV and HAVE_OPENCV_XFEATURES2D_NONFREE.")
+endif(OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
