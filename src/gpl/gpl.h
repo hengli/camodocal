@@ -83,7 +83,7 @@ unsigned long long timeInMicroseconds(void);
 
 double timeInSeconds(void);
 
-#ifdef HAVE_OPENCV
+#if defined(HAVE_OPENCV2) || defined(HAVE_OPENCV3)
 void colorDepthImage(cv::Mat& imgDepth,
                      cv::Mat& imgColoredDepth,
                      float minRange, float maxRange);
@@ -99,7 +99,7 @@ void fitCircle(const std::vector<cv::Point2d>& points,
 
 std::vector<cv::Point2d> intersectCircles(double x1, double y1, double r1,
                                           double x2, double y2, double r2);
-#endif // HAVE_OPENCV
+#endif //  defined(HAVE_OPENCV2) || defined(HAVE_OPENCV3)
 
 void LLtoUTM(double latitude, double longitude,
              double& utmNorthing, double& utmEasting,
