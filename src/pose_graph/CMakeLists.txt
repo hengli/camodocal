@@ -1,3 +1,4 @@
+if(OpenCV_FOUND)
 include_directories(
   ${CERES_INCLUDE_DIRECTORIES}
   ../dbow2/DBoW2
@@ -21,3 +22,4 @@ camodocal_link_libraries(camodocal_pose_graph
 )
 
 camodocal_install(camodocal_pose_graph)
+endif()

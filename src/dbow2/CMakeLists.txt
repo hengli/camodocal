@@ -1,3 +1,4 @@
+if(OpenCV_FOUND)
 add_subdirectory(DBoW2)
 add_subdirectory(DUtils)
 add_subdirectory(DUtilsCV)
@@ -21,3 +22,4 @@ camodocal_link_libraries(dbow2_demo
   camodocal_dutilscv
   camodocal_dvision
 )
+endif()

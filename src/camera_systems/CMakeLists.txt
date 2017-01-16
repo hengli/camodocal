@@ -1,3 +1,5 @@
+
+if(OpenCV_FOUND)
 include_directories(
   ${CERES_INCLUDE_DIRECTORIES}
 )
@@ -15,3 +17,4 @@ camodocal_link_libraries(camodocal_camera_systems
 )
 
 camodocal_install(camodocal_camera_systems)
+endif()

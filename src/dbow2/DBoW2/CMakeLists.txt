@@ -1,3 +1,4 @@
+if(OpenCV_FOUND)
 include_directories(
   ../DUtils
   ../DVision
@@ -21,3 +22,4 @@ camodocal_link_libraries(camodocal_dbow2
 )
 
 camodocal_install(camodocal_dbow2)
+endif()

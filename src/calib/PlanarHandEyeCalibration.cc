@@ -7,7 +7,9 @@
 #include <complex>
 
 #include <Eigen/Eigen>
+#if defined(HAVE_OPENCV2) || defined(HAVE_OPENCV3)
 #include <opencv2/core/eigen.hpp>
+#endif //  defined(HAVE_OPENCV2) || defined(HAVE_OPENCV3)
 
 #include "../gpl/EigenUtils.h"
 #include "ceres/ceres.h"

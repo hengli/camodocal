@@ -43,6 +43,7 @@ camodocal_link_libraries(extrinsic_calib
 
 endif(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)
 
+if(OpenCV_FOUND)
 include_directories(
   ../dbow2/DBoW2
   ../dbow2/DUtils
@@ -58,3 +59,4 @@ camodocal_executable(train_voctree
 camodocal_link_libraries(train_voctree
   camodocal_dbow2
 )
+endif()

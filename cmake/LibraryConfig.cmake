@@ -84,6 +84,8 @@ if(OpenCV_FOUND)
             message(STATUS "OPENCV_CUDAFEATURES2D NOT PRESENT, DISABLING LOTS OF FUNCTIONALITY")
         endif()
 
+    else()
+        add_definitions(-DHAVE_OPENCV2)
     endif()
 endif()
 

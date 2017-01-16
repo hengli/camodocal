@@ -1,3 +1,4 @@
+if(OpenCV_FOUND)
 camodocal_library(camodocal_dutilscv SHARED
   Drawing.cpp
   Geometry.cpp
@@ -14,3 +15,4 @@ camodocal_link_libraries(camodocal_dutilscv
 )
 
 camodocal_install(camodocal_dutilscv)
+endif()
