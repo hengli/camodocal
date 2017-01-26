@@ -1,0 +1,64 @@
+
+# Enable C++ support
+language: cpp
+
+env:
+  global:
+    - NUM_THREADS=4
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+      compiler: gcc
+      addons:
+       apt:
+         sources:
+         - sourceline: 'ppa:bzindovic/suitesparse-bugfix-1319687'
+         - sourceline: 'ppa:xqms/opencv-nonfree'
+         - sourceline: 'ppa:ubuntu-toolchain-r/test'
+         - sourceline: 'ppa:george-edison55/cmake-3.x'
+         packages:
+         - libtool 
+         - pkg-config 
+         - build-essential 
+         - autoconf 
+         - automake
+         - gfortran
+         - libgflags-dev
+         - libgoogle-glog-dev
+         - libgtest-dev
+         - libboost-all-dev 
+         - libeigen3-dev 
+         - libopenblas-dev
+         - libopencv-dev
+         - libopencv-nonfree-dev
+         - cmake
+         - libgoogle-glog-dev
+         - libatlas-base-dev
+         - libeigen3-dev
+         - libsuitesparse-dev
+         - libtbb-dev
+
+# dependency install steps
+before_install:   
+  - git clone https://ceres-solver.googlesource.com/ceres-solver -b 1.12.0
+  - cd ceres-solver
+  - mkdir build
+  - cd build
+  - cmake ..
+  - sudo make -j3 install
+  - cd ../..
+
+# Build steps
+script:
+  - git clone https://github.com/hengli/camodocal.git
+  - cd camodocal
+  - mkdir build
+  - cd build
+  - cmake ..
+  - sudo make -j install
+  - cd ../..
+#  - sudo make install
+#  - cd ../..
