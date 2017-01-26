@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
 
-set(PROJECT_VERSION 1.0.0)
+set(PROJECT_VERSION 1.0.1)
 project(CAMODOCAL LANGUAGES C CXX)
 
 
