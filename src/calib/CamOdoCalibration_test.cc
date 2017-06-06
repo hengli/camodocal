@@ -2,7 +2,7 @@
 #include <iostream>
 
 #include "../gpl/gpl.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "camodocal/calib/CamOdoCalibration.h"
 
 namespace camodocal
@@ -11,7 +11,7 @@ namespace camodocal
 TEST(CamOdoCalibration, SetRandomSeed)
 {
    // srand(time(0));
-    srand(5); 
+    srand(5);
 }
 
 TEST(CamOdoCalibration, MultiScale1)

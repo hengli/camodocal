@@ -54,7 +54,7 @@
 #include "../brisk/include/brisk/brisk.h"
 #include "../camera_models/CostFunctionFactory.h"
 #include "../gpl/gpl.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "../gpl/OpenCVUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "ceres/ceres.h"
@@ -79,7 +79,7 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
     static const int orbNFeatures = 1000;
     static const int surfNFeatures = 500;
     static const int surfGPU_NFeatures = 200;
-    
+
     // FEATURE DETECTORS
 #ifdef HAVE_OPENCV3
     switch (detectorType)
@@ -99,7 +99,7 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
         break;
     case SURF_GPU_DETECTOR:
         m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
-        break; 
+        break;
     case SURF_DETECTOR:
     default:
         m_featureDetector = cv::xfeatures2d::SurfFeatureDetector::create(surfNFeatures, 5, 2);
@@ -122,7 +122,7 @@ FeatureTracker::FeatureTracker(DetectorType detectorType,
         break;
     case SURF_GPU_DETECTOR:
         m_SURF_GPU = SurfGPU::instance(surfGPU_NFeatures);
-        break; 
+        break;
     case SURF_DETECTOR:
     default:
         m_featureDetector = cv::Ptr<cv::FeatureDetector>(new cv::SurfFeatureDetector(surfNFeatures, 5, 2));

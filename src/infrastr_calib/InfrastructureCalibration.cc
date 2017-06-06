@@ -8,7 +8,8 @@
 #include "../camera_models/CostFunctionFactory.h"
 #include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
-#include "../gpl/EigenUtils.h"
+#include "../../gpl/gpl.h"
+#include "camodocal/EigenUtils.h"
 #ifndef HAVE_OPENCV3
 #include "../gpl/OpenCVUtils.h"
 #endif // HAVE_OPENCV3
@@ -602,7 +603,7 @@ InfrastructureCalibration::estimateCameraPose(const cv::Mat& image,
     cv::Mat imageProc;
     if (preprocess)
     {
-    
+
 
 #ifdef HAVE_CUDA
     //////////////////

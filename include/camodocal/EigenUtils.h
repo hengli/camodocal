@@ -4,10 +4,15 @@
 #include <Eigen/Dense>
 
 #include "ceres/rotation.h"
-#include "gpl.h"
 
 namespace camodocal
 {
+
+template<typename T>
+T square(const T & m)
+{
+    return m * m;
+}
 
 // Returns the 3D cross product skew symmetric matrix of a given 3D vector
 template<typename T>
@@ -66,10 +71,10 @@ void AngleAxisToQuaternion(const Eigen::Matrix<T, 3, 1>& rvec, T* q)
 template<typename T>
 Eigen::Matrix<T, 3, 1> RotationToAngleAxis(const Eigen::Matrix<T, 3, 3> & rmat)
 {
-    Eigen::AngleAxis<T> angleaxis; 
-    angleaxis.fromRotationMatrix(rmat); 
-    return angleaxis.angle() * angleaxis.axis(); 
-    
+    Eigen::AngleAxis<T> angleaxis;
+    angleaxis.fromRotationMatrix(rmat);
+    return angleaxis.angle() * angleaxis.axis();
+
 }
 
 template<typename T>
@@ -142,9 +147,9 @@ void AngleAxisAndTranslationToScrew(const Eigen::Matrix<T, 3, 1>& rvec,
     theta = rvec.norm();
     if (theta == 0)
     {
-        l.setZero(); 
-        m.setZero(); 
-        std::cout << "Warning: Undefined screw! Returned 0. " << std::endl; 
+        l.setZero();
+        m.setZero();
+        std::cout << "Warning: Undefined screw! Returned 0. " << std::endl;
     }
 
     l = rvec.normalized();
@@ -182,7 +187,7 @@ Eigen::Matrix<T, 3, 3> RPY2mat(T roll, T pitch, T yaw)
     m(2,0) = - sp;
     m(2,1) = cp * sr;
     m(2,2) = cp * cr;
-    return m; 
+    return m;
 }
 
 template<typename T>

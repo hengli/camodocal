@@ -22,7 +22,7 @@
 #include "../camera_models/CostFunctionFactory.h"
 #include "../features2d/SurfGPU.h"
 #include "../gpl/EigenQuaternionParameterization.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "../visual_odometry/SlidingWindowBA.h"
 #include "OdometryError.h"
@@ -245,7 +245,7 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // first camera it was observed in.
 
         boost::unordered_map<Point3DFeature*, Eigen::Vector3d, boost::hash<Point3DFeature*>, std::equal_to<Point3DFeature*>, Eigen::aligned_allocator<std::pair<Point3DFeature* const, Eigen::Vector3d> > > scenePointMap;
-        
+
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
             FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -2252,7 +2252,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                 ceres::LocalParameterization* quaternionParameterization =
                     new EigenQuaternionParameterization;
-                
+
                 problem.SetParameterization(chessboardCameraPoses[i].at(j).data(),
                                             quaternionParameterization);
             }
@@ -3761,7 +3761,7 @@ CameraRigBA::dumpPointCloud(const std::string& dir, bool dumpPoses)
 
     float hw = 0.5;
     float hl = 0.25;
-    
+
     std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > vertex(4);
 
     vertex[0] = Eigen::Vector3d(hw,hl,0);

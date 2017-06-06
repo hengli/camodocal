@@ -8,7 +8,8 @@
 #include <iostream>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "../gpl/EigenUtils.h"
+#include "../../gpl/gpl.h"
+#include "camodocal/EigenUtils.h"
 #include "CamOdoThread.h"
 #include "CamOdoWatchdogThread.h"
 #include "CameraRigBA.h"

@@ -10,7 +10,7 @@
 #include <camodocal/sparse_graph/SparseGraphUtils.h>
 #include "ceres/ceres.h"
 #include "../camera_models/CostFunctionFactory.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "../npoint/five-point/five-point.hpp"
 #include "../pose_estimation/P3P.h"
 

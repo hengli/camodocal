@@ -1,7 +1,7 @@
 #ifndef ODOMETRYERROR_H
 #define ODOMETRYERROR_H
 
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 
 namespace camodocal
 {

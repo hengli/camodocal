@@ -3,14 +3,14 @@
 
 #include "camodocal/calib/HandEyeCalibration.h"
 #include "../gpl/gpl.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 
 namespace camodocal
 {
 
 TEST(HandEyeCalibration, FullMotion)
 {
-    HandEyeCalibration::setVerbose(false); 
+    HandEyeCalibration::setVerbose(false);
 
     Eigen::Matrix4d H_12_expected = Eigen::Matrix4d::Identity();
     H_12_expected.block<3,3>(0,0) = Eigen::AngleAxisd(0.4, Eigen::Vector3d(0.1, 0.2, 0.3).normalized()).toRotationMatrix();
@@ -72,7 +72,7 @@ TEST(HandEyeCalibration, FullMotion)
 
 TEST(HandEyeCalibration, PlanarMotion)
 {
-    HandEyeCalibration::setVerbose(false); 
+    HandEyeCalibration::setVerbose(false);
 
     Eigen::Matrix4d H_12_expected = Eigen::Matrix4d::Identity();
     H_12_expected.block<3,3>(0,0) = Eigen::AngleAxisd(0.4, Eigen::Vector3d(0.1, 0.2, 0.3).normalized()).toRotationMatrix();
@@ -84,14 +84,14 @@ TEST(HandEyeCalibration, PlanarMotion)
     for (int i = 0; i < motionCount; ++i)
     {
         double droll = d2r(random(-10.0, 10.0));
-        droll = 0; 
+        droll = 0;
         double dpitch =  d2r(random(-10.0, 10.0));
-        dpitch = 0; 
+        dpitch = 0;
         double dyaw =  d2r(random(-10.0, 10.0));
         double dx = random(-1.0, 1.0);
         double dy = random(-1.0, 1.0);
         double dz = random(-1.0, 1.0);
-        dz = 0; 
+        dz = 0;
 
         Eigen::Matrix3d R;
         R = Eigen::AngleAxisd(dyaw, Eigen::Vector3d::UnitZ()) *
@@ -130,7 +130,7 @@ TEST(HandEyeCalibration, PlanarMotion)
     {
         for (int j = 0; j < 4; ++j)
         {
-            if (i == 2 && j == 3) continue; 
+            if (i == 2 && j == 3) continue;
             EXPECT_NEAR(H_12_expected(i,j),H_12(i,j),0.0000000001) << "Elements differ at (" << i << "," << j << ")";
         }
     }
@@ -138,7 +138,7 @@ TEST(HandEyeCalibration, PlanarMotion)
 
 TEST(HandEyeCalibration, PlanarMotionWithNoise)
 {
-    HandEyeCalibration::setVerbose(true); 
+    HandEyeCalibration::setVerbose(true);
 
     Eigen::Matrix4d H_12_expected = Eigen::Matrix4d::Identity();
     H_12_expected.block<3,3>(0,0) = Eigen::AngleAxisd(0.4, Eigen::Vector3d(0.1, 0.2, 0.3).normalized()).toRotationMatrix();
@@ -148,19 +148,19 @@ TEST(HandEyeCalibration, PlanarMotionWithNoise)
 
     double scale = 1.5;
     int motionCount = 200;
-    double sigma = 0.0005; 
-    cv::RNG rng; 
+    double sigma = 0.0005;
+    cv::RNG rng;
     for (int i = 0; i < motionCount; ++i)
     {
         double droll = d2r(random(-10.0, 10.0));
-        droll = 0; 
+        droll = 0;
         double dpitch =  d2r(random(-10.0, 10.0));
-        dpitch = 0; 
+        dpitch = 0;
         double dyaw =  d2r(random(-100.0, 100.0));
         double dx = random(-10.0, 10.0);
         double dy = random(-10.0, 10.0);
         double dz = random(-10.0, 10.0);
-        dz = 0; 
+        dz = 0;
 
         Eigen::Matrix3d R;
         R = Eigen::AngleAxisd(dyaw, Eigen::Vector3d::UnitZ()) *
@@ -207,7 +207,7 @@ TEST(HandEyeCalibration, PlanarMotionWithNoise)
     Eigen::Matrix4d H2 = H_12;
     std::cout << "# INFO: H_12_expected = " << std::endl;
     std::cout << H_12_expected << std::endl; ;
-//    std::cout << H1 << std::endl << H2 << std::endl; 
+//    std::cout << H1 << std::endl << H2 << std::endl;
 
 //    for (int i = 0; i < 4; ++i)
 //    {

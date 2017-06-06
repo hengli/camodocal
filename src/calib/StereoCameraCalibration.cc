@@ -5,7 +5,7 @@
 
 #include "ceres/ceres.h"
 #include "../gpl/EigenQuaternionParameterization.h"
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "camodocal/camera_models/CameraFactory.h"
 #include "../camera_models/CostFunctionFactory.h"
 

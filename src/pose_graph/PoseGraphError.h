@@ -3,7 +3,7 @@
 
 #include <camodocal/sparse_graph/Transform.h>
 
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 
 namespace camodocal
 {

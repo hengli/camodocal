@@ -7,7 +7,8 @@
 #include <opencv2/imgproc.hpp>
 #endif
 
-#include "../gpl/EigenUtils.h"
+#include "../gpl/gpl.h"
+#include "camodocal/EigenUtils.h"
 #include "../visual_odometry/FeatureTracker.h"
 #include "utils.h"
 

@@ -9,7 +9,7 @@
 #include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>
 
-#include "../gpl/EigenUtils.h"
+#include "camodocal/EigenUtils.h"
 #include "ceres/ceres.h"
 
 #include <boost/thread/mutex.hpp>
@@ -300,13 +300,13 @@ CamOdoCalibration::getVerbose(void)
     return mVerbose;
 }
 
-void 
+void
 CamOdoCalibration::setVerbose(bool on)
 {
-    mVerbose = on; 
+    mVerbose = on;
 }
 
-bool 
+bool
 CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                             const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                             const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
@@ -461,7 +461,7 @@ CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen
         }
         std::cout << std::endl;
     }
-    
+
     return true;
 }
 
@@ -527,7 +527,7 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
 
     Eigen::Matrix3d R_yxs[2];
     double yaw[2];
-    
+
     for (int i = 0; i < 2; ++i)
     {
         double t = s[i] * s[i] * t1.dot(t1) + 2 * s[i] * t1.dot(t2) + t2.dot(t2);
@@ -554,7 +554,7 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
     return true;
 }
 
-void 
+void
 CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double>& scales,
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
