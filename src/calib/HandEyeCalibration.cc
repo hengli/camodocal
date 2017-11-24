@@ -75,7 +75,7 @@ static Eigen::MatrixXd ScrewToStransposeBlockofT(
                                                     )
 {
         Eigen::MatrixXd Stranspose(6,8);
-
+        Stranspose.setZero();
 
         typedef Eigen::Matrix<T, 3, 1> VecT;
         auto skew_a_plus_b = skew(VecT(a + b));
