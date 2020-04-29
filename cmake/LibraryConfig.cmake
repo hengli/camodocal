@@ -60,7 +60,7 @@ if(OpenCV_FOUND)
         add_definitions(-DHAVE_OPENCV3)
 		message(STATUS "defined HAVE_OPENCV3")
 
-        set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${OPENCV_INCLUDE_DIRS})
+        set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${OpenCV_INCLUDE_DIRS})
         include(CheckIncludeFileCXX)
 
         check_include_file_cxx(opencv2/face/facerec.hpp HAVE_OPENCV_CONTRIB)
