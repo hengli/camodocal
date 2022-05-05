@@ -138,7 +138,7 @@ Go to the build folder where the executables corresponding to the examples are l
 
    Details to be released soon!
    
-  [1]: https://www.cise.ufl.edu/research/sparse/SuiteSparse/SuiteSparse-4.2.1.tar.gz "link"
+  [1]: https://people.engr.tamu.edu/davis/SuiteSparse/SuiteSparse-4.2.1.tar.gz "link"
   [2]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
   [3]: https://github.com/hengli/camodocal/blob/master/src/examples/stereo_calib.cc "src/examples/stereo_calib.cc"
   [4]: https://github.com/hengli/camodocal/blob/master/src/examples/extrinsic_calib.cc "src/examples/extrinsic_calib.cc"
