@@ -136,7 +136,7 @@ Go to the build folder where the executables corresponding to the examples are l
 
 4. Infrastructure-based calibration
 
-   Details to be released soon!
+   Please visit [InfrasCal](https://github.com/youkely/InfrasCal) for more details.
    
   [1]: https://people.engr.tamu.edu/davis/SuiteSparse/SuiteSparse-4.2.1.tar.gz "link"
   [2]: https://github.com/hengli/camodocal/blob/master/src/examples/intrinsic_calib.cc "src/examples/intrinsic_calib.cc"
