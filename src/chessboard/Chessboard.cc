@@ -76,7 +76,17 @@ Chessboard::findChessboardCorners(const cv::Mat& image,
 {
     if (useOpenCV)
     {
-        return cv::findChessboardCorners(image, patternSize, corners, flags);
+        bool found = cv::findChessboardCorners(image, patternSize, corners, flags);
+        if (found)
+		{
+			cv::cornerSubPix(image, corners, cv::Size(11, 11), cv::Size(-1,-1),
+							 cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
     else
     {
